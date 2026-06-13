@@ -12,6 +12,15 @@
 // - Dates stored UTC. `hasDueTime=false` means all-day, interpreted in the
 //   task's `timezone` (default Europe/Amsterdam).
 // - Every mutation writes an ActivityEvent.
+// - Projects are FLAT (no nesting). Sections belong to a project. Subtasks
+//   are a Task self-relation via `parentId`; a subtask always has
+//   `sectionId = null` (its placement is implied by its parent).
+// - Comments attach to exactly one of task XOR project (DB CHECK enforces).
+// - Deletes: project delete cascades tasks/sections/comments; section delete
+//   moves its tasks to the project root (SetNull); parent task delete
+//   cascades subtasks; label delete cascades TaskLabel rows.
+// - completeTask cascade-completes all incomplete descendants in the same
+//   transaction; reopenTask reopens only the task itself.
 
 generator client {
   provider = "prisma-client"
@@ -23,19 +32,41 @@ datasource db {
 }
 
 model Project {
+  id         String    @id @default(cuid())
+  name       String
+  isInbox    Boolean   @default(false)
+  isFavorite Boolean   @default(false)
+  archivedAt DateTime?
+  order      String
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  tasks      Task[]
+  sections   Section[]
+  comments   Comment[]
+}
+
+model Section {
   id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   name      String
-  isInbox   Boolean  @default(false)
   order     String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   tasks     Task[]
+
+  @@index([projectId, order])
 }
 
 model Task {
   id                   String          @id @default(cuid())
   projectId            String
-  project              Project         @relation(fields: [projectId], references: [id])
+  project              Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sectionId            String?
+  section              Section?        @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  parentId             String?
+  parent               Task?           @relation("TaskSubtasks", fields: [parentId], references: [id], onDelete: Cascade)
+  subtasks             Task[]          @relation("TaskSubtasks")
   title                String
   description          String?
   priority             Int             @default(4)
@@ -49,10 +80,47 @@ model Task {
   createdAt            DateTime        @default(now())
   updatedAt            DateTime        @updatedAt
   completions          CompletionLog[]
+  labels               TaskLabel[]
+  comments             Comment[]
 
   @@index([projectId, order])
+  @@index([sectionId, order])
+  @@index([parentId])
   @@index([dueAt])
   @@index([completedAt])
+}
+
+model Label {
+  id        String      @id @default(cuid())
+  name      String      @unique
+  color     String      @default("#808080")
+  order     String
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  tasks     TaskLabel[]
+}
+
+model TaskLabel {
+  taskId  String
+  labelId String
+  task    Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  label   Label  @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, labelId])
+  @@index([labelId])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  taskId    String?
+  task      Task?    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([taskId])
+  @@index([projectId])
 }
 
 model CompletionLog {

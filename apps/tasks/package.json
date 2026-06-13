@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "smoke": "tsx scripts/smoke.ts",
     "seed": "prisma db seed"
   },
   "dependencies": {
