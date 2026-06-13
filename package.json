@@ -1,5 +1,13 @@
 {
   "name": "homelab",
   "private": true,
-  "packageManager": "pnpm@10.30.1"
+  "packageManager": "pnpm@10.30.1",
+  "scripts": {
+    "dev": "pnpm --filter tasks dev",
+    "build": "pnpm --filter tasks build",
+    "typecheck": "pnpm --filter tasks typecheck",
+    "lint": "pnpm --filter tasks lint",
+    "test": "pnpm --filter tasks test",
+    "seed": "pnpm --filter tasks seed"
+  }
 }

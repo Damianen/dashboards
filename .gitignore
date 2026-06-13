@@ -20,5 +20,12 @@ infra/postgres/data/
 infra/postgres/backups/
 infra/postgres/backup.log
 
+# next.js
+next-env.d.ts
+.vercel
+
+# generated prisma client
+apps/*/src/generated/
+
 # misc
 .DS_Store

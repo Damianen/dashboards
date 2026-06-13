@@ -1,0 +1,19 @@
+# Reaches the shared DB at host "postgres" on the external homelab network.
+# Prod .env needs the DATABASE_URL minted by create-service.sh tasks
+# (not tasks_dev), with host postgres instead of localhost.
+services:
+  tasks:
+    build:
+      context: ../..
+      dockerfile: apps/tasks/Dockerfile
+    container_name: tasks
+    env_file: .env
+    environment:
+      TZ: Europe/Amsterdam
+    networks:
+      - homelab
+    restart: unless-stopped
+
+networks:
+  homelab:
+    external: true
