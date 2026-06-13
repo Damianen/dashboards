@@ -15,8 +15,10 @@ out/
 # tests
 coverage/
 
-# postgres data volume (if bind-mounted)
+# postgres data volume (if bind-mounted) + local backup dumps
 infra/postgres/data/
+infra/postgres/backups/
+infra/postgres/backup.log
 
 # misc
 .DS_Store

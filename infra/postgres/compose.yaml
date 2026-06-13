@@ -1,0 +1,37 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in infra/postgres/.env}
+    volumes:
+      # postgres:18+ images mount their volume at /var/lib/postgresql
+      # (PGDATA defaults to /var/lib/postgresql/18/docker). Mounting the
+      # pre-18 path /var/lib/postgresql/data would NOT persist the data.
+      - pgdata:/var/lib/postgresql
+      # Backup target for scripts/backup.sh.
+      # PLACEHOLDER host path: repoint the left-hand side at the directory
+      # your nightly USB backup job already copies.
+      - ./backups:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - homelab
+    ports:
+      # LAN access so you can psql from the desktop.
+      # Comment out to make the server reachable only via the homelab network.
+      - "5432:5432"
+
+volumes:
+  pgdata:
+
+networks:
+  homelab:
+    # shared with all app containers — create once with:
+    #   docker network create homelab
+    external: true
