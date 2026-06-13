@@ -1,0 +1,22 @@
+# dependencies
+node_modules/
+
+# env — only .env.example is committed
+.env
+.env.*
+!.env.example
+
+# builds
+dist/
+.next/
+out/
+*.tsbuildinfo
+
+# tests
+coverage/
+
+# postgres data volume (if bind-mounted)
+infra/postgres/data/
+
+# misc
+.DS_Store

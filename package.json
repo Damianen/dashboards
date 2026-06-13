@@ -1,0 +1,5 @@
+{
+  "name": "homelab",
+  "private": true,
+  "packageManager": "pnpm@10.30.1"
+}
