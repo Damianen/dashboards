@@ -434,6 +434,16 @@ export async function deleteTask(id: string): Promise<void> {
 // ---------------------------------------------------------------------------
 // List helpers — reads only, no transactions, no activity events.
 
+/** Single task with its labels; throws NotFoundError when the id is unknown. */
+export async function getTask(id: string): Promise<TaskWithLabels> {
+  const task = await prisma.task.findUnique({
+    where: { id },
+    include: labelInclude,
+  });
+  if (!task) throw new NotFoundError("task", id);
+  return flattenLabels(task);
+}
+
 export interface ProjectTasksView {
   project: Project;
   rootTasks: TaskTreeNode<TaskWithLabels>[];

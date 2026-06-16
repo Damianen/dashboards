@@ -32,7 +32,9 @@ export type ActionResult<T> =
   | { ok: true; data: T }
   | { ok: false; error: ActionErrorShape };
 
-function mapError(err: unknown): ActionErrorShape {
+/** Map a thrown value to a stable {code, message}. Shared by server actions
+ *  and the MCP tool layer so both surface the same error vocabulary. */
+export function mapError(err: unknown): ActionErrorShape {
   if (err instanceof ZodError) {
     const first = err.issues[0];
     const path = first?.path.join(".");

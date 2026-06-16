@@ -247,6 +247,54 @@ export function dueAtToInputValues(
   };
 }
 
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
+// Local datetime with no zone designator (no trailing Z / ±HH:MM offset).
+const LOCAL_DATETIME_RE =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::\d{2}(?:\.\d+)?)?$/;
+
+/**
+ * Parse an MCP `due_iso` string into storage fields. A bare date
+ * ("2026-06-20") is all-day at local midnight in `timeZone`; a datetime with
+ * no offset ("2026-06-20T14:30") is that wall-clock time in `timeZone`; a
+ * datetime carrying `Z` or an offset is an absolute instant. Throws RangeError
+ * on input that no rule can parse.
+ */
+export function parseDueIso(
+  dueIso: string,
+  timeZone: string = DEFAULT_TIMEZONE,
+): { dueAt: Date; hasDueTime: boolean } {
+  const s = dueIso.trim();
+  if (DATE_ONLY_RE.test(s)) {
+    const [year, month, day] = s.split("-").map(Number);
+    return {
+      dueAt: wallTimeToInstant({ year, month, day }, timeZone),
+      hasDueTime: false,
+    };
+  }
+  const local = LOCAL_DATETIME_RE.exec(s);
+  if (local) {
+    const [, year, month, day, hour, minute] = local.map(Number);
+    return {
+      dueAt: wallTimeToInstant({ year, month, day, hour, minute }, timeZone),
+      hasDueTime: true,
+    };
+  }
+  const instant = new Date(s);
+  if (Number.isNaN(instant.getTime()))
+    throw new RangeError(`invalid due_iso: ${dueIso}`);
+  return { dueAt: instant, hasDueTime: true };
+}
+
+/** Whether `parseDueIso` can interpret `s` — used to validate MCP inputs. */
+export function isValidDueIso(s: string): boolean {
+  try {
+    parseDueIso(s);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Inverse of dueAtToInputValues; an empty or missing time means all-day. */
 export function inputValuesToDueAt(
   date: string,

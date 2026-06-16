@@ -7,9 +7,11 @@ import {
   formatDueChip,
   inputValuesToDueAt,
   isOverdue,
+  isValidDueIso,
   isValidTimeZone,
   localDayKey,
   normalizeDueAt,
+  parseDueIso,
   todayWindow,
   upcomingWindow,
   wallTimeToInstant,
@@ -256,6 +258,49 @@ describe("wallTimeToInstant", () => {
         AMS,
       ).toISOString(),
     ).toBe("2026-03-29T01:30:00.000Z");
+  });
+});
+
+describe("parseDueIso", () => {
+  it("treats a bare date as all-day local midnight", () => {
+    expect(parseDueIso("2026-06-20", AMS)).toEqual({
+      dueAt: new Date("2026-06-19T22:00:00Z"),
+      hasDueTime: false,
+    });
+  });
+
+  it("treats an offset-less datetime as wall-clock in the zone", () => {
+    expect(parseDueIso("2026-06-20T14:30", AMS)).toEqual({
+      dueAt: new Date("2026-06-20T12:30:00Z"),
+      hasDueTime: true,
+    });
+    // Seconds are allowed and ignored for the wall-clock reading.
+    expect(parseDueIso("2026-06-20T14:30:00", AMS).dueAt.toISOString()).toBe(
+      "2026-06-20T12:30:00.000Z",
+    );
+  });
+
+  it("treats a Z / offset datetime as an absolute instant", () => {
+    expect(parseDueIso("2026-06-20T12:30:00Z", AMS)).toEqual({
+      dueAt: new Date("2026-06-20T12:30:00Z"),
+      hasDueTime: true,
+    });
+    expect(
+      parseDueIso("2026-06-20T14:30:00+02:00", AMS).dueAt.toISOString(),
+    ).toBe("2026-06-20T12:30:00.000Z");
+  });
+
+  it("defaults to Europe/Amsterdam when no zone is passed", () => {
+    expect(parseDueIso("2026-06-20").dueAt.toISOString()).toBe(
+      "2026-06-19T22:00:00.000Z",
+    );
+  });
+
+  it("throws on unparseable input, and isValidDueIso mirrors it", () => {
+    expect(() => parseDueIso("not-a-date", AMS)).toThrow();
+    expect(isValidDueIso("not-a-date")).toBe(false);
+    expect(isValidDueIso("2026-06-20")).toBe(true);
+    expect(isValidDueIso("2026-06-20T14:30")).toBe(true);
   });
 });
 
