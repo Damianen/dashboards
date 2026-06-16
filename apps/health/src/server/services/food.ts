@@ -148,6 +148,32 @@ export function listByDay(day: string = todayLocal()): Promise<FoodEntry[]> {
   });
 }
 
+/**
+ * A day's food entries, optionally narrowed to those whose custom name or cached
+ * product name contains `query` (case-insensitive). Powers the MCP search_food_log
+ * tool; with no query it behaves like listByDay.
+ */
+export function searchFoodLog(
+  opts: { day?: string; query?: string } = {},
+): Promise<FoodEntry[]> {
+  const day = opts.day ?? todayLocal();
+  const query = opts.query?.trim();
+  return prisma.foodEntry.findMany({
+    where: {
+      day: dayToDbDate(day),
+      ...(query
+        ? {
+            OR: [
+              { customName: { contains: query, mode: "insensitive" } },
+              { product: { name: { contains: query, mode: "insensitive" } } },
+            ],
+          }
+        : {}),
+    },
+    orderBy: { eatenAt: "desc" },
+  });
+}
+
 /** Delete an entry. UI-only — the MCP layer will not expose this. */
 export async function deleteEntry(id: string): Promise<void> {
   try {

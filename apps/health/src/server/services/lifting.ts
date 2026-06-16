@@ -105,3 +105,16 @@ export async function getHistory(
 export function listExercises(): Promise<Exercise[]> {
   return prisma.exercise.findMany({ orderBy: { name: "asc" } });
 }
+
+/** Up to `limit` exercises whose name contains `query` (case-insensitive), for
+ *  "did you mean…" suggestions when an exact match isn't found. Never auto-creates. */
+export function suggestExercises(
+  query: string,
+  limit = 5,
+): Promise<Exercise[]> {
+  return prisma.exercise.findMany({
+    where: { name: { contains: query, mode: "insensitive" } },
+    orderBy: { name: "asc" },
+    take: limit,
+  });
+}
