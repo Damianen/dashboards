@@ -2,10 +2,17 @@ import { describe, expect, it } from "vitest";
 
 import {
   addDaysToDayStart,
+  dueAtToInputValues,
+  formatDayHeading,
+  formatDueChip,
+  inputValuesToDueAt,
+  isOverdue,
   isValidTimeZone,
+  localDayKey,
   normalizeDueAt,
   todayWindow,
   upcomingWindow,
+  wallTimeToInstant,
   zonedDayStart,
 } from "./dates";
 
@@ -115,6 +122,179 @@ describe("normalizeDueAt", () => {
     const due = new Date("2026-06-13T15:45:00Z");
     expect(normalizeDueAt(due, true, AMS).toISOString()).toBe(
       due.toISOString(),
+    );
+  });
+});
+
+describe("localDayKey", () => {
+  it("uses the local calendar day across the UTC midnight boundary", () => {
+    // 22:30Z on the 12th is already 00:30 on the 13th in CEST.
+    expect(localDayKey(new Date("2026-06-12T22:30:00Z"), AMS)).toBe(
+      "2026-06-13",
+    );
+    expect(localDayKey(new Date("2026-06-12T21:30:00Z"), AMS)).toBe(
+      "2026-06-12",
+    );
+  });
+});
+
+describe("isOverdue", () => {
+  // 11:30 local on Sat 2026-06-13 (CEST); local day starts 22:00Z on the 12th.
+  const now = new Date("2026-06-13T09:30:00Z");
+
+  it("is never overdue without a due date", () => {
+    expect(isOverdue(null, false, AMS, now)).toBe(false);
+    expect(isOverdue(null, true, AMS, now)).toBe(false);
+  });
+
+  it("compares timed tasks against the exact instant", () => {
+    expect(isOverdue(new Date("2026-06-13T09:00:00Z"), true, AMS, now)).toBe(
+      true,
+    );
+    expect(isOverdue(new Date("2026-06-13T10:00:00Z"), true, AMS, now)).toBe(
+      false,
+    );
+    // Exactly now is not yet overdue.
+    expect(isOverdue(now, true, AMS, now)).toBe(false);
+  });
+
+  it("compares all-day tasks against the local day start", () => {
+    // Due today (local midnight = 22:00Z on the 12th) is not overdue.
+    expect(
+      isOverdue(new Date("2026-06-12T22:00:00Z"), false, AMS, now),
+    ).toBe(false);
+    // Due yesterday is overdue.
+    expect(
+      isOverdue(new Date("2026-06-11T22:00:00Z"), false, AMS, now),
+    ).toBe(true);
+  });
+});
+
+describe("formatDueChip", () => {
+  const now = new Date("2026-06-13T09:30:00Z"); // Sat 2026-06-13, CEST
+
+  const allDay = (key: string) =>
+    formatDueChip(zonedDayStart(new Date(`${key}T12:00:00Z`), AMS), false, AMS, now);
+
+  it("labels today and tomorrow", () => {
+    expect(allDay("2026-06-13")).toBe("Today");
+    expect(allDay("2026-06-14")).toBe("Tomorrow");
+  });
+
+  it("uses the weekday within the next six days", () => {
+    expect(allDay("2026-06-15")).toBe("Mon");
+    expect(allDay("2026-06-19")).toBe("Fri");
+  });
+
+  it("uses day + month beyond six days, dropping a matching year", () => {
+    expect(allDay("2026-06-20")).toBe("20 Jun");
+  });
+
+  it("includes the year when it differs", () => {
+    expect(allDay("2027-01-02")).toBe("2 Jan 2027");
+  });
+
+  it("appends the wall-clock time for timed tasks", () => {
+    // 12:30Z is 14:30 local in CEST.
+    expect(
+      formatDueChip(new Date("2026-06-13T12:30:00Z"), true, AMS, now),
+    ).toBe("Today 14:30");
+  });
+});
+
+describe("formatDayHeading", () => {
+  const now = new Date("2026-06-13T09:30:00Z"); // Sat 2026-06-13
+
+  const heading = (key: string) =>
+    formatDayHeading(zonedDayStart(new Date(`${key}T12:00:00Z`), AMS), AMS, now);
+
+  it("labels today and tomorrow, then full weekdays", () => {
+    expect(heading("2026-06-13")).toBe("Today");
+    expect(heading("2026-06-14")).toBe("Tomorrow");
+    expect(heading("2026-06-15")).toBe("Monday");
+  });
+
+  it("uses weekday + day + month beyond six days", () => {
+    expect(heading("2026-06-20")).toBe("Sat 20 Jun");
+  });
+
+  it("includes the year when it differs", () => {
+    expect(heading("2027-01-02")).toBe("Sat 2 Jan 2027");
+  });
+});
+
+describe("wallTimeToInstant", () => {
+  it("resolves a winter (CET) wall time", () => {
+    expect(
+      wallTimeToInstant(
+        { year: 2026, month: 1, day: 15, hour: 9, minute: 0 },
+        AMS,
+      ).toISOString(),
+    ).toBe("2026-01-15T08:00:00.000Z");
+  });
+
+  it("resolves a summer (CEST) wall time", () => {
+    expect(
+      wallTimeToInstant(
+        { year: 2026, month: 6, day: 13, hour: 14, minute: 30 },
+        AMS,
+      ).toISOString(),
+    ).toBe("2026-06-13T12:30:00.000Z");
+  });
+
+  it("treats a missing time as local midnight, matching zonedDayStart", () => {
+    expect(
+      wallTimeToInstant({ year: 2026, month: 6, day: 13 }, AMS).toISOString(),
+    ).toBe(zonedDayStart(new Date("2026-06-13T12:00:00Z"), AMS).toISOString());
+  });
+
+  it("pushes a nonexistent spring-forward time one hour later", () => {
+    // 2026-03-29 02:30 does not exist; it resolves to 03:30 local = 01:30Z.
+    expect(
+      wallTimeToInstant(
+        { year: 2026, month: 3, day: 29, hour: 2, minute: 30 },
+        AMS,
+      ).toISOString(),
+    ).toBe("2026-03-29T01:30:00.000Z");
+  });
+});
+
+describe("dueAt <-> input values round-trip", () => {
+  it("splits a timed due into date + time fields", () => {
+    expect(
+      dueAtToInputValues(new Date("2026-06-13T12:30:00Z"), true, AMS),
+    ).toEqual({ date: "2026-06-13", time: "14:30" });
+  });
+
+  it("splits an all-day due into a date with no time", () => {
+    expect(
+      dueAtToInputValues(new Date("2026-06-12T22:00:00Z"), false, AMS),
+    ).toEqual({ date: "2026-06-13", time: null });
+  });
+
+  it("rebuilds a timed due from inputs", () => {
+    expect(inputValuesToDueAt("2026-06-13", "14:30", AMS)).toEqual({
+      dueAt: new Date("2026-06-13T12:30:00Z"),
+      hasDueTime: true,
+    });
+  });
+
+  it("treats an empty or missing time as all-day", () => {
+    expect(inputValuesToDueAt("2026-06-13", "", AMS)).toEqual({
+      dueAt: new Date("2026-06-12T22:00:00Z"),
+      hasDueTime: false,
+    });
+    expect(inputValuesToDueAt("2026-06-13", null, AMS)).toEqual({
+      dueAt: new Date("2026-06-12T22:00:00Z"),
+      hasDueTime: false,
+    });
+  });
+
+  it("round-trips a timed due through both directions", () => {
+    const dueAt = new Date("2026-06-13T12:30:00Z");
+    const { date, time } = dueAtToInputValues(dueAt, true, AMS);
+    expect(inputValuesToDueAt(date, time, AMS).dueAt.toISOString()).toBe(
+      dueAt.toISOString(),
     );
   });
 });

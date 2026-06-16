@@ -550,6 +550,29 @@ export async function listCompleted(opts?: {
   };
 }
 
+export interface LabelTasksView {
+  label: Label;
+  tasks: TaskWithLabels[];
+}
+
+/** Incomplete tasks carrying `labelId`, ordered like the date views. */
+export async function listTasksByLabel(
+  labelId: string,
+): Promise<LabelTasksView> {
+  const label = await prisma.label.findUnique({ where: { id: labelId } });
+  if (!label) throw new NotFoundError("label", labelId);
+  const tasks = await prisma.task.findMany({
+    where: { completedAt: null, labels: { some: { labelId } } },
+    orderBy: [
+      { dueAt: { sort: "asc", nulls: "last" } },
+      { priority: "asc" },
+      { order: "asc" },
+    ],
+    include: labelInclude,
+  });
+  return { label, tasks: tasks.map(flattenLabels) };
+}
+
 export async function searchTasks(
   query: string,
   opts?: { includeCompleted?: boolean; limit?: number },

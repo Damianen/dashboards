@@ -1,8 +1,14 @@
-export default function TodayPage() {
-  return (
-    <section className="flex flex-col gap-2 py-4">
-      <h1 className="text-2xl font-semibold">Today</h1>
-      <p className="text-sm text-muted-foreground">No tasks yet.</p>
-    </section>
-  );
+import { TodayView } from "@/components/views/today-view";
+import { getProjectTree } from "@/server/services/projects";
+import { listOverdue, listToday } from "@/server/services/tasks";
+
+export const dynamic = "force-dynamic";
+
+export default async function TodayPage() {
+  const [overdue, today, tree] = await Promise.all([
+    listOverdue(),
+    listToday(),
+    getProjectTree(),
+  ]);
+  return <TodayView initialData={{ overdue, today }} initialTree={tree} />;
 }

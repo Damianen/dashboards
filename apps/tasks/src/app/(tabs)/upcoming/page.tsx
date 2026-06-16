@@ -1,8 +1,13 @@
-export default function UpcomingPage() {
-  return (
-    <section className="flex flex-col gap-2 py-4">
-      <h1 className="text-2xl font-semibold">Upcoming</h1>
-      <p className="text-sm text-muted-foreground">Nothing scheduled.</p>
-    </section>
-  );
+import { UpcomingView } from "@/components/views/upcoming-view";
+import { getProjectTree } from "@/server/services/projects";
+import { listUpcoming } from "@/server/services/tasks";
+
+export const dynamic = "force-dynamic";
+
+export default async function UpcomingPage() {
+  const [tasks, tree] = await Promise.all([
+    listUpcoming(14),
+    getProjectTree(),
+  ]);
+  return <UpcomingView initialData={tasks} initialTree={tree} />;
 }
