@@ -13,12 +13,22 @@ import {
   normalizeDueAt,
   parseDueIso,
   todayWindow,
+  tzOffsetMinutes,
   upcomingWindow,
   wallTimeToInstant,
   zonedDayStart,
 } from "./dates";
 
 const AMS = "Europe/Amsterdam";
+
+describe("tzOffsetMinutes", () => {
+  it("is positive ahead of UTC (chrono's convention)", () => {
+    // CEST = +2h in summer, CET = +1h in winter.
+    expect(tzOffsetMinutes(new Date("2026-06-16T12:00:00Z"), AMS)).toBe(120);
+    expect(tzOffsetMinutes(new Date("2026-01-16T12:00:00Z"), AMS)).toBe(60);
+    expect(tzOffsetMinutes(new Date("2026-06-16T12:00:00Z"), "UTC")).toBe(0);
+  });
+});
 
 describe("isValidTimeZone", () => {
   it("accepts IANA names", () => {

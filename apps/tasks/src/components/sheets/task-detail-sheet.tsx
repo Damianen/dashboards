@@ -1,6 +1,15 @@
 "use client";
 
-import { ChevronRight, Flag, Folder, Inbox, Tag, Trash2 } from "lucide-react";
+import {
+  ChevronRight,
+  Flag,
+  Folder,
+  Inbox,
+  Repeat,
+  Tag,
+  Trash2,
+  X,
+} from "lucide-react";
 import * as React from "react";
 
 import { LabelChips } from "@/components/tasks/label-chips";
@@ -15,13 +24,16 @@ import {
   useUpdateTask,
 } from "@/hooks/use-task-mutations";
 import { useLabels, useProjectTree } from "@/hooks/use-task-queries";
+import { wallClockParts } from "@/lib/dates";
 import { PRIORITIES, priorityTextClass } from "@/lib/priority";
+import { describeRRule } from "@/lib/recurrence";
 import { cn } from "@/lib/utils";
 import type { Label } from "@/generated/prisma/client";
 import type { TaskWithLabels } from "@/server/services/tasks";
 
 import { DueDateField } from "./due-date-field";
 import { LabelPicker } from "./label-picker";
+import { RemindersField } from "./reminders-field";
 import {
   ProjectSectionPicker,
   type MoveDestination,
@@ -74,6 +86,7 @@ function DetailContent({
     hasDueTime: task.hasDueTime,
   });
   const [labelIds, setLabelIds] = React.useState(task.labels.map((l) => l.id));
+  const [rrule, setRrule] = React.useState(task.rrule);
   const [location, setLocation] = React.useState<MoveDestination>({
     projectId: task.projectId,
     sectionId: task.sectionId,
@@ -135,6 +148,22 @@ function DetailContent({
     update.mutate({ id: task.id, edit: { labelIds: ids } });
   }
 
+  function clearRecurrence() {
+    setRrule(null);
+    update.mutate({
+      id: task.id,
+      edit: { rrule: null, recursFromCompletion: false },
+    });
+  }
+
+  const recurrenceTime =
+    due.hasDueTime && due.dueAt
+      ? {
+          hour: wallClockParts(due.dueAt, task.timezone).hour,
+          minute: wallClockParts(due.dueAt, task.timezone).minute,
+        }
+      : null;
+
   function changeLocation(dest: MoveDestination) {
     setLocation(dest);
     move.mutate({
@@ -178,6 +207,29 @@ function DetailContent({
           timezone={task.timezone}
           onChange={changeDue}
         />
+
+        {rrule !== null && (
+          <div className={ROW_CLASS}>
+            <Repeat
+              className="size-5 shrink-0 text-muted-foreground"
+              aria-hidden
+            />
+            <span className="min-w-0 flex-1 truncate text-left text-sm">
+              {describeRRule(rrule, recurrenceTime)}
+            </span>
+            <button
+              type="button"
+              aria-label="Remove repeat"
+              onClick={clearRecurrence}
+              className="grid size-8 place-items-center rounded-md text-muted-foreground active:bg-muted"
+            >
+              <X className="size-4" aria-hidden />
+            </button>
+          </div>
+        )}
+
+        <Divider />
+        <RemindersField taskId={task.id} timezone={task.timezone} />
 
         <Divider />
         <ProjectSectionPicker

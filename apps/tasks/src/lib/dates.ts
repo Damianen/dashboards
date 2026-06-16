@@ -18,7 +18,8 @@ export function isValidTimeZone(tz: string): boolean {
   }
 }
 
-function wallClockParts(instant: Date, timeZone: string) {
+/** Wall-clock calendar components of `instant` in `timeZone` (h23, seconds). */
+export function wallClockParts(instant: Date, timeZone: string) {
   const parts = new Intl.DateTimeFormat("en", {
     timeZone,
     hourCycle: "h23",
@@ -47,6 +48,14 @@ function tzOffsetMs(instant: Date, timeZone: string): number {
   // Compare against the instant truncated to whole seconds, matching the
   // second-granularity wall clock above.
   return asUtc - Math.floor(instant.getTime() / 1000) * 1000;
+}
+
+/**
+ * Offset of `timeZone` from UTC at `instant`, in minutes, positive when ahead
+ * of UTC (CEST = +120). Matches chrono-node's numeric-timezone convention.
+ */
+export function tzOffsetMinutes(instant: Date, timeZone: string): number {
+  return Math.round(tzOffsetMs(instant, timeZone) / 60_000);
 }
 
 /** UTC instant of local midnight on `instant`'s calendar day in `timeZone`. */

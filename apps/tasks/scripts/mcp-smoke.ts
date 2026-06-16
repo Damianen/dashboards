@@ -204,6 +204,42 @@ async function main() {
     });
     assert(!open.some((t) => t.id === task.id), "completed task still listed");
   });
+
+  // == natural-language quick capture (text shortcut) ========================
+  console.log("== text capture ==");
+  // Run-prefixed names so the auto-created project/label clean up and never
+  // clobber real data.
+  const finName = `${runPrefix} fin`;
+  const adminLabel = `${runPrefix}-admin`;
+  const captured = await callJson<SerializedTask>("create_task", {
+    text: `${runPrefix} pay rent tomorrow 9am p2 #"${finName}" @${adminLabel}`,
+  });
+  entityIds.push(captured.id);
+  projectIds.push(captured.project_id); // auto-created project → delete by id
+  entityIds.push(captured.project_id);
+
+  await check("create_task text parses a fully structured task", () => {
+    assertEqual(captured.content, `${runPrefix} pay rent`, "parsed title");
+    assertEqual(captured.priority, 2, "parsed priority");
+    assertEqual(captured.all_day, false, "parsed a timed due date");
+    assert(
+      captured.due_iso?.endsWith("T09:00") ?? false,
+      `due time 09:00 (got ${captured.due_iso})`,
+    );
+    assert(captured.project_id.length > 0, "filed under the parsed project");
+    assert(
+      captured.labels.includes(adminLabel),
+      "attached the auto-created label",
+    );
+  });
+
+  await check("text shortcut auto-created the named project", async () => {
+    const projects = await callJson<SerializedProject[]>("list_projects", {});
+    assert(
+      projects.some((p) => p.id === captured.project_id),
+      "auto-created project missing from list_projects",
+    );
+  });
 }
 
 main()
@@ -221,6 +257,11 @@ main()
       await prisma.project.deleteMany({ where: { id: { in: projectIds } } });
       await prisma.activityEvent.deleteMany({
         where: { entityId: { in: entityIds } },
+      });
+      // Labels auto-created by the text-capture case are named with the run
+      // prefix, so they're safe to sweep without touching real labels.
+      await prisma.label.deleteMany({
+        where: { name: { startsWith: runPrefix } },
       });
     } catch (error) {
       console.error("cleanup failed:", error);

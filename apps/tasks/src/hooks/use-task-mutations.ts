@@ -20,11 +20,13 @@ import { unwrap } from "@/server/actions/result";
 import {
   completeTaskAction,
   createTaskAction,
+  createTaskFromTextAction,
   deleteTaskAction,
   moveTaskAction,
   reopenTaskAction,
   updateTaskAction,
 } from "@/server/actions/tasks";
+import type { CreateTaskFromTextBase } from "@/server/services/tasks";
 import type { Label } from "@/generated/prisma/client";
 import type {
   LabelTasksView,
@@ -156,6 +158,8 @@ export interface TaskEdit {
   hasDueTime?: boolean;
   timezone?: string;
   labelIds?: string[];
+  rrule?: string | null;
+  recursFromCompletion?: boolean;
 }
 
 export interface UpdateTaskVars {
@@ -174,6 +178,9 @@ function buildTaskPatch(
   if (edit.dueAt !== undefined) patch.dueAt = edit.dueAt;
   if (edit.hasDueTime !== undefined) patch.hasDueTime = edit.hasDueTime;
   if (edit.timezone !== undefined) patch.timezone = edit.timezone;
+  if (edit.rrule !== undefined) patch.rrule = edit.rrule;
+  if (edit.recursFromCompletion !== undefined)
+    patch.recursFromCompletion = edit.recursFromCompletion;
   if (edit.labelIds !== undefined) {
     const labels = qc.getQueryData<Label[]>(qk.labels) ?? [];
     const byId = new Map(labels.map((l) => [l.id, l]));
@@ -234,6 +241,31 @@ export function useCreateTask() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: qk.tasks });
       void qc.invalidateQueries({ queryKey: qk.projectTree });
+    },
+    onError: () => toast({ message: "Couldn't add task", variant: "error" }),
+  });
+}
+
+export interface CreateFromTextVars {
+  text: string;
+  base?: CreateTaskFromTextBase;
+}
+
+/**
+ * Quick capture from a natural-language line. Like useCreateTask it isn't
+ * optimistic (the server parses authoritatively and assigns id/position), and
+ * it may mint projects/labels — so labels are invalidated too.
+ */
+export function useCreateTaskFromText() {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: async ({ text, base }: CreateFromTextVars) =>
+      unwrap(await createTaskFromTextAction(text, base)),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.tasks });
+      void qc.invalidateQueries({ queryKey: qk.projectTree });
+      void qc.invalidateQueries({ queryKey: qk.labels });
     },
     onError: () => toast({ message: "Couldn't add task", variant: "error" }),
   });

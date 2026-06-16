@@ -13,4 +13,5 @@ export const qk = {
   search: (q: string) => ["tasks", "search", q] as const,
   projectTree: ["projects", "tree"] as const,
   labels: ["labels"] as const,
+  reminders: (taskId: string) => ["reminders", taskId] as const,
 };

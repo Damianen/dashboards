@@ -15,6 +15,13 @@ export async function createTaskAction(input: TaskCreateInput) {
   return toActionResult(() => tasks.createTask(input));
 }
 
+export async function createTaskFromTextAction(
+  text: string,
+  base?: tasks.CreateTaskFromTextBase,
+) {
+  return toActionResult(() => tasks.createTaskFromText(text, base));
+}
+
 export async function updateTaskAction(id: string, input: TaskUpdateInput) {
   return toActionResult(() => tasks.updateTask(id, input));
 }
@@ -67,4 +74,9 @@ export async function listTasksByLabelAction(id: string) {
 
 export async function searchTasksAction(q: string) {
   return toActionResult(() => tasks.searchTasks(q));
+}
+
+/** Fetch a single task with labels — used by the reminder deep link. */
+export async function getTaskAction(id: string) {
+  return toActionResult(() => tasks.getTask(id));
 }

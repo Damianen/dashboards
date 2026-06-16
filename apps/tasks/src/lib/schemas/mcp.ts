@@ -25,7 +25,19 @@ const dueIsoSchema = z
   );
 
 export const createTaskShape = {
-  content: contentSchema.describe("What needs doing — the task title."),
+  content: contentSchema
+    .optional()
+    .describe(
+      "What needs doing — the task title. Required unless you pass `text` instead.",
+    ),
+  text: contentSchema
+    .optional()
+    .describe(
+      "Natural-language quick capture, e.g. \"pay rent tomorrow 9am p2 #Finance @admin\". " +
+        "Parses the title, due date/time, priority (p1–p4), #project, /section and @label out of one line; " +
+        "an unknown project, section, or label is CREATED automatically. A leading \"every …\" recurrence is " +
+        "noted but not yet scheduled. Mutually exclusive with the structured fields below — pass `text` alone.",
+    ),
   description: descriptionSchema
     .optional()
     .describe("Optional longer note / details."),

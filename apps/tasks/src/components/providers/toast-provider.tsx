@@ -2,11 +2,16 @@
 
 import * as React from "react";
 
-import { ToastViewport, type ToastData } from "@/components/ui/toast";
+import {
+  ToastViewport,
+  type ToastAction,
+  type ToastData,
+} from "@/components/ui/toast";
 
 interface ToastInput {
   message: string;
   variant?: "default" | "error";
+  action?: ToastAction;
 }
 
 interface ToastContextValue {

@@ -8,10 +8,12 @@ import {
   type Task,
 } from "@/generated/prisma/client";
 import {
+  addDaysToDayStart,
   DEFAULT_TIMEZONE,
   normalizeDueAt,
   todayWindow,
   upcomingWindow,
+  wallClockParts,
   zonedDayStart,
 } from "@/lib/dates";
 import {
@@ -22,15 +24,27 @@ import {
   type TaskMoveInput,
   type TaskUpdateInput,
 } from "@/lib/schemas";
+import { parse, type ParseContext } from "@/lib/quickadd/parse";
+import {
+  firstOccurrence,
+  nextOccurrence,
+  RecurrenceParseError,
+  toRRule,
+} from "@/lib/recurrence";
 import { prisma } from "@/server/db";
 
 import { logEvent, type Tx } from "./activity";
 import {
   InvalidMoveError,
+  InvalidOperationError,
   NotFoundError,
-  NotImplementedError,
 } from "./errors";
 import { compareOrder, resolveNeighborOrders } from "./ordering";
+import {
+  resolveLabelNames,
+  resolveOrCreateProjectByName,
+  resolveOrCreateSectionByName,
+} from "./resolvers";
 import {
   buildTaskTree,
   collectDescendantIds,
@@ -180,6 +194,96 @@ export async function createTask(
   } catch (err) {
     rethrowUnknownLabel(err);
   }
+}
+
+/** A view's default destination for a quick-add (e.g. the open project/label). */
+export interface CreateTaskFromTextBase {
+  projectId?: string;
+  sectionId?: string;
+  labelIds?: string[];
+  timezone?: string;
+}
+
+function dedupe(ids: readonly string[]): string[] {
+  return [...new Set(ids)];
+}
+
+/**
+ * Fast capture: parse a natural-language line and create the task it describes.
+ * The single chokepoint shared by the quick-add UI and the MCP `create_task`
+ * text shortcut — both pass raw text so the parse is authoritative server-side.
+ *
+ * Precedence over the view's `base` destination: a parsed `#project` wins; a
+ * `/section` resolves within that project; parsed `@labels` merge with the
+ * view's labels. An unknown project, section, or label is created on the fly.
+ */
+export async function createTaskFromText(
+  text: string,
+  base?: CreateTaskFromTextBase,
+  ctx?: ParseContext,
+): Promise<TaskWithLabels> {
+  const timezone = base?.timezone ?? ctx?.timezone ?? DEFAULT_TIMEZONE;
+  const now = ctx?.now ?? new Date();
+  const parsed = parse(text, { ...ctx, timezone });
+
+  if (parsed.content.length === 0)
+    throw new InvalidOperationError("the task text has no title");
+
+  let projectId = base?.projectId;
+  if (parsed.projectName)
+    projectId = (await resolveOrCreateProjectByName(parsed.projectName)).id;
+
+  let sectionId = base?.sectionId;
+  if (parsed.sectionName && projectId)
+    sectionId = (await resolveOrCreateSectionByName(projectId, parsed.sectionName))
+      .id;
+
+  const parsedLabelIds = parsed.labelNames.length
+    ? await resolveLabelNames(parsed.labelNames)
+    : [];
+  const labelIds = dedupe([...(base?.labelIds ?? []), ...parsedLabelIds]);
+
+  // A leading/trailing "every …" becomes the rrule; its first occurrence (on or
+  // after now, anchored at today) seeds dueAt. The parser leaves dueAt unset for
+  // recurring text, so the rule is the single source of the schedule.
+  let recurrence: { rrule: string; recursFromCompletion: boolean } | undefined;
+  let dueAt = parsed.dueAt;
+  let hasDueTime = parsed.hasDueTime;
+  if (parsed.recurrenceRaw) {
+    let rule;
+    try {
+      rule = toRRule(parsed.recurrenceRaw);
+    } catch (err) {
+      if (err instanceof RecurrenceParseError)
+        throw new InvalidOperationError(
+          `couldn't understand the recurrence "${parsed.recurrenceRaw}"`,
+        );
+      throw err;
+    }
+    recurrence = {
+      rrule: rule.rrule,
+      recursFromCompletion: rule.recursFromCompletion,
+    };
+    hasDueTime = rule.hasDueTime;
+    const first = firstOccurrence(
+      rule.rrule,
+      now,
+      timezone,
+      rule.hasDueTime,
+      rule.time ?? undefined,
+    );
+    if (first) dueAt = first;
+  }
+
+  return createTask({
+    title: parsed.content,
+    projectId,
+    sectionId,
+    priority: parsed.priority,
+    labelIds: labelIds.length > 0 ? labelIds : undefined,
+    ...(dueAt ? { dueAt, hasDueTime, timezone } : {}),
+    ...(recurrence ?? {}),
+  });
 }
 
 export async function updateTask(
@@ -361,10 +465,73 @@ export async function moveTask(
   });
 }
 
+/** The fields advanceRecurring needs off a task row. */
+interface RecurringRow {
+  id: string;
+  rrule: string | null;
+  dueAt: Date | null;
+  hasDueTime: boolean;
+  timezone: string;
+  recursFromCompletion: boolean;
+}
+
+/** Last representable instant of `now`'s local calendar day in `timeZone`. */
+function endOfLocalDay(now: Date, timeZone: string): Date {
+  const nextMidnight = addDaysToDayStart(
+    zonedDayStart(now, timeZone),
+    1,
+    timeZone,
+  );
+  return new Date(nextMidnight.getTime() - 1);
+}
+
 /**
- * THE completion chokepoint — every complete goes through here. Cascade-
- * completes all incomplete descendants atomically. Recurring tasks (rrule)
- * are rejected until phase 6; CompletionLog stays untouched until then.
+ * Advance a recurring task to its next occurrence: bump dueAt (completedAt
+ * stays null) and log one CompletionLog row for the instance just finished.
+ * Normal recurrence advances from the scheduled dueAt; "every!" advances from
+ * the completion day. Returns the updated task, or null when the rule is
+ * exhausted (no further occurrence) so the caller can complete it for real.
+ */
+async function advanceRecurring(
+  tx: Tx,
+  task: RecurringRow,
+  now: Date,
+): Promise<Task | null> {
+  if (task.rrule === null) return null;
+  const base = task.recursFromCompletion
+    ? endOfLocalDay(now, task.timezone)
+    : (task.dueAt ?? now);
+  const time =
+    task.hasDueTime && task.dueAt
+      ? {
+          hour: wallClockParts(task.dueAt, task.timezone).hour,
+          minute: wallClockParts(task.dueAt, task.timezone).minute,
+        }
+      : undefined;
+  const next = nextOccurrence(
+    task.rrule,
+    base,
+    task.timezone,
+    task.hasDueTime,
+    time,
+  );
+  if (next === null) return null;
+  const dueAt = normalizeDueAt(next, task.hasDueTime, task.timezone);
+  const updated = await tx.task.update({ where: { id: task.id }, data: { dueAt } });
+  await tx.completionLog.create({ data: { taskId: task.id } });
+  await logEvent(tx, "task", task.id, "task.recurred", {
+    from: task.dueAt?.toISOString() ?? null,
+    to: dueAt.toISOString(),
+  });
+  return updated;
+}
+
+/**
+ * THE completion chokepoint — every complete goes through here. A recurring
+ * task advances to its next occurrence (logging a CompletionLog) instead of
+ * completing; once its rule is exhausted it completes for real. A non-recurring
+ * complete cascade-completes incomplete descendants atomically, while any
+ * recurring descendant is rolled forward rather than closed.
  */
 export async function completeTask(
   id: string,
@@ -374,34 +541,58 @@ export async function completeTask(
     if (!task) throw new NotFoundError("task", id);
     if (task.completedAt !== null)
       return { task, completedDescendantIds: [] };
-    if (task.rrule !== null)
-      throw new NotImplementedError("recurrence lands in phase 6");
+
+    // Recurring task: advance and stop. Subtasks roll over with it. Only when
+    // the rule is exhausted do we fall through to a genuine complete.
+    if (task.rrule !== null) {
+      const advanced = await advanceRecurring(tx, task, new Date());
+      if (advanced) return { task: advanced, completedDescendantIds: [] };
+    }
 
     const projectTasks = await tx.task.findMany({
       where: { projectId: task.projectId },
-      select: { id: true, parentId: true, rrule: true, completedAt: true },
+      select: {
+        id: true,
+        parentId: true,
+        rrule: true,
+        dueAt: true,
+        hasDueTime: true,
+        timezone: true,
+        recursFromCompletion: true,
+        completedAt: true,
+      },
     });
     const byId = new Map(projectTasks.map((t) => [t.id, t]));
     const descendantIds = collectDescendantIds(id, projectTasks).filter(
       (descId) => byId.get(descId)!.completedAt === null,
     );
-    if (descendantIds.some((descId) => byId.get(descId)!.rrule !== null))
-      throw new NotImplementedError("recurrence lands in phase 6");
+    const recurringDescendantIds = descendantIds.filter(
+      (descId) => byId.get(descId)!.rrule !== null,
+    );
+    const completedDescendantIds = descendantIds.filter(
+      (descId) => byId.get(descId)!.rrule === null,
+    );
 
     const completedAt = new Date();
     await tx.task.updateMany({
-      where: { id: { in: [id, ...descendantIds] } },
+      where: { id: { in: [id, ...completedDescendantIds] } },
       data: { completedAt },
     });
+    // An exhausted recurring task still logs its final instance.
+    if (task.rrule !== null)
+      await tx.completionLog.create({ data: { taskId: id } });
     await logEvent(tx, "task", id, "task.completed");
-    for (const descId of descendantIds) {
+    for (const descId of completedDescendantIds) {
       await logEvent(tx, "task", descId, "task.completed", {
         cascadedFrom: id,
       });
     }
+    for (const descId of recurringDescendantIds) {
+      await advanceRecurring(tx, byId.get(descId)!, completedAt);
+    }
     return {
       task: { ...task, completedAt },
-      completedDescendantIds: descendantIds,
+      completedDescendantIds,
     };
   });
 }

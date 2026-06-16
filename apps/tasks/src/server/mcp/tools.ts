@@ -35,6 +35,7 @@ import {
 import {
   completeTask,
   createTask,
+  createTaskFromText,
   getTask,
   listOverdue,
   listTasksByProject,
@@ -72,11 +73,29 @@ export function registerTools(server: McpServer): void {
     {
       title: "Create task",
       description:
-        "Create a task. Defaults to the Inbox when project_name is omitted. priority 1 = highest, 4 = default. Labels in label_names are created if they don't exist; project_name and section_name must already exist.",
+        "Create a task. Defaults to the Inbox when project_name is omitted. priority 1 = highest, 4 = default. Labels in label_names are created if they don't exist; project_name and section_name must already exist. " +
+        "For one-line capture, pass `text` instead of the structured fields: it parses title/due/priority/#project//section/@label and a recurrence like \"every! 3 days 18:00\", and auto-creates any unknown project, section, or label.",
       inputSchema: createTaskShape,
     },
-    ({ content, description, project_name, section_name, label_names, priority, due_iso }) =>
+    ({ content, text, description, project_name, section_name, label_names, priority, due_iso }) =>
       runTool(async () => {
+        if (text) {
+          if (
+            content ||
+            description ||
+            project_name ||
+            section_name ||
+            label_names ||
+            priority !== undefined ||
+            due_iso
+          )
+            throw new InvalidOperationError(
+              "pass `text` on its own — it replaces content/project_name/section_name/label_names/priority/due_iso",
+            );
+          return serializeTask(await createTaskFromText(text));
+        }
+        if (!content)
+          throw new InvalidOperationError("provide content or text");
         if (section_name && !project_name)
           throw new InvalidOperationError("section_name requires project_name");
         const projectId = project_name
@@ -184,7 +203,7 @@ export function registerTools(server: McpServer): void {
     {
       title: "Complete task",
       description:
-        "Mark a task complete. Incomplete subtasks are completed too. (Recurring tasks are not yet supported and will error.) Idempotent.",
+        "Mark a task complete. Incomplete subtasks are completed too. A recurring task instead advances to its next occurrence (logging the completion) until its rule is exhausted. Idempotent.",
       inputSchema: completeTaskShape,
       annotations: { idempotentHint: true },
     },

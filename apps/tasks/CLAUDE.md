@@ -4,8 +4,9 @@ Single-user Todoist-style task app + MCP server. All root CLAUDE.md
 conventions apply; this file adds only the tasks domain.
 
 ## App-specific deps
-chrono-node, rrule, fractional-indexing, dnd-kit, vaul, TanStack Query,
-shadcn/ui, vitest.
+chrono-node, fractional-indexing, dnd-kit, vaul, TanStack Query, shadcn/ui,
+vitest, node-cron (reminder worker). Recurrence (RFC 5545) is hand-rolled in
+src/lib/recurrence/ — DST-safe wall-clock math, no rrule lib.
 
 ## Domain semantics
 - `prisma/schema.prisma` is authoritative — read its header comments before

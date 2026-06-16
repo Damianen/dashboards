@@ -5,7 +5,13 @@ import type { Prisma } from "@/generated/prisma/client";
 
 export type Tx = Prisma.TransactionClient;
 
-export type EntityType = "project" | "section" | "task" | "label" | "comment";
+export type EntityType =
+  | "project"
+  | "section"
+  | "task"
+  | "label"
+  | "comment"
+  | "reminder";
 
 export async function logEvent(
   tx: Tx,

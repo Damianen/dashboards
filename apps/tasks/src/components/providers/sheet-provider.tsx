@@ -2,13 +2,17 @@
 
 import * as React from "react";
 
+import { KeyboardShortcuts } from "@/components/providers/keyboard-shortcuts";
+import { TaskDeepLink } from "@/components/providers/task-deep-link";
 import { QuickAddSheet } from "@/components/sheets/quick-add-sheet";
+import { RescheduleSheet } from "@/components/sheets/reschedule-sheet";
 import { TaskDetailSheet } from "@/components/sheets/task-detail-sheet";
 import type { TaskWithLabels } from "@/server/services/tasks";
 
 interface SheetsContextValue {
   openTaskDetail: (task: TaskWithLabels) => void;
   openQuickAdd: () => void;
+  openReschedule: (task: TaskWithLabels) => void;
 }
 
 const SheetsContext = React.createContext<SheetsContextValue | null>(null);
@@ -26,6 +30,9 @@ export function SheetProvider({ children }: { children: React.ReactNode }) {
   );
   const [detailOpen, setDetailOpen] = React.useState(false);
   const [quickAddOpen, setQuickAddOpen] = React.useState(false);
+  const [rescheduleTask, setRescheduleTask] =
+    React.useState<TaskWithLabels | null>(null);
+  const [rescheduleOpen, setRescheduleOpen] = React.useState(false);
 
   const value = React.useMemo<SheetsContextValue>(
     () => ({
@@ -34,6 +41,10 @@ export function SheetProvider({ children }: { children: React.ReactNode }) {
         setDetailOpen(true);
       },
       openQuickAdd: () => setQuickAddOpen(true),
+      openReschedule: (task) => {
+        setRescheduleTask(task);
+        setRescheduleOpen(true);
+      },
     }),
     [],
   );
@@ -47,6 +58,15 @@ export function SheetProvider({ children }: { children: React.ReactNode }) {
         onOpenChange={setDetailOpen}
       />
       <QuickAddSheet open={quickAddOpen} onOpenChange={setQuickAddOpen} />
+      <RescheduleSheet
+        task={rescheduleTask}
+        open={rescheduleOpen}
+        onOpenChange={setRescheduleOpen}
+      />
+      <React.Suspense fallback={null}>
+        <TaskDeepLink onOpen={value.openTaskDetail} />
+      </React.Suspense>
+      <KeyboardShortcuts onQuickAdd={() => setQuickAddOpen(true)} />
     </SheetsContext.Provider>
   );
 }

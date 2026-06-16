@@ -80,6 +80,7 @@ model Task {
   createdAt            DateTime        @default(now())
   updatedAt            DateTime        @updatedAt
   completions          CompletionLog[]
+  reminders            Reminder[]
   labels               TaskLabel[]
   comments             Comment[]
 
@@ -128,6 +129,24 @@ model CompletionLog {
   taskId      String
   task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
   completedAt DateTime @default(now())
+
+  @@index([taskId])
+}
+
+// A push reminder for a task. Exactly one of `minutesBefore` / `absoluteAt` is
+// set: `minutesBefore` fires that many minutes before the task's due time
+// (0 = at the due time), `absoluteAt` fires at a fixed instant. `lastFiredFor`
+// holds the task.dueAt value the worker last notified for, so a reminder fires
+// exactly once per occurrence and re-arms when a recurring task's dueAt advances.
+model Reminder {
+  id           String    @id @default(cuid())
+  taskId       String
+  task         Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  minutesBefore Int?
+  absoluteAt   DateTime?
+  lastFiredFor DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@index([taskId])
 }

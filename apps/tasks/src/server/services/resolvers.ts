@@ -7,6 +7,8 @@ import type { Label, Project, Section } from "@/generated/prisma/client";
 import { prisma } from "@/server/db";
 
 import { createLabel } from "./labels";
+import { createProject } from "./projects";
+import { createSection } from "./sections";
 import { InvalidOperationError, NotFoundError } from "./errors";
 
 function ambiguous(kind: string, name: string, matches: { name: string }[]): never {
@@ -29,6 +31,23 @@ export async function resolveProjectByName(name: string): Promise<Project> {
   return matches[0];
 }
 
+/**
+ * Resolve an active project by name, creating it when none matches (the
+ * fast-capture convenience — an unknown `#project` is born on first use). An
+ * ambiguous name is still a hard error rather than a silent pick.
+ */
+export async function resolveOrCreateProjectByName(
+  name: string,
+): Promise<Project> {
+  const trimmed = name.trim();
+  const matches = await prisma.project.findMany({
+    where: { name: { equals: trimmed, mode: "insensitive" }, archivedAt: null },
+  });
+  if (matches.length === 1) return matches[0];
+  if (matches.length > 1) ambiguous("project", trimmed, matches);
+  return createProject({ name: trimmed });
+}
+
 /** Resolve a section by name within a given project. */
 export async function resolveSectionByName(
   projectId: string,
@@ -40,6 +59,20 @@ export async function resolveSectionByName(
   if (matches.length === 0) throw new NotFoundError(`section "${name}"`);
   if (matches.length > 1) ambiguous("section", name, matches);
   return matches[0];
+}
+
+/** Resolve a section by name within a project, creating it when none matches. */
+export async function resolveOrCreateSectionByName(
+  projectId: string,
+  name: string,
+): Promise<Section> {
+  const trimmed = name.trim();
+  const matches = await prisma.section.findMany({
+    where: { projectId, name: { equals: trimmed, mode: "insensitive" } },
+  });
+  if (matches.length === 1) return matches[0];
+  if (matches.length > 1) ambiguous("section", trimmed, matches);
+  return createSection({ projectId, name: trimmed });
 }
 
 /**
