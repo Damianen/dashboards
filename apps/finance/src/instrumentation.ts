@@ -1,6 +1,7 @@
 // Next runs register() once on server startup. We use it to schedule the
-// unattended bank sync with node-cron, inside the app process (apps/tasks has
-// no scheduler, so this is the prompt's node-cron fallback).
+// unattended bank sync and the nightly notifications with node-cron, inside the
+// app process (apps/tasks has no scheduler, so this is the prompt's node-cron
+// fallback).
 
 export async function register(): Promise<void> {
   // Only the Node.js server runtime — not Edge, not the build step.
@@ -13,6 +14,9 @@ export async function register(): Promise<void> {
 
   const { schedule } = await import("node-cron");
   const { syncAll } = await import("@/server/services/sync");
+  const { runNightlyNotifications } = await import(
+    "@/server/services/notifications"
+  );
 
   // Every 6 hours. PSD2 allows ~4 unattended fetches/account/day; the
   // user-present "Sync now" is exempt. syncAll() is a no-op until a bank is
@@ -30,4 +34,21 @@ export async function register(): Promise<void> {
     { timezone: "Europe/Amsterdam" },
   );
   console.info("[sync] scheduled every 6h (Europe/Amsterdam)");
+
+  // Nightly at 06:30 — after the day's first sync, so budget MTD reflects the
+  // latest transactions. Budget 80/100% alerts, large-transaction alerts, and
+  // bank re-consent reminders. A no-op (no ntfy) until NTFY_TOPIC is set.
+  schedule(
+    "30 6 * * *",
+    () => {
+      void runNightlyNotifications().catch((err: unknown) => {
+        console.error(
+          "[notify] scheduled run failed:",
+          err instanceof Error ? err.name : err,
+        );
+      });
+    },
+    { timezone: "Europe/Amsterdam" },
+  );
+  console.info("[notify] scheduled nightly 06:30 (Europe/Amsterdam)");
 }

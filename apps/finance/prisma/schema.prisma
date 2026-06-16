@@ -70,6 +70,9 @@ model BankConnection {
   initialSyncAt DateTime?
   lastSyncedAt  DateTime?
   lastError     String?
+  // Failed sync runs since the last success; reset to 0 on a successful sync.
+  // 3+ triggers a re-consent reminder (src/lib/sync-health.ts).
+  consecutiveFailures Int        @default(0)
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
   accounts      Account[]
@@ -217,4 +220,13 @@ model NotificationLog {
   dedupeKey String   @unique
   kind      String
   sentAt    DateTime @default(now())
+}
+
+// Generic key/value app settings. Typed access lives in
+// src/server/services/settings.ts (e.g. large_txn_threshold_eur, parsed to a
+// Decimal). Key/value avoids a migration per new setting.
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
 }

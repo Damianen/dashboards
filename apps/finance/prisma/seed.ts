@@ -37,6 +37,19 @@ async function main() {
     });
   }
   console.log(`Seeded ${CATEGORIES.length} reference categories.`);
+
+  // Default large-transaction alert threshold (EUR). Create-only so a user's
+  // adjusted value survives a re-seed. getLargeTxnThreshold() also defaults to
+  // this when the row is absent — seeding just makes it visible in /settings.
+  const existing = await prisma.setting.findUnique({
+    where: { key: "large_txn_threshold_eur" },
+  });
+  if (!existing) {
+    await prisma.setting.create({
+      data: { key: "large_txn_threshold_eur", value: "250.00" },
+    });
+    console.log("Seeded default large_txn_threshold_eur = 250.00");
+  }
 }
 
 main()

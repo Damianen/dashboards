@@ -5,6 +5,7 @@ import {
   ConnectionStatus,
   type BankConnection,
 } from "@/generated/prisma/client";
+import { evaluateSyncHealth } from "@/lib/sync-health";
 import { prisma } from "@/server/db";
 
 import {
@@ -139,13 +140,18 @@ export interface BankStatus {
   status: ConnectionStatus | "NOT_CONNECTED";
   aspspName: string | null;
   validUntil: Date | null;
+  daysOfValidity: number | null; // Amsterdam calendar days until consent expiry
   accountCount: number;
   lastSyncedAt: Date | null;
   lastError: string | null;
+  consecutiveFailures: number;
+  needsReconsent: boolean; // expiring within 7 days OR 3+ consecutive failures
 }
 
 /** Per-bank connection status for the settings page (latest authorized wins). */
-export async function getBankStatuses(): Promise<BankStatus[]> {
+export async function getBankStatuses(
+  now: Date = new Date(),
+): Promise<BankStatus[]> {
   const statuses: BankStatus[] = [];
   for (const bank of BANKS) {
     const authorized = await prisma.bankConnection.findFirst({
@@ -161,14 +167,30 @@ export async function getBankStatuses(): Promise<BankStatus[]> {
         include: { _count: { select: { accounts: true } } },
       }));
 
+    const health = conn
+      ? evaluateSyncHealth(
+          {
+            id: conn.id,
+            validUntil: conn.validUntil,
+            lastSyncedAt: conn.lastSyncedAt,
+            consecutiveFailures: conn.consecutiveFailures,
+            status: conn.status,
+          },
+          now,
+        )
+      : null;
+
     statuses.push({
       bank,
       status: conn?.status ?? "NOT_CONNECTED",
       aspspName: conn?.aspspName ?? null,
       validUntil: conn?.validUntil ?? null,
+      daysOfValidity: health?.daysOfValidity ?? null,
       accountCount: conn?._count.accounts ?? 0,
       lastSyncedAt: conn?.lastSyncedAt ?? null,
       lastError: conn?.lastError ?? null,
+      consecutiveFailures: conn?.consecutiveFailures ?? 0,
+      needsReconsent: health?.shouldAlert ?? false,
     });
   }
   return statuses;

@@ -197,13 +197,19 @@ export async function syncConnection(
         lastSyncedAt: now,
         initialSyncAt: connection.initialSyncAt ?? now,
         lastError: null,
+        // A successful run clears the failure streak (sync-health re-arming).
+        consecutiveFailures: 0,
       },
     });
   } catch (err) {
     if (err instanceof EnableBankingError && err.isConsentExpired) {
       await prisma.bankConnection.update({
         where: { id: connection.id },
-        data: { status: ConnectionStatus.EXPIRED, lastError: err.code ?? "expired" },
+        data: {
+          status: ConnectionStatus.EXPIRED,
+          lastError: err.code ?? "expired",
+          consecutiveFailures: { increment: 1 },
+        },
       });
     } else {
       await prisma.bankConnection.update({
@@ -211,6 +217,7 @@ export async function syncConnection(
         data: {
           lastError:
             err instanceof EnableBankingError ? (err.code ?? "error") : "error",
+          consecutiveFailures: { increment: 1 },
         },
       });
     }

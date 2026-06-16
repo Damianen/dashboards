@@ -11,6 +11,7 @@
     "test": "vitest run",
     "smoke": "tsx scripts/smoke.ts",
     "verify:slice2": "tsx scripts/verify-slice2.ts",
+    "verify:slice3": "tsx scripts/verify-slice3.ts",
     "seed": "prisma db seed"
   },
   "dependencies": {

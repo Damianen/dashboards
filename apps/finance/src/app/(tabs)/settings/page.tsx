@@ -1,5 +1,6 @@
 import { Landmark } from "lucide-react";
 
+import { ThresholdForm } from "@/components/settings/threshold-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SyncButton } from "@/components/sync-button";
@@ -7,6 +8,8 @@ import { Bank, ConnectionStatus } from "@/generated/prisma/client";
 import { startConnect } from "@/server/actions/connections";
 import { getBankStatuses, type BankStatus } from "@/server/services/connections";
 import { ebConfig, isConfigured } from "@/server/services/enable-banking/config";
+import { getLargeTxnThreshold } from "@/server/services/settings";
+import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -40,10 +43,6 @@ function statusBadge(status: BankStatus["status"]): {
   }
 }
 
-function daysLeft(validUntil: Date): number {
-  return Math.ceil((validUntil.getTime() - Date.now()) / 86_400_000);
-}
-
 const ERROR_MESSAGES: Record<string, string> = {
   denied: "Authorization was cancelled at the bank.",
   bad_bank: "Unknown bank.",
@@ -61,6 +60,7 @@ export default async function SettingsPage({
 }) {
   const params = await searchParams;
   const statuses = await getBankStatuses();
+  const threshold = (await getLargeTxnThreshold()).toFixed(2);
   const configured = isConfigured();
   const { sandbox } = ebConfig();
 
@@ -117,8 +117,16 @@ export default async function SettingsPage({
                   <div className="col-span-2 flex justify-between">
                     <dt>Consent valid until</dt>
                     <dd className="text-foreground">
-                      {dateFmt.format(s.validUntil)} ({daysLeft(s.validUntil)}d
-                      left)
+                      {dateFmt.format(s.validUntil)}{" "}
+                      <span
+                        className={cn(
+                          s.daysOfValidity !== null && s.daysOfValidity <= 7
+                            ? "text-destructive"
+                            : "text-muted-foreground",
+                        )}
+                      >
+                        ({s.daysOfValidity}d left)
+                      </span>
                     </dd>
                   </div>
                 )}
@@ -134,6 +142,12 @@ export default async function SettingsPage({
                     {s.lastSyncedAt ? dateFmt.format(s.lastSyncedAt) : "never"}
                   </dd>
                 </div>
+                {s.consecutiveFailures > 0 && (
+                  <div className="col-span-2 flex justify-between">
+                    <dt>Failed syncs in a row</dt>
+                    <dd className="text-destructive">{s.consecutiveFailures}</dd>
+                  </div>
+                )}
                 {s.lastError && s.status !== ConnectionStatus.AUTHORIZED && (
                   <div className="col-span-2 flex justify-between">
                     <dt>Last error</dt>
@@ -141,6 +155,13 @@ export default async function SettingsPage({
                   </div>
                 )}
               </dl>
+
+              {s.needsReconsent && (
+                <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  This connection needs re-consent. Reconnect below to keep
+                  syncing.
+                </p>
+              )}
 
               <form action={startConnect}>
                 <input type="hidden" name="bank" value={s.bank} />
@@ -158,6 +179,14 @@ export default async function SettingsPage({
           );
         })}
       </ul>
+
+      <section className="flex flex-col gap-2 border-t border-border pt-4">
+        <h2 className="font-medium">Alerts</h2>
+        <p className="text-sm text-muted-foreground">
+          Push a notification for any single transaction above this amount.
+        </p>
+        <ThresholdForm initial={threshold} />
+      </section>
 
       <div className="border-t border-border pt-4">
         <SyncButton />
