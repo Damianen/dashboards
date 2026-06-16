@@ -15,6 +15,7 @@ import {
 import { categorizeNewTransactions } from "./categorize";
 import { isConfigured } from "./enable-banking/config";
 import { mapTransaction } from "./enable-banking/mapping";
+import { persistRecurringSeries } from "./recurrence";
 import type { EbBalance } from "./enable-banking/types";
 import { computeSyncWindow, type SyncWindow } from "./sync-window";
 import { detectAndLinkTransfers } from "./transfers";
@@ -257,11 +258,14 @@ export async function syncAll(opts: SyncOptions = {}): Promise<SyncSummary> {
   }
 
   // Post-ingest enrichment of the mutable fields only (merchantKey, categoryId,
-  // isInternalTransfer, transferPairId). Idempotent and self-healing; a failure
-  // here must never lose the rows we just ingested.
+  // isInternalTransfer, transferPairId), then recurring-series detection. Order
+  // matters: merchantKey (categorize) and the transfer flags must be set before
+  // recurrence groups by merchant and excludes transfers. Idempotent and
+  // self-healing; a failure here must never lose the rows we just ingested.
   try {
     await categorizeNewTransactions();
     await detectAndLinkTransfers();
+    await persistRecurringSeries(opts.now ?? new Date(), opts.timeZone);
   } catch (err) {
     logError("postsync", "all", err);
   }

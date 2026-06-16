@@ -207,6 +207,9 @@ model RecurringSeries {
   merchantKey    String    @unique
   description    String?
   expectedAmount Decimal   @db.Decimal(12, 2)
+  // The prior stable price when a >10% increase is detected; null otherwise.
+  // Lets /subscriptions badge "↑ from €X" without re-scanning transaction history.
+  previousAmount Decimal?  @db.Decimal(12, 2)
   intervalDays   Int
   lastSeenDate   DateTime? @db.Date
   active         Boolean   @default(true)

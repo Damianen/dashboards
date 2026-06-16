@@ -32,6 +32,15 @@ export interface DashboardData {
   trend: TrendPoint[];
 }
 
+export interface SpendingSummary {
+  month: string; // "YYYY-MM"
+  income: string; // 2dp, positive
+  expenses: string; // 2dp, positive
+  net: string; // 2dp, signed
+  savingsRate: number;
+  byCategory: CategorySpend[];
+}
+
 function pad(n: number): string {
   return String(n).padStart(2, "0");
 }
@@ -46,6 +55,17 @@ export function monthRange(
   timeZone: string = DEFAULT_TIMEZONE,
 ): { start: string; nextStart: string } {
   const [year, month] = zonedDateString(now, timeZone).split("-").map(Number);
+  const next =
+    month === 12 ? firstOfMonth(year + 1, 1) : firstOfMonth(year, month + 1);
+  return { start: firstOfMonth(year, month), nextStart: next };
+}
+
+/** [start, nextStart) date bounds (YYYY-MM-DD) for an explicit "YYYY-MM" key. */
+export function monthRangeFromKey(monthKey: string): {
+  start: string;
+  nextStart: string;
+} {
+  const [year, month] = monthKey.split("-").map(Number);
   const next =
     month === 12 ? firstOfMonth(year + 1, 1) : firstOfMonth(year, month + 1);
   return { start: firstOfMonth(year, month), nextStart: next };

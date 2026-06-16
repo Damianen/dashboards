@@ -12,9 +12,11 @@
     "smoke": "tsx scripts/smoke.ts",
     "verify:slice2": "tsx scripts/verify-slice2.ts",
     "verify:slice3": "tsx scripts/verify-slice3.ts",
+    "verify:slice4": "tsx scripts/verify-slice4.ts",
     "seed": "prisma db seed"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "@tanstack/react-query": "^5.101.0",

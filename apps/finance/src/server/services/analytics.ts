@@ -3,12 +3,15 @@ import {
   fillTrendMonths,
   lastNMonthStarts,
   monthRange,
+  monthRangeFromKey,
   savingsRate,
   type CategorySpend,
   type DashboardData,
+  type SpendingSummary,
   type TrendPoint,
 } from "@/lib/analytics";
 import { DEFAULT_TIMEZONE } from "@/lib/dates";
+import { spendingSummarySchema, type SpendingSummaryInput } from "@/lib/schemas";
 import { prisma } from "@/server/db";
 
 // Dashboard aggregation. ALL maths happens in SQL (the React layer only
@@ -26,16 +29,14 @@ function toCents(value: unknown): number {
   return new Prisma.Decimal(String(value ?? 0)).times(100).toNumber();
 }
 
-export async function getDashboard(
-  now: Date = new Date(),
-  timeZone: string = DEFAULT_TIMEZONE,
-): Promise<DashboardData> {
-  const { start, nextStart } = monthRange(now, timeZone);
-  const trendStarts = lastNMonthStarts(now, TREND_MONTHS, timeZone);
-  const trendFrom = trendStarts[0];
+// --- shared aggregations (reused by the dashboard AND the MCP summary tool) ---
 
-  // 1. Current-month income / expense (expense is reported positive).
-  const [summaryRow] = await prisma.$queryRaw<
+/** Income / expense (expense reported positive) for a [start, nextStart) window. */
+async function monthTotals(
+  start: string,
+  nextStart: string,
+): Promise<{ income: string; expense: string }> {
+  const [row] = await prisma.$queryRaw<
     Array<{ income: string; expense: string }>
   >(Prisma.sql`
     SELECT
@@ -46,9 +47,15 @@ export async function getDashboard(
       AND "bookingDate" >= ${start}::date
       AND "bookingDate" <  ${nextStart}::date
   `);
+  return { income: String(row?.income ?? 0), expense: String(row?.expense ?? 0) };
+}
 
-  // 2. Spend by category this month (expenses only). NULL category -> Uncategorized.
-  const categoryRows = await prisma.$queryRaw<
+/** Spend by category (expenses only) for a window. NULL category -> Uncategorized. */
+async function categorySpend(
+  start: string,
+  nextStart: string,
+): Promise<CategorySpend[]> {
+  const rows = await prisma.$queryRaw<
     Array<{
       categoryId: string | null;
       name: string | null;
@@ -67,8 +74,44 @@ export async function getDashboard(
     GROUP BY t."categoryId", c.name, c.color
     ORDER BY spend DESC
   `);
+  return rows.map((r) => ({
+    categoryId: r.categoryId,
+    name: r.name ?? "Uncategorized",
+    color: r.color ?? "#808080",
+    amount: toMoney(r.spend),
+  }));
+}
 
-  // 3. 6-month income-vs-expense trend, bucketed by month of the booking date.
+/** Assemble the income/expense/net/savingsRate block shared by both callers. */
+function summaryBlock(
+  monthKey: string,
+  totals: { income: string; expense: string },
+) {
+  const income = toMoney(totals.income);
+  const expenses = toMoney(totals.expense);
+  return {
+    month: monthKey,
+    income,
+    expenses,
+    net: new Prisma.Decimal(income).minus(expenses).toFixed(2),
+    savingsRate: savingsRate(toCents(totals.income), toCents(totals.expense)),
+  };
+}
+
+export async function getDashboard(
+  now: Date = new Date(),
+  timeZone: string = DEFAULT_TIMEZONE,
+): Promise<DashboardData> {
+  const { start, nextStart } = monthRange(now, timeZone);
+  const trendStarts = lastNMonthStarts(now, TREND_MONTHS, timeZone);
+  const trendFrom = trendStarts[0];
+
+  const [totals, byCategory] = await Promise.all([
+    monthTotals(start, nextStart),
+    categorySpend(start, nextStart),
+  ]);
+
+  // 6-month income-vs-expense trend, bucketed by month of the booking date.
   const trendRows = await prisma.$queryRaw<
     Array<{ month: Date; income: string; expense: string }>
   >(Prisma.sql`
@@ -83,26 +126,6 @@ export async function getDashboard(
     ORDER BY 1
   `);
 
-  const income = toMoney(summaryRow?.income);
-  const expenses = toMoney(summaryRow?.expense);
-  const summary = {
-    month: start.slice(0, 7),
-    income,
-    expenses,
-    net: new Prisma.Decimal(income).minus(expenses).toFixed(2),
-    savingsRate: savingsRate(
-      toCents(summaryRow?.income),
-      toCents(summaryRow?.expense),
-    ),
-  };
-
-  const byCategory: CategorySpend[] = categoryRows.map((r) => ({
-    categoryId: r.categoryId,
-    name: r.name ?? "Uncategorized",
-    color: r.color ?? "#808080",
-    amount: toMoney(r.spend),
-  }));
-
   const trend: TrendPoint[] = fillTrendMonths(
     trendStarts,
     trendRows.map((r) => ({
@@ -115,5 +138,27 @@ export async function getDashboard(
     })),
   );
 
-  return { summary, byCategory, trend };
+  return { summary: summaryBlock(start.slice(0, 7), totals), byCategory, trend };
+}
+
+/**
+ * Income / expenses / net / savings-rate + by-category spend for one month
+ * (defaults to the current one). Backs the MCP get_spending_summary tool.
+ */
+export async function getSpendingSummary(
+  input: SpendingSummaryInput = {},
+  now: Date = new Date(),
+  timeZone: string = DEFAULT_TIMEZONE,
+): Promise<SpendingSummary> {
+  const { month } = spendingSummarySchema.parse(input);
+  const { start, nextStart } = month
+    ? monthRangeFromKey(month)
+    : monthRange(now, timeZone);
+
+  const [totals, byCategory] = await Promise.all([
+    monthTotals(start, nextStart),
+    categorySpend(start, nextStart),
+  ]);
+
+  return { ...summaryBlock(start.slice(0, 7), totals), byCategory };
 }
