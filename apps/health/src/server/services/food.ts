@@ -141,10 +141,19 @@ export async function logFood(
   });
 }
 
-export function listByDay(day: string = todayLocal()): Promise<FoodEntry[]> {
+/**
+ * A day's food entries, newest first, each with its cached product's display
+ * fields joined in (the UI shows the product name/thumbnail; barcode entries
+ * carry no name of their own). The snapshotted macros on the row stay the source
+ * of truth — the product join is for display only.
+ */
+export function listByDay(day: string = todayLocal()) {
   return prisma.foodEntry.findMany({
     where: { day: dayToDbDate(day) },
     orderBy: { eatenAt: "desc" },
+    include: {
+      product: { select: { name: true, brand: true, imageUrl: true } },
+    },
   });
 }
 

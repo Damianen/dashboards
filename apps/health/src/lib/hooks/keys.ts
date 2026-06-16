@@ -3,6 +3,7 @@
 export const queryKeys = {
   summary: (day: string) => ["summary", day] as const,
   water: (day: string) => ["water", day] as const,
+  food: (day: string) => ["food", day] as const,
   supplementNames: () => ["supplement-names"] as const,
   // Lifting reads nest under one ["lifting"] prefix so a single invalidate after
   // logging a set refreshes both the sessions list and any exercise history.

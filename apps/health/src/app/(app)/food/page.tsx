@@ -1,7 +1,5 @@
-import { Utensils } from "lucide-react";
+import { FoodPage } from "@/components/food/food-page";
 
-import { Placeholder } from "@/components/shell/placeholder";
-
-export default function FoodPage() {
-  return <Placeholder title="Food" icon={Utensils} />;
+export default function Page() {
+  return <FoodPage />;
 }

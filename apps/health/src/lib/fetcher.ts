@@ -26,3 +26,9 @@ export async function postJSON<T>(url: string, body: unknown): Promise<T> {
   if (!res.ok) throw new HttpError(res.status, `POST ${url} failed`);
   return res.json() as Promise<T>;
 }
+
+export async function delJSON<T>(url: string): Promise<T> {
+  const res = await fetch(url, { method: "DELETE" });
+  if (!res.ok) throw new HttpError(res.status, `DELETE ${url} failed`);
+  return res.json() as Promise<T>;
+}
