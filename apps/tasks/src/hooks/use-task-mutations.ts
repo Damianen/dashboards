@@ -49,6 +49,7 @@ function applyOpToEntry(key: readonly unknown[], data: unknown, op: Op): unknown
       return applyOpToTodayView(data as TodayView, op);
     case "upcoming":
     case "search":
+    case "filter":
       return applyOpToFlatList(data as TaskWithLabels[], op);
     case "label":
       return applyOpToLabelView(data as LabelTasksView, op);

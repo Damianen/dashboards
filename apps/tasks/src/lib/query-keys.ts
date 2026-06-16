@@ -11,6 +11,7 @@ export const qk = {
     ["tasks", "project", id, { includeCompleted }] as const,
   label: (id: string) => ["tasks", "label", id] as const,
   search: (q: string) => ["tasks", "search", q] as const,
+  freeformFilter: (q: string) => ["tasks", "filter", "freeform", q] as const,
   projectTree: ["projects", "tree"] as const,
   labels: ["labels"] as const,
   reminders: (taskId: string) => ["reminders", taskId] as const,

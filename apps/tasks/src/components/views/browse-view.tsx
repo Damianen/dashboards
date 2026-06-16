@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, Hash, Inbox, Star } from "lucide-react";
+import { ChevronRight, Filter, Hash, Inbox, Star } from "lucide-react";
 import Link from "next/link";
 
 import { useLabels, useProjectTree } from "@/hooks/use-task-queries";
@@ -22,6 +22,27 @@ export function BrowseView({
   return (
     <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-1">
       <h1 className="py-3 text-2xl font-semibold">Browse</h1>
+
+      <section className="flex flex-col">
+        <h2 className="px-1 pb-1 text-sm font-semibold text-muted-foreground">
+          Filters
+        </h2>
+        <ul className="flex flex-col">
+          <li>
+            <Link
+              href="/filter"
+              className="flex min-h-[52px] items-center gap-3 border-b border-border/60 py-2 active:bg-muted/50"
+            >
+              <Filter className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+              <span className="min-w-0 flex-1 truncate text-sm">New filter…</span>
+              <ChevronRight
+                className="size-4 shrink-0 text-muted-foreground/50"
+                aria-hidden
+              />
+            </Link>
+          </li>
+        </ul>
+      </section>
 
       <section className="flex flex-col">
         <h2 className="px-1 pb-1 text-sm font-semibold text-muted-foreground">

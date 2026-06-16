@@ -8,6 +8,7 @@ import { getProjectTreeAction } from "@/server/actions/projects";
 import { unwrap } from "@/server/actions/result";
 import {
   listProjectViewAction,
+  listTasksByFilterAction,
   listTasksByLabelAction,
   listTodayViewAction,
   listUpcomingAction,
@@ -86,5 +87,20 @@ export function useSearch(query: string) {
     queryFn: async () => unwrap(await searchTasksAction(query)),
     enabled: query.trim().length > 0,
     placeholderData: keepPreviousData,
+  });
+}
+
+/**
+ * Run a freeform filter expression. A bad expression surfaces as a thrown
+ * ActionError (code FILTER_SYNTAX) on the query's `error` — never retried, and
+ * the last good results stay visible via keepPreviousData while typing.
+ */
+export function useFreeformFilter(query: string) {
+  return useQuery({
+    queryKey: qk.freeformFilter(query),
+    queryFn: async () => unwrap(await listTasksByFilterAction(query)),
+    enabled: query.length > 0,
+    placeholderData: keepPreviousData,
+    retry: false,
   });
 }
