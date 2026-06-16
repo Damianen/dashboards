@@ -1,0 +1,23 @@
+# Reaches the shared DB at host "postgres" on the external homelab network.
+# Prod .env needs the DATABASE_URL minted by create-service.sh finance
+# (not finance_dev), with host postgres instead of localhost. The EB private
+# key is mounted read-only; EB_PRIVATE_KEY_PATH must point at the mount target.
+services:
+  finance:
+    build:
+      context: ../..
+      dockerfile: apps/finance/Dockerfile
+    container_name: finance
+    env_file: .env
+    environment:
+      TZ: Europe/Amsterdam
+    volumes:
+      # Enable Banking private key — keep it out of the image.
+      - ${EB_PRIVATE_KEY_HOST_PATH:-./eb-finance.pem}:/run/secrets/eb-finance.pem:ro
+    networks:
+      - homelab
+    restart: unless-stopped
+
+networks:
+  homelab:
+    external: true
