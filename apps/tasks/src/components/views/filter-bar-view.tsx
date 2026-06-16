@@ -4,6 +4,7 @@ import { ArrowLeft, Filter } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 
+import { useSheets } from "@/components/providers/sheet-provider";
 import { EmptyState } from "@/components/tasks/empty-state";
 import { TaskList } from "@/components/tasks/task-list";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
@@ -18,6 +19,7 @@ export function FilterBarView({
 }: {
   initialTree: ProjectTreeNode[];
 }) {
+  const { openSavedFilter } = useSheets();
   const [raw, setRaw] = React.useState("");
   const query = useDebouncedValue(raw.trim(), 300);
   const filter = useFreeformFilter(query);
@@ -70,6 +72,14 @@ export function FilterBarView({
               className="h-11 w-full bg-transparent text-base outline-none placeholder:text-muted-foreground"
             />
           </div>
+          <button
+            type="button"
+            onClick={() => openSavedFilter({ query })}
+            disabled={!hasQuery || syntaxError !== null}
+            className="shrink-0 rounded-lg px-2 text-sm font-medium text-primary disabled:opacity-40"
+          >
+            Save
+          </button>
         </div>
         {syntaxError && (
           <p className="mt-1 px-1 text-xs text-destructive" role="alert">

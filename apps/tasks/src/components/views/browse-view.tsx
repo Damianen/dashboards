@@ -1,23 +1,31 @@
 "use client";
 
-import { ChevronRight, Filter, Hash, Inbox, Star } from "lucide-react";
+import { ChevronRight, Filter, Hash, Inbox, Plus, Star } from "lucide-react";
 import Link from "next/link";
 
-import { useLabels, useProjectTree } from "@/hooks/use-task-queries";
-import type { Label } from "@/generated/prisma/client";
+import {
+  useLabels,
+  useProjectTree,
+  useSavedFilters,
+} from "@/hooks/use-task-queries";
+import type { Label, SavedFilter } from "@/generated/prisma/client";
 import type { ProjectTreeNode } from "@/server/services/projects";
 
 export function BrowseView({
   initialTree,
   initialLabels,
+  initialFilters,
 }: {
   initialTree: ProjectTreeNode[];
   initialLabels: Label[];
+  initialFilters: SavedFilter[];
 }) {
   const tree = useProjectTree(initialTree);
   const labels = useLabels(initialLabels);
+  const filters = useSavedFilters(initialFilters);
   const projects = tree.data ?? initialTree;
   const labelList = labels.data ?? initialLabels;
+  const filterList = filters.data ?? initialFilters;
 
   return (
     <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-1">
@@ -28,13 +36,36 @@ export function BrowseView({
           Filters
         </h2>
         <ul className="flex flex-col">
+          {filterList.map((filter) => (
+            <li key={filter.id}>
+              <Link
+                href={`/filter/${filter.id}`}
+                className="flex min-h-[52px] items-center gap-3 border-b border-border/60 py-2 active:bg-muted/50"
+              >
+                <Filter
+                  className="size-5 shrink-0"
+                  style={{ color: filter.color }}
+                  aria-hidden
+                />
+                <span className="min-w-0 flex-1 truncate text-sm">
+                  {filter.name}
+                </span>
+                <ChevronRight
+                  className="size-4 shrink-0 text-muted-foreground/50"
+                  aria-hidden
+                />
+              </Link>
+            </li>
+          ))}
           <li>
             <Link
               href="/filter"
               className="flex min-h-[52px] items-center gap-3 border-b border-border/60 py-2 active:bg-muted/50"
             >
-              <Filter className="size-5 shrink-0 text-muted-foreground" aria-hidden />
-              <span className="min-w-0 flex-1 truncate text-sm">New filter…</span>
+              <Plus className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+              <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+                New filter…
+              </span>
               <ChevronRight
                 className="size-4 shrink-0 text-muted-foreground/50"
                 aria-hidden

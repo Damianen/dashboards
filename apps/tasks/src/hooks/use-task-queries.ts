@@ -5,6 +5,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { qk } from "@/lib/query-keys";
 import { listLabelsAction } from "@/server/actions/labels";
 import { getProjectTreeAction } from "@/server/actions/projects";
+import { listSavedFiltersAction } from "@/server/actions/saved-filters";
 import { unwrap } from "@/server/actions/result";
 import {
   listProjectViewAction,
@@ -14,7 +15,7 @@ import {
   listUpcomingAction,
   searchTasksAction,
 } from "@/server/actions/tasks";
-import type { Label } from "@/generated/prisma/client";
+import type { Label, SavedFilter } from "@/generated/prisma/client";
 import type { ProjectTreeNode } from "@/server/services/projects";
 import type {
   LabelTasksView,
@@ -102,5 +103,28 @@ export function useFreeformFilter(query: string) {
     enabled: query.length > 0,
     placeholderData: keepPreviousData,
     retry: false,
+  });
+}
+
+export function useSavedFilters(initialData?: SavedFilter[]) {
+  return useQuery({
+    queryKey: qk.savedFilters,
+    queryFn: async () => unwrap(await listSavedFiltersAction()),
+    initialData,
+  });
+}
+
+/** Tasks for one saved filter. The query is part of the key so editing the
+ *  filter's expression refetches cleanly; it still lives under the ["tasks"]
+ *  family (key[1] === "filter") so optimistic task mutations reach it. */
+export function useSavedFilterTasks(
+  id: string,
+  query: string,
+  initialData?: TaskWithLabels[],
+) {
+  return useQuery({
+    queryKey: [...qk.filter(id), query],
+    queryFn: async () => unwrap(await listTasksByFilterAction(query)),
+    initialData,
   });
 }
