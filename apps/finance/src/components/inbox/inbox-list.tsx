@@ -16,7 +16,11 @@ import type { CategoryListItem, InboxItem, InboxPage } from "@/lib/inbox";
 import { cn } from "@/lib/utils";
 import { categorize, rerunRules } from "@/server/actions/categorize";
 
-const BANK_LABELS: Record<string, string> = { ING: "ING", REVOLUT: "Revolut" };
+const BANK_LABELS: Record<string, string> = {
+  ING: "ING",
+  REVOLUT: "Revolut",
+  KLARNA: "Klarna",
+};
 
 const dateFmt = new Intl.DateTimeFormat("en-GB", {
   day: "2-digit",

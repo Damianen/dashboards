@@ -16,10 +16,13 @@ interface BankAspsp {
   country: string;
 }
 
-// Real ASPSP per bank. Brand + market only — no personal data here.
+// Real ASPSP per bank. Brand + market only — no personal data here. The exact
+// ASPSP name/country must match Enable Banking's ASPSP list for the account's
+// market (confirm against the EB dashboard before first real consent).
 const BANK_ASPSP: Record<Bank, BankAspsp> = {
   [Bank.ING]: { name: "ING", country: "NL" },
   [Bank.REVOLUT]: { name: "Revolut", country: "NL" },
+  [Bank.KLARNA]: { name: "Klarna", country: "NL" },
 };
 
 export interface EbConfig {

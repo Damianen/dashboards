@@ -23,6 +23,7 @@ datasource db {
 enum Bank {
   ING
   REVOLUT
+  KLARNA
 }
 
 enum ConnectionStatus {

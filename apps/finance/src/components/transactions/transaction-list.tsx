@@ -7,7 +7,11 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { TransactionsPage } from "@/lib/transactions";
 
-const BANK_LABELS: Record<string, string> = { ING: "ING", REVOLUT: "Revolut" };
+const BANK_LABELS: Record<string, string> = {
+  ING: "ING",
+  REVOLUT: "Revolut",
+  KLARNA: "Klarna",
+};
 
 const dateFmt = new Intl.DateTimeFormat("en-GB", {
   day: "2-digit",

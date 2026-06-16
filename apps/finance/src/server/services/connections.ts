@@ -22,7 +22,7 @@ import { NotFoundError } from "./errors";
 
 const CONSENT_DAYS = 180; // EB caps this at the ASPSP's maximum.
 
-export const BANKS: Bank[] = [Bank.ING, Bank.REVOLUT];
+export const BANKS: Bank[] = [Bank.ING, Bank.REVOLUT, Bank.KLARNA];
 
 function consentValidUntil(now: Date): string {
   return new Date(now.getTime() + CONSENT_DAYS * 86_400_000).toISOString();

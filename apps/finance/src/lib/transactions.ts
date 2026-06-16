@@ -8,7 +8,7 @@ export interface TransactionListItem {
   currency: string;
   counterparty: string | null;
   descriptionRaw: string | null;
-  bank: string; // "ING" | "REVOLUT"
+  bank: string; // "ING" | "REVOLUT" | "KLARNA"
   accountName: string | null;
 }
 

@@ -12,6 +12,7 @@ import { isConfigured } from "@/server/services/enable-banking/config";
 function parseBank(value: FormDataEntryValue | null): Bank | null {
   if (value === Bank.ING) return Bank.ING;
   if (value === Bank.REVOLUT) return Bank.REVOLUT;
+  if (value === Bank.KLARNA) return Bank.KLARNA;
   return null;
 }
 

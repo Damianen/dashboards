@@ -16,6 +16,7 @@ export const dynamic = "force-dynamic";
 const BANK_LABELS: Record<Bank, string> = {
   [Bank.ING]: "ING",
   [Bank.REVOLUT]: "Revolut",
+  [Bank.KLARNA]: "Klarna",
 };
 
 const dateFmt = new Intl.DateTimeFormat("en-GB", {

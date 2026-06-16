@@ -10,7 +10,7 @@ export interface InboxItem {
   counterparty: string | null;
   descriptionRaw: string | null;
   merchantKey: string | null;
-  bank: string; // "ING" | "REVOLUT"
+  bank: string; // "ING" | "REVOLUT" | "KLARNA"
   accountName: string | null;
 }
 
