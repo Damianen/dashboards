@@ -32,3 +32,14 @@ export function listByDay(
     orderBy: { loggedAt: "desc" },
   });
 }
+
+/** Most-recently-used distinct supplement names, for the quick-log datalist. */
+export async function listRecentNames(limit = 20): Promise<string[]> {
+  const rows = await prisma.supplementEntry.findMany({
+    distinct: ["name"],
+    select: { name: true },
+    orderBy: { loggedAt: "desc" },
+    take: limit,
+  });
+  return rows.map((r) => r.name);
+}
