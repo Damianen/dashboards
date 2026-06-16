@@ -13,4 +13,5 @@ export const queryKeys = {
   liftingHistory: (exercise: string, limit: number) =>
     ["lifting", "history", exercise, limit] as const,
   exercises: () => ["exercises"] as const,
+  connections: () => ["connections"] as const,
 };

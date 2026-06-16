@@ -18,6 +18,7 @@ import { logSupplement } from "@/server/services/supplements";
 import { getDailySummary, getTrends } from "@/server/services/summary";
 import { syncOura } from "@/server/services/sync/oura";
 import { getSyncStatus } from "@/server/services/sync/runs";
+import { syncWithings } from "@/server/services/sync/withings";
 import { getWaterStatus, logWater } from "@/server/services/water";
 
 // The active_kcal honesty caveat (CLAUDE.md domain guardrail), shared verbatim by the
@@ -366,20 +367,22 @@ export function buildServer(): McpServer {
     "trigger_sync",
     {
       description:
-        "Trigger a wearable sync for a source. Oura is implemented: it pulls sleep, " +
-        "daily sleep and readiness since the last successful run (idempotent UPSERT by " +
-        "external id / day) and returns a run summary { status, itemsUpserted, window }. " +
-        "Withings and Google Health have not landed yet.",
+        "Trigger a wearable sync for a source since the last successful run (idempotent " +
+        "UPSERT by external id / day), returning a run summary { status, itemsUpserted, " +
+        "window }. Oura pulls sleep, daily sleep and readiness. Withings pulls body " +
+        "measurements (weight + composition); a rejected refresh token returns " +
+        "needsReauth: true rather than erroring out. Google Health has not landed yet.",
       inputSchema: {
         source: z
           .enum(["oura", "withings", "google_health"])
           .describe("Which source to sync."),
       },
     },
-    ({ source }) =>
-      source === "oura"
-        ? run(() => syncOura())
-        : ok({ source, status: "not implemented yet" }),
+    ({ source }) => {
+      if (source === "oura") return run(() => syncOura());
+      if (source === "withings") return run(() => syncWithings());
+      return ok({ source, status: "not implemented yet" });
+    },
   );
 
   return server;
