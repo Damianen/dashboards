@@ -12,10 +12,12 @@ import {
   liveClient,
   type EbClient,
 } from "./enable-banking/client";
+import { categorizeNewTransactions } from "./categorize";
 import { isConfigured } from "./enable-banking/config";
 import { mapTransaction } from "./enable-banking/mapping";
 import type { EbBalance } from "./enable-banking/types";
 import { computeSyncWindow, type SyncWindow } from "./sync-window";
+import { detectAndLinkTransfers } from "./transfers";
 
 // Per-account incremental fetch with idempotent upserts and one balance
 // snapshot per account per run. The first sync after a fresh consent backfills
@@ -246,6 +248,17 @@ export async function syncAll(opts: SyncOptions = {}): Promise<SyncSummary> {
       // syncConnection already recorded the error; keep syncing the others.
     }
   }
+
+  // Post-ingest enrichment of the mutable fields only (merchantKey, categoryId,
+  // isInternalTransfer, transferPairId). Idempotent and self-healing; a failure
+  // here must never lose the rows we just ingested.
+  try {
+    await categorizeNewTransactions();
+    await detectAndLinkTransfers();
+  } catch (err) {
+    logError("postsync", "all", err);
+  }
+
   return summary(connections.length, all, startedAt, "ok");
 }
 

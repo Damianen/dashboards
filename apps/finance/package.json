@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "smoke": "tsx scripts/smoke.ts",
+    "verify:slice2": "tsx scripts/verify-slice2.ts",
     "seed": "prisma db seed"
   },
   "dependencies": {
