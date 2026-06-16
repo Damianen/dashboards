@@ -38,6 +38,7 @@ import {
   createTaskFromText,
   getTask,
   listOverdue,
+  listTasksByFilter,
   listTasksByProject,
   listToday,
   listUpcoming,
@@ -127,16 +128,23 @@ export function registerTools(server: McpServer): void {
     {
       title: "List tasks",
       description:
-        "List tasks either for one project (project_name) or via a cross-project view (today / upcoming / overdue). Provide exactly one of project_name or view. Views only contain incomplete tasks; include_completed applies to a project listing.",
+        "List tasks one of three ways: for one project (project_name), via a cross-project view (today / upcoming / overdue), or via a Todoist-style filter expression (filter — the power tool; see the filter param for its grammar). Provide exactly one of project_name, view, or filter. Views and filters only contain incomplete tasks; include_completed applies to a project listing.",
       inputSchema: listTasksShape,
       annotations: { readOnlyHint: true },
     },
-    ({ project_name, view, include_completed }) =>
+    ({ project_name, view, filter, include_completed }) =>
       runTool(async () => {
-        if ((project_name === undefined) === (view === undefined))
+        const modes = [project_name, view, filter].filter(
+          (m) => m !== undefined,
+        );
+        if (modes.length !== 1)
           throw new InvalidOperationError(
-            "provide exactly one of project_name or view",
+            "provide exactly one of project_name, view, or filter",
           );
+        if (filter !== undefined) {
+          const tasks = await listTasksByFilter(filter);
+          return tasks.map((t) => serializeTask(t));
+        }
         if (view !== undefined) {
           const tasks =
             view === "today"

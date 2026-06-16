@@ -240,6 +240,50 @@ async function main() {
       "auto-created project missing from list_projects",
     );
   });
+
+  // == filter language =======================================================
+  console.log("== filter ==");
+  await check("list_tasks filter selects the captured task", async () => {
+    const listed = await callJson<SerializedTask[]>("list_tasks", {
+      filter: `#"${finName}" & p2 & @${adminLabel}`,
+    });
+    assert(
+      listed.some((t) => t.id === captured.id),
+      "captured task missing from filter results",
+    );
+  });
+
+  await check("list_tasks filter excludes a non-matching priority", async () => {
+    const listed = await callJson<SerializedTask[]>("list_tasks", {
+      filter: `#"${finName}" & p1`,
+    });
+    assert(
+      !listed.some((t) => t.id === captured.id),
+      "p1 filter should not match the p2 task",
+    );
+  });
+
+  await check("list_tasks rejects a malformed filter with FILTER_SYNTAX", async () => {
+    const result = (await client.callTool({
+      name: "list_tasks",
+      arguments: { filter: "today &" },
+    })) as CallToolResult;
+    assert(result.isError === true, "expected an error result");
+    const block = result.content[0];
+    const text = block && block.type === "text" ? block.text : "";
+    assert(
+      text.startsWith("FILTER_SYNTAX"),
+      `expected FILTER_SYNTAX, got: ${text}`,
+    );
+  });
+
+  await check("list_tasks rejects combining view and filter", async () => {
+    const result = (await client.callTool({
+      name: "list_tasks",
+      arguments: { view: "today", filter: "today" },
+    })) as CallToolResult;
+    assert(result.isError === true, "expected an error result");
+  });
 }
 
 main()

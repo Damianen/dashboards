@@ -67,12 +67,29 @@ export const createTaskShape = {
 export const listTasksShape = {
   project_name: nameSchema
     .optional()
-    .describe("List a project's tasks (case-insensitive). Mutually exclusive with view."),
+    .describe(
+      "List a project's tasks (case-insensitive). Provide exactly one of project_name, view, or filter.",
+    ),
   view: z
     .enum(["today", "upcoming", "overdue"])
     .optional()
     .describe(
-      "A cross-project view of incomplete tasks: today (due today), upcoming (next 7 days), or overdue. Mutually exclusive with project_name.",
+      "A cross-project view of incomplete tasks: today (due today), upcoming (next 7 days), or overdue. Provide exactly one of project_name, view, or filter.",
+    ),
+  filter: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe(
+      "Todoist-style filter over incomplete tasks across all projects. " +
+        "Operators: ! (not), & (and), | (or), parentheses; precedence ! > & > |. " +
+        "Terms (case-insensitive): today, tomorrow, overdue, \"no date\", \"no label\", " +
+        "p1..p4, #Project, @label, /Section (quote names with spaces: #\"My Project\"), " +
+        "search: <text>, date before: <when>, date after: <when>, next N days " +
+        "(<when> is natural language, e.g. \"next monday\"; \"next N days\" counts from today). " +
+        "Example: (today | overdue) & #School & !@waiting. " +
+        "Provide exactly one of project_name, view, or filter.",
     ),
   include_completed: z
     .boolean()
