@@ -7,6 +7,7 @@
 
 import { ZodError } from "zod";
 
+import { FilterParseError } from "@/lib/filterlang";
 import {
   DomainError,
   InvalidMoveError,
@@ -21,6 +22,7 @@ export type ActionErrorCode =
   | "INVALID_MOVE"
   | "INVALID_OPERATION"
   | "NOT_IMPLEMENTED"
+  | "FILTER_SYNTAX"
   | "INTERNAL";
 
 export interface ActionErrorShape {
@@ -47,6 +49,8 @@ export function mapError(err: unknown): ActionErrorShape {
         : "Invalid input",
     };
   }
+  if (err instanceof FilterParseError)
+    return { code: "FILTER_SYNTAX", message: err.message };
   if (err instanceof NotFoundError)
     return { code: "NOT_FOUND", message: err.message };
   if (err instanceof InvalidMoveError)
