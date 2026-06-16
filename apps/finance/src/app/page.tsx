@@ -14,7 +14,7 @@ export default async function DashboardPage() {
     await Promise.all([getDashboard(), getNetWorth(), listSubscriptions()]);
 
   return (
-    <section className="flex flex-col gap-5 py-4">
+    <section className="flex flex-col gap-5 py-4 duration-500 animate-in fade-in slide-in-from-bottom-3">
       <header className="flex items-baseline justify-between">
         <h1 className="text-2xl font-semibold">Overview</h1>
         <span className="text-sm text-muted-foreground">This month</span>

@@ -30,10 +30,11 @@ export function SubscriptionList({
 
   return (
     <ul className="flex flex-col gap-2">
-      {subscriptions.map((s) => (
+      {subscriptions.map((s, i) => (
         <li
           key={s.id}
-          className="flex items-center justify-between gap-3 rounded-xl border bg-card p-4"
+          style={{ animationDelay: `${i * 60}ms` }}
+          className="flex items-center justify-between gap-3 rounded-xl border bg-card p-4 transition-colors duration-500 fill-mode-both animate-in fade-in slide-in-from-bottom-2 hover:border-primary/30"
         >
           <div className="flex min-w-0 flex-col gap-1">
             <div className="flex flex-wrap items-center gap-2">

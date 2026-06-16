@@ -25,7 +25,7 @@ export function SyncFab() {
           router.refresh();
         })
       }
-      className="fixed right-4 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-50 size-14 rounded-full shadow-lg"
+      className="fixed right-4 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-50 size-14 rounded-full shadow-lg shadow-primary/30 transition-transform duration-150 active:scale-90"
     >
       <RefreshCw
         className={cn("size-6", pending && "animate-spin")}

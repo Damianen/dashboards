@@ -22,13 +22,16 @@ export function SummaryCards({ summary }: { summary: DashboardSummary }) {
   return (
     <div className="grid grid-cols-2 gap-3">
       {cards.map((c) => (
-        <div key={c.label} className="rounded-xl border bg-card p-4">
+        <div
+          key={c.label}
+          className="rounded-xl border bg-card p-4 transition-colors hover:border-primary/30"
+        >
           <div className="text-xs text-muted-foreground">{c.label}</div>
           <div
             className={cn(
               "mt-1 text-xl font-semibold tabular-nums",
               c.tone === "expense" && "text-destructive",
-              c.tone === "income" && "text-emerald-600 dark:text-emerald-500",
+              c.tone === "income" && "text-emerald-500",
               c.tone === "neutral" && "text-foreground",
             )}
           >

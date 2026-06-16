@@ -37,13 +37,15 @@ export function NetWorthChart({ points }: { points: NetWorthPoint[] }) {
         role="img"
         aria-label="Net worth over time"
       >
-        <polygon points={area} className="fill-emerald-500/10" />
+        <polygon points={area} className="nw-area fill-emerald-500" />
         <polyline
           points={line}
+          pathLength={1}
           fill="none"
-          className="stroke-emerald-500"
+          className="nw-line stroke-emerald-500"
           strokeWidth={1.5}
           strokeLinejoin="round"
+          strokeLinecap="round"
           vectorEffect="non-scaling-stroke"
         />
       </svg>
