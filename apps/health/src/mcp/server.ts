@@ -16,7 +16,8 @@ import { searchProducts } from "@/server/services/off";
 import { logStimulant } from "@/server/services/stimulants";
 import { logSupplement } from "@/server/services/supplements";
 import { getDailySummary, getTrends } from "@/server/services/summary";
-import { getSyncStatus } from "@/server/services/sync";
+import { syncOura } from "@/server/services/sync/oura";
+import { getSyncStatus } from "@/server/services/sync/runs";
 import { getWaterStatus, logWater } from "@/server/services/water";
 
 // The active_kcal honesty caveat (CLAUDE.md domain guardrail), shared verbatim by the
@@ -365,15 +366,20 @@ export function buildServer(): McpServer {
     "trigger_sync",
     {
       description:
-        "Trigger a wearable sync for a source. Not implemented yet — the sync phases " +
-        "(Oura, Withings, Google Health) have not landed.",
+        "Trigger a wearable sync for a source. Oura is implemented: it pulls sleep, " +
+        "daily sleep and readiness since the last successful run (idempotent UPSERT by " +
+        "external id / day) and returns a run summary { status, itemsUpserted, window }. " +
+        "Withings and Google Health have not landed yet.",
       inputSchema: {
         source: z
           .enum(["oura", "withings", "google_health"])
           .describe("Which source to sync."),
       },
     },
-    ({ source }) => ok({ source, status: "not implemented yet" }),
+    ({ source }) =>
+      source === "oura"
+        ? run(() => syncOura())
+        : ok({ source, status: "not implemented yet" }),
   );
 
   return server;
