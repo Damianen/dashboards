@@ -76,6 +76,11 @@ export async function searchTasksAction(q: string) {
   return toActionResult(() => tasks.searchTasks(q));
 }
 
+/** Run a Todoist-style filter expression; FILTER_SYNTAX on a bad expression. */
+export async function listTasksByFilterAction(filter: string) {
+  return toActionResult(() => tasks.listTasksByFilter(filter));
+}
+
 /** Fetch a single task with labels — used by the reminder deep link. */
 export async function getTaskAction(id: string) {
   return toActionResult(() => tasks.getTask(id));

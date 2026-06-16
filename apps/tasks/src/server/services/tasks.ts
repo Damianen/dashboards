@@ -16,6 +16,7 @@ import {
   wallClockParts,
   zonedDayStart,
 } from "@/lib/dates";
+import { compileFilter, type FilterTask } from "@/lib/filterlang";
 import {
   taskCreateSchema,
   taskMoveSchema,
@@ -793,4 +794,52 @@ export async function searchTasks(
     include: labelInclude,
   });
   return tasks.map(flattenLabels);
+}
+
+// The filter language matches on project/section NAMES, so pull those in
+// alongside labels in one query.
+const filterInclude = {
+  labels: { include: { label: true } },
+  project: { select: { name: true } },
+  section: { select: { name: true } },
+} satisfies Prisma.TaskInclude;
+
+/**
+ * Incomplete tasks matching a Todoist-style filter expression. The active set
+ * is fetched once and filtered in memory (single-user data volume); we never
+ * compile the filter to SQL. Throws FilterParseError on a bad expression — and
+ * does so before touching the DB, since compilation comes first.
+ */
+export async function listTasksByFilter(
+  filter: string,
+  opts?: ViewOpts,
+): Promise<TaskWithLabels[]> {
+  const timeZone = opts?.timeZone ?? DEFAULT_TIMEZONE;
+  const now = opts?.now ?? new Date();
+  const predicate = compileFilter(filter, { now, timeZone });
+
+  const rows = await prisma.task.findMany({
+    where: { completedAt: null },
+    orderBy: viewOrderBy,
+    include: filterInclude,
+  });
+
+  const matched: TaskWithLabels[] = [];
+  for (const row of rows) {
+    // Strip the relation objects so the returned shape stays TaskWithLabels.
+    const { project, section, ...taskRow } = row;
+    const candidate: FilterTask = {
+      title: taskRow.title,
+      description: taskRow.description,
+      priority: taskRow.priority,
+      dueAt: taskRow.dueAt,
+      hasDueTime: taskRow.hasDueTime,
+      timezone: taskRow.timezone,
+      labels: taskRow.labels.map((tl) => tl.label.name),
+      projectName: project.name,
+      sectionName: section?.name ?? null,
+    };
+    if (predicate(candidate)) matched.push(flattenLabels(taskRow));
+  }
+  return matched;
 }
