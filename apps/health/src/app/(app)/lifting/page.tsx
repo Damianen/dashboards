@@ -1,7 +1,5 @@
-import { Dumbbell } from "lucide-react";
+import { LiftingPage } from "@/components/lifting/lifting-page";
 
-import { Placeholder } from "@/components/shell/placeholder";
-
-export default function LiftingPage() {
-  return <Placeholder title="Lifting" icon={Dumbbell} />;
+export default function Page() {
+  return <LiftingPage />;
 }

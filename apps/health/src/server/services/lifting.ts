@@ -4,6 +4,13 @@ import {
   type LiftingSet,
 } from "@/generated/prisma/client";
 import { dayOf, dayToDbDate } from "@/lib/dates";
+import {
+  type ExerciseGroup,
+  groupSetsByExercise,
+  type PlainSet,
+  sessionVolumeKg,
+  sessionWorkingSets,
+} from "@/lib/lifting-grouping";
 import { shouldReuseSession } from "@/lib/rules";
 import { logSetSchema, type LogSetInput } from "@/lib/schemas/lifting";
 import { prisma } from "@/server/db";
@@ -100,6 +107,62 @@ export async function getHistory(
       .filter((s) => !s.isWarmup)
       .reduce((sum, s) => sum + s.reps * Number(s.weightKg), 0),
   }));
+}
+
+export interface SessionView {
+  sessionId: string;
+  day: string;
+  startedAt: Date;
+  endedAt: Date | null;
+  volumeKg: number;
+  workingSets: number;
+  exercises: ExerciseGroup[];
+}
+
+/** Sessions with their sets grouped by exercise and per-session working volume.
+ *  With `day`, returns every session on that civil day (a >3h gap splits one day
+ *  into multiple sessions); without it, the most recent `limit` sessions, newest
+ *  first. Prisma.Decimal weights are coerced to numbers here so the client never
+ *  sees decimal strings. */
+export async function listSessions(
+  day?: string,
+  limit = 10,
+): Promise<SessionView[]> {
+  const sessions = await prisma.liftingSession.findMany({
+    where: day ? { day: dayToDbDate(day) } : {},
+    orderBy: { startedAt: "desc" },
+    take: day ? undefined : limit,
+    include: {
+      // loggedAt asc gives groupSetsByExercise its first-appearance ordering.
+      sets: {
+        orderBy: { loggedAt: "asc" },
+        include: { exercise: { select: { id: true, name: true } } },
+      },
+    },
+  });
+
+  return sessions.map((session) => {
+    const plain: PlainSet[] = session.sets.map((s) => ({
+      id: s.id,
+      exerciseId: s.exerciseId,
+      exerciseName: s.exercise.name,
+      setNumber: s.setNumber,
+      reps: s.reps,
+      weightKg: Number(s.weightKg),
+      rpe: s.rpe == null ? null : Number(s.rpe),
+      isWarmup: s.isWarmup,
+    }));
+    const exercises = groupSetsByExercise(plain);
+    return {
+      sessionId: session.id,
+      day: dayOf(session.day),
+      startedAt: session.startedAt,
+      endedAt: session.endedAt,
+      volumeKg: sessionVolumeKg(exercises),
+      workingSets: sessionWorkingSets(exercises),
+      exercises,
+    };
+  });
 }
 
 export function listExercises(): Promise<Exercise[]> {

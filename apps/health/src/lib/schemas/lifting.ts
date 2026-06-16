@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { daySchema } from "@/lib/schemas/common";
+
 export const logSetSchema = z
   .strictObject({
     exerciseId: z.cuid().optional(),
@@ -20,3 +22,10 @@ export const historyQuerySchema = z.strictObject({
   limit: z.coerce.number().int().min(1).max(100).default(10),
 });
 export type HistoryQuery = z.infer<typeof historyQuerySchema>;
+
+export const sessionsQuerySchema = z.strictObject({
+  // Omit `day` for the recent-sessions list; pass it for a single day's sessions.
+  day: daySchema.optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(10),
+});
+export type SessionsQuery = z.infer<typeof sessionsQuerySchema>;
