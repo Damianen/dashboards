@@ -16,6 +16,7 @@ import { searchProducts } from "@/server/services/off";
 import { logStimulant } from "@/server/services/stimulants";
 import { logSupplement } from "@/server/services/supplements";
 import { getDailySummary, getTrends } from "@/server/services/summary";
+import { syncGoogleHealth } from "@/server/services/sync/google-health";
 import { syncOura } from "@/server/services/sync/oura";
 import { getSyncStatus } from "@/server/services/sync/runs";
 import { syncWithings } from "@/server/services/sync/withings";
@@ -371,7 +372,10 @@ export function buildServer(): McpServer {
         "UPSERT by external id / day), returning a run summary { status, itemsUpserted, " +
         "window }. Oura pulls sleep, daily sleep and readiness. Withings pulls body " +
         "measurements (weight + composition); a rejected refresh token returns " +
-        "needsReauth: true rather than erroring out. Google Health has not landed yet.",
+        "needsReauth: true rather than erroring out. Google Health pulls daily activity " +
+        "rollups — steps and active/total energy expenditure (active_kcal is a wearable " +
+        "trend estimate, never absolute; a rejected refresh token also returns " +
+        "needsReauth: true).",
       inputSchema: {
         source: z
           .enum(["oura", "withings", "google_health"])
@@ -381,7 +385,7 @@ export function buildServer(): McpServer {
     ({ source }) => {
       if (source === "oura") return run(() => syncOura());
       if (source === "withings") return run(() => syncWithings());
-      return ok({ source, status: "not implemented yet" });
+      return run(() => syncGoogleHealth());
     },
   );
 

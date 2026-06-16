@@ -21,7 +21,13 @@ import { useSyncProvider } from "@/lib/hooks/use-sync-provider";
 const BLURB: Record<Connection["provider"], string> = {
   withings: "Body weight & composition",
   oura: "Sleep & readiness",
-  google: "Activity & steps",
+  google_health: "Activity & steps",
+};
+
+// OAuth providers expose a connect link; the server sets the state cookie on this nav.
+const AUTHORIZE_PATH: Partial<Record<Connection["provider"], string>> = {
+  withings: "/api/oauth/withings",
+  google_health: "/api/oauth/google",
 };
 
 type BadgeVariant = "default" | "secondary" | "destructive" | "outline";
@@ -69,7 +75,7 @@ function ConnectionCard({ c }: { c: Connection }) {
   const sync = useSyncProvider(c.provider, c.label);
   const badge = statusBadge(c);
   const expiry = expiryText(c);
-  const isWithings = c.provider === "withings";
+  const authorizePath = AUTHORIZE_PATH[c.provider];
   const canSync = c.kind !== "unavailable" && c.connected;
 
   return (
@@ -87,10 +93,10 @@ function ConnectionCard({ c }: { c: Connection }) {
           {expiry && <p>{expiry}</p>}
         </div>
         <div className="flex flex-wrap gap-2">
-          {isWithings && (
+          {authorizePath && (
             // Full navigation (not fetch) so the server can set the state cookie.
             <Button asChild variant={c.connected ? "outline" : "default"}>
-              <a href="/api/oauth/withings">
+              <a href={authorizePath}>
                 <Plug />
                 {c.connected ? "Reconnect" : "Connect"}
               </a>
@@ -98,7 +104,7 @@ function ConnectionCard({ c }: { c: Connection }) {
           )}
           {canSync && (
             <Button
-              variant={isWithings ? "secondary" : "default"}
+              variant={authorizePath ? "secondary" : "default"}
               onClick={() => sync.mutate()}
               disabled={sync.isPending}
             >
