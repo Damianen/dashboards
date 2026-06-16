@@ -11,7 +11,7 @@ import { prisma } from "@/server/db";
  * Google Health) lands and writes its first run. The local DB is the source of
  * truth — this only reports the latest attempt per feed.
  */
-export async function getSyncStatus(): Promise<SyncRun[]> {
+export async function latestRunsBySource(): Promise<SyncRun[]> {
   const runs = await Promise.all(
     Object.values(SyncSource).map((source) =>
       prisma.syncRun.findFirst({
@@ -21,6 +21,41 @@ export async function getSyncStatus(): Promise<SyncRun[]> {
     ),
   );
   return runs.filter((r): r is SyncRun => r !== null);
+}
+
+/**
+ * Fail RUNNING runs for `source` whose `startedAt` is older than `maxAgeMs`, marking
+ * them ERROR "timed out". A crash or hang leaves a run stuck RUNNING forever; this is
+ * the recovery path the scheduler invokes before each tick so a dead run can't block
+ * the next one. Returns how many were reaped.
+ */
+export async function expireStaleRuns(
+  source: SyncSource,
+  maxAgeMs: number,
+): Promise<number> {
+  const cutoff = new Date(Date.now() - maxAgeMs);
+  const { count } = await prisma.syncRun.updateMany({
+    where: { source, status: SyncStatus.RUNNING, startedAt: { lt: cutoff } },
+    data: { status: SyncStatus.ERROR, error: "timed out", finishedAt: new Date() },
+  });
+  return count;
+}
+
+/**
+ * Whether `source` has a RUNNING run started within the last `withinMs` — i.e. a sync
+ * is genuinely in flight (older RUNNING rows are reaped by expireStaleRuns first). The
+ * scheduler uses this to skip overlapping ticks.
+ */
+export async function hasActiveRun(
+  source: SyncSource,
+  withinMs: number,
+): Promise<boolean> {
+  const since = new Date(Date.now() - withinMs);
+  const run = await prisma.syncRun.findFirst({
+    where: { source, status: SyncStatus.RUNNING, startedAt: { gte: since } },
+    select: { id: true },
+  });
+  return run !== null;
 }
 
 /** A closed-open date range, both ends civil days ("YYYY-MM-DD"), to pull from a vendor. */

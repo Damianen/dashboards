@@ -27,3 +27,21 @@ export function clampPercent(value: number, target: number): number {
   if (target <= 0) return 0;
   return Math.max(0, Math.min(100, (value / target) * 100));
 }
+
+/**
+ * Coarse "time ago" label ("just now" / "5 min ago" / "3 h ago" / "2 d ago") relative to
+ * `now` (defaults to the current time). Dates arrive over JSON as strings; both are
+ * accepted. A future instant clamps to "just now". Pure when `now` is supplied.
+ */
+export function relativeTimeFromNow(
+  date: Date | string,
+  now: Date = new Date(),
+): string {
+  const diffMs = now.getTime() - new Date(date).getTime();
+  const mins = Math.floor(diffMs / 60_000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} h ago`;
+  return `${Math.floor(hours / 24)} d ago`;
+}

@@ -18,7 +18,7 @@ import { logSupplement } from "@/server/services/supplements";
 import { getDailySummary, getTrends } from "@/server/services/summary";
 import { syncGoogleHealth } from "@/server/services/sync/google-health";
 import { syncOura } from "@/server/services/sync/oura";
-import { getSyncStatus } from "@/server/services/sync/runs";
+import { latestRunsBySource } from "@/server/services/sync/runs";
 import { syncWithings } from "@/server/services/sync/withings";
 import { getWaterStatus, logWater } from "@/server/services/water";
 
@@ -168,7 +168,7 @@ export function buildServer(): McpServer {
         "Empty until sync phases land.",
       inputSchema: {},
     },
-    () => run(() => getSyncStatus()),
+    () => run(() => latestRunsBySource()),
   );
 
   // ----- WRITE (origin "MCP") -----

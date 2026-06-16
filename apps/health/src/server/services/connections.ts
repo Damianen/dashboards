@@ -6,7 +6,7 @@ import {
 } from "@/generated/prisma/client";
 import { prisma } from "@/server/db";
 import { GOOGLE_REAUTH_MSG } from "@/server/services/sync/google-health";
-import { getSyncStatus } from "@/server/services/sync/runs";
+import { latestRunsBySource } from "@/server/services/sync/runs";
 import { WITHINGS_REAUTH_MSG } from "@/server/services/sync/withings";
 
 export interface ConnectionLastRun {
@@ -41,13 +41,13 @@ function toLastRun(run: SyncRun | undefined): ConnectionLastRun | null {
 }
 
 /**
- * Per-provider connection status for the Settings page. Reuses getSyncStatus() (the
- * latest run per source) and reads only the oauth_tokens row's *existence and expiry* —
- * never the encrypted tokens. Withings `needsReauth` is derived from its latest run
- * failing with the stable re-auth marker, so no extra state is stored.
+ * Per-provider connection status for the Settings page. Reuses latestRunsBySource()
+ * (the latest run per source) and reads only the oauth_tokens row's *existence and
+ * expiry* — never the encrypted tokens. Withings `needsReauth` is derived from its
+ * latest run failing with the stable re-auth marker, so no extra state is stored.
  */
 export async function getConnections(): Promise<Connection[]> {
-  const runs = await getSyncStatus();
+  const runs = await latestRunsBySource();
   const runBySource = new Map(runs.map((r) => [r.source, r]));
 
   // select narrows the read to expiry — the encrypted tokens never leave the DB here.

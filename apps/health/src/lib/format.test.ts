@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { clampPercent, formatHm, formatKg, formatNumber } from "./format";
+import {
+  clampPercent,
+  formatHm,
+  formatKg,
+  formatNumber,
+  relativeTimeFromNow,
+} from "./format";
 
 describe("formatHm", () => {
   it("formats minutes as h:mm with a zero-padded minute", () => {
@@ -39,5 +45,32 @@ describe("clampPercent", () => {
 
   it("returns 0 when the target is non-positive", () => {
     expect(clampPercent(100, 0)).toBe(0);
+  });
+});
+
+describe("relativeTimeFromNow", () => {
+  const now = new Date("2026-06-16T12:00:00.000Z");
+  const ago = (ms: number) => new Date(now.getTime() - ms);
+
+  it("labels sub-minute and future instants as 'just now'", () => {
+    expect(relativeTimeFromNow(ago(30_000), now)).toBe("just now");
+    expect(relativeTimeFromNow(ago(-5_000), now)).toBe("just now");
+  });
+
+  it("labels minutes up to an hour", () => {
+    expect(relativeTimeFromNow(ago(60_000), now)).toBe("1 min ago");
+    expect(relativeTimeFromNow(ago(5 * 60_000), now)).toBe("5 min ago");
+    expect(relativeTimeFromNow(ago(59 * 60_000), now)).toBe("59 min ago");
+  });
+
+  it("labels hours up to a day, flooring", () => {
+    expect(relativeTimeFromNow(ago(60 * 60_000), now)).toBe("1 h ago");
+    expect(relativeTimeFromNow(ago(90 * 60_000), now)).toBe("1 h ago");
+    expect(relativeTimeFromNow(ago(23 * 60 * 60_000), now)).toBe("23 h ago");
+  });
+
+  it("labels days beyond 24 hours and accepts ISO strings", () => {
+    expect(relativeTimeFromNow(ago(24 * 60 * 60_000), now)).toBe("1 d ago");
+    expect(relativeTimeFromNow("2026-06-14T12:00:00.000Z", now)).toBe("2 d ago");
   });
 });

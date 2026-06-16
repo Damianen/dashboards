@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { Plug, RefreshCw } from "lucide-react";
+import { Plug } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +16,6 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { type Connection, useConnections } from "@/lib/hooks/use-connections";
-import { useSyncProvider } from "@/lib/hooks/use-sync-provider";
 
 const BLURB: Record<Connection["provider"], string> = {
   withings: "Body weight & composition",
@@ -40,27 +39,6 @@ function statusBadge(c: Connection): { label: string; variant: BadgeVariant } {
   return { label: c.kind === "pat" ? "Configured" : "Connected", variant: "default" };
 }
 
-/** Dates arrive over JSON as strings; new Date() handles both. */
-function formatWhen(d: Date | string): string {
-  return new Date(d).toLocaleString("en-GB", {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function lastRunText(c: Connection): string {
-  if (!c.lastRun) return "Never synced";
-  const { status, itemsUpserted, finishedAt, startedAt } = c.lastRun;
-  const when = formatWhen(finishedAt ?? startedAt);
-  if (status === "OK") {
-    return `Last sync: ${itemsUpserted} item${itemsUpserted === 1 ? "" : "s"} · ${when}`;
-  }
-  if (status === "ERROR") return `Last sync failed · ${when}`;
-  return `Syncing… · ${when}`;
-}
-
 function expiryText(c: Connection): string | null {
   if (c.kind !== "oauth" || !c.connected || !c.expiresAt) return null;
   const ms = new Date(c.expiresAt).getTime() - Date.now();
@@ -72,11 +50,10 @@ function expiryText(c: Connection): string | null {
 }
 
 function ConnectionCard({ c }: { c: Connection }) {
-  const sync = useSyncProvider(c.provider, c.label);
   const badge = statusBadge(c);
   const expiry = expiryText(c);
   const authorizePath = AUTHORIZE_PATH[c.provider];
-  const canSync = c.kind !== "unavailable" && c.connected;
+  const hasContent = Boolean(expiry || authorizePath || c.kind === "unavailable");
 
   return (
     <Card>
@@ -87,38 +64,29 @@ function ConnectionCard({ c }: { c: Connection }) {
           <Badge variant={badge.variant}>{badge.label}</Badge>
         </CardAction>
       </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="text-muted-foreground space-y-0.5 text-xs">
-          <p>{lastRunText(c)}</p>
-          {expiry && <p>{expiry}</p>}
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {authorizePath && (
-            // Full navigation (not fetch) so the server can set the state cookie.
-            <Button asChild variant={c.connected ? "outline" : "default"}>
-              <a href={authorizePath}>
-                <Plug />
-                {c.connected ? "Reconnect" : "Connect"}
-              </a>
-            </Button>
+      {hasContent && (
+        <CardContent className="space-y-3">
+          {expiry && <p className="text-muted-foreground text-xs">{expiry}</p>}
+          {(authorizePath || c.kind === "unavailable") && (
+            <div className="flex flex-wrap gap-2">
+              {authorizePath && (
+                // Full navigation (not fetch) so the server can set the state cookie.
+                <Button asChild variant={c.connected ? "outline" : "default"}>
+                  <a href={authorizePath}>
+                    <Plug />
+                    {c.connected ? "Reconnect" : "Connect"}
+                  </a>
+                </Button>
+              )}
+              {c.kind === "unavailable" && (
+                <Button variant="outline" disabled>
+                  Coming soon
+                </Button>
+              )}
+            </div>
           )}
-          {canSync && (
-            <Button
-              variant={authorizePath ? "secondary" : "default"}
-              onClick={() => sync.mutate()}
-              disabled={sync.isPending}
-            >
-              <RefreshCw className={sync.isPending ? "animate-spin" : undefined} />
-              Sync now
-            </Button>
-          )}
-          {c.kind === "unavailable" && (
-            <Button variant="outline" disabled>
-              Coming soon
-            </Button>
-          )}
-        </div>
-      </CardContent>
+        </CardContent>
+      )}
     </Card>
   );
 }

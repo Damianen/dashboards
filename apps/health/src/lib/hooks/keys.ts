@@ -14,4 +14,5 @@ export const queryKeys = {
     ["lifting", "history", exercise, limit] as const,
   exercises: () => ["exercises"] as const,
   connections: () => ["connections"] as const,
+  syncStatus: () => ["sync-status"] as const,
 };

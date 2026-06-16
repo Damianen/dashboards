@@ -38,7 +38,9 @@ export function useSyncProvider(provider: string, label: string) {
       }
     },
     onError: () => toast.error(`Couldn't reach ${label}`),
-    onSettled: () =>
-      qc.invalidateQueries({ queryKey: queryKeys.connections() }),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.syncStatus() });
+      qc.invalidateQueries({ queryKey: queryKeys.connections() });
+    },
   });
 }
