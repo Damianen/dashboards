@@ -151,6 +151,20 @@ model Reminder {
   @@index([taskId])
 }
 
+// A named, reusable Todoist-style filter expression (see src/lib/filterlang).
+// Standalone — evaluated on demand against the live task set; `query` holds the
+// raw expression. `order` is a fractional-indexing string like every other
+// orderable entity.
+model SavedFilter {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  query     String
+  color     String   @default("#808080")
+  order     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model ActivityEvent {
   id         String   @id @default(cuid())
   entityType String

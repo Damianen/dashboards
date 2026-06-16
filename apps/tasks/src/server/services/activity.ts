@@ -11,7 +11,8 @@ export type EntityType =
   | "task"
   | "label"
   | "comment"
-  | "reminder";
+  | "reminder"
+  | "savedFilter";
 
 export async function logEvent(
   tx: Tx,
