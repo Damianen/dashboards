@@ -2,12 +2,15 @@ import { z } from "zod";
 
 export const trendMetricSchema = z.enum([
   "weight",
+  "weight_7d_avg",
   "sleep_score",
   "readiness",
   "active_kcal",
+  "steps",
   "intake_kcal",
   "protein_g",
   "water_ml",
+  "water_target_ml",
   "caffeine_mg",
   "lifting_volume_kg",
 ]);

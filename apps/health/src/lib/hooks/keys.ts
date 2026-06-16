@@ -15,4 +15,5 @@ export const queryKeys = {
   exercises: () => ["exercises"] as const,
   connections: () => ["connections"] as const,
   syncStatus: () => ["sync-status"] as const,
+  trends: (metric: string, days: number) => ["trends", metric, days] as const,
 };

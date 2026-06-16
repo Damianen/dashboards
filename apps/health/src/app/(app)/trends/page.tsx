@@ -1,7 +1,5 @@
-import { LineChart } from "lucide-react";
+import { TrendsPage } from "@/components/trends/trends-page";
 
-import { Placeholder } from "@/components/shell/placeholder";
-
-export default function TrendsPage() {
-  return <Placeholder title="Trends" icon={LineChart} />;
+export default function Page() {
+  return <TrendsPage />;
 }

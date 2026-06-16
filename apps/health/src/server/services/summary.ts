@@ -93,12 +93,15 @@ export async function getDailySummary(
 // validated enum, so the value is never user-controlled — safe for Prisma.raw.
 const TREND_COLUMNS: Record<TrendMetric, string> = {
   weight: "weight_kg",
+  weight_7d_avg: "weight_7d_avg",
   sleep_score: "sleep_score",
   readiness: "readiness_score",
   active_kcal: "active_kcal",
+  steps: "steps",
   intake_kcal: "intake_kcal",
   protein_g: "protein_g",
   water_ml: "water_ml",
+  water_target_ml: "water_target_ml",
   caffeine_mg: "stimulant_mg",
   lifting_volume_kg: "lifting_volume_kg",
 };
