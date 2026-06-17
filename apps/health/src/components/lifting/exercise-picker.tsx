@@ -15,9 +15,11 @@ import { type Exercise, useExercises } from "@/lib/hooks/use-exercises";
 export function ExercisePicker({
   recentIds,
   onPick,
+  title = "Add a set",
 }: {
   recentIds: string[];
   onPick: (exercise: Exercise) => void;
+  title?: string;
 }) {
   const { data, isLoading, isError } = useExercises();
   const [query, setQuery] = useState("");
@@ -41,7 +43,7 @@ export function ExercisePicker({
 
   return (
     <div className="space-y-3">
-      <h2 className="text-base font-semibold">Add a set</h2>
+      <h2 className="text-base font-semibold">{title}</h2>
       <div className="relative">
         <Search
           className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"

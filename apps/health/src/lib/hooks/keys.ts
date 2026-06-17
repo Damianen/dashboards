@@ -12,6 +12,12 @@ export const queryKeys = {
     ["lifting", "sessions", day ?? "recent"] as const,
   liftingHistory: (exercise: string, limit: number) =>
     ["lifting", "history", exercise, limit] as const,
+  // Templates nest under one ["templates"] prefix so a single invalidate after any
+  // mutation refreshes the list (both filters) and any open editor detail.
+  templates: () => ["templates"] as const,
+  templateList: (includeArchived: boolean) =>
+    ["templates", "list", includeArchived] as const,
+  template: (id: string) => ["templates", "detail", id] as const,
   exercises: () => ["exercises"] as const,
   connections: () => ["connections"] as const,
   syncStatus: () => ["sync-status"] as const,

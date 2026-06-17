@@ -5,6 +5,7 @@ import { Plus } from "lucide-react";
 
 import { AddSetSheet } from "@/components/lifting/add-set-sheet";
 import { RecentSessions } from "@/components/lifting/recent-sessions";
+import { TemplatesSection } from "@/components/lifting/templates-section";
 import { TodaySessions } from "@/components/lifting/today-sessions";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -55,6 +56,8 @@ export function LiftingPage() {
         <Plus className="size-5" aria-hidden />
         Add set
       </Button>
+
+      <TemplatesSection />
 
       {isLoading ? (
         <PageSkeleton />
