@@ -43,6 +43,11 @@ enum OauthProvider {
   GOOGLE
 }
 
+enum TemplateTargetType {
+  REPS
+  VOLUME
+}
+
 model WeightMeasurement {
   id           String   @id @default(cuid())
   measuredAt   DateTime @map("measured_at") @db.Timestamptz(6)
@@ -158,21 +163,26 @@ model FoodEntry {
 }
 
 model Exercise {
-  id          String       @id @default(cuid())
-  name        String       @unique
-  muscleGroup String?      @map("muscle_group")
-  sets        LiftingSet[]
+  id              String             @id @default(cuid())
+  name            String             @unique
+  muscleGroup     String?            @map("muscle_group")
+  sets            LiftingSet[]
+  templateEntries TemplateExercise[]
+  planItems       SessionPlanItem[]
 
   @@map("exercises")
 }
 
 model LiftingSession {
-  id        String       @id @default(cuid())
-  day       DateTime     @db.Date
-  startedAt DateTime     @map("started_at") @db.Timestamptz(6)
-  endedAt   DateTime?    @map("ended_at") @db.Timestamptz(6)
-  notes     String?
-  sets      LiftingSet[]
+  id         String            @id @default(cuid())
+  day        DateTime          @db.Date
+  startedAt  DateTime          @map("started_at") @db.Timestamptz(6)
+  endedAt    DateTime?         @map("ended_at") @db.Timestamptz(6)
+  notes      String?
+  templateId String?           @map("template_id")
+  template   WorkoutTemplate?  @relation(fields: [templateId], references: [id])
+  sets       LiftingSet[]
+  planItems  SessionPlanItem[]
 
   @@index([day])
   @@map("lifting_sessions")
@@ -194,6 +204,59 @@ model LiftingSet {
 
   @@index([exerciseId, loggedAt])
   @@map("lifting_sets")
+}
+
+model WorkoutTemplate {
+  id        String             @id @default(cuid())
+  name      String             @unique
+  notes     String?
+  archived  Boolean            @default(false)
+  createdAt DateTime           @default(now()) @map("created_at")
+  updatedAt DateTime           @updatedAt @map("updated_at")
+  exercises TemplateExercise[]
+  sessions  LiftingSession[]
+
+  @@map("workout_templates")
+}
+
+model TemplateExercise {
+  id             String             @id @default(cuid())
+  templateId     String             @map("template_id")
+  template       WorkoutTemplate    @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  exerciseId     String             @map("exercise_id")
+  exercise       Exercise           @relation(fields: [exerciseId], references: [id])
+  position       Int
+  targetType     TemplateTargetType @default(REPS) @map("target_type")
+  targetSets     Int?               @map("target_sets")
+  repMin         Int?               @map("rep_min")
+  repMax         Int?               @map("rep_max")
+  targetWeightKg Decimal?           @map("target_weight_kg") @db.Decimal(5, 2)
+  targetVolumeKg Decimal?           @map("target_volume_kg") @db.Decimal(7, 1)
+  restSec        Int?               @map("rest_sec")
+  notes          String?
+
+  @@unique([templateId, position])
+  @@index([templateId])
+  @@map("template_exercises")
+}
+
+model SessionPlanItem {
+  id             String             @id @default(cuid())
+  sessionId      String             @map("session_id")
+  session        LiftingSession     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  exerciseId     String             @map("exercise_id")
+  exercise       Exercise           @relation(fields: [exerciseId], references: [id])
+  position       Int
+  targetType     TemplateTargetType @default(REPS) @map("target_type")
+  targetSets     Int?               @map("target_sets")
+  repMin         Int?               @map("rep_min")
+  repMax         Int?               @map("rep_max")
+  targetWeightKg Decimal?           @map("target_weight_kg") @db.Decimal(5, 2)
+  targetVolumeKg Decimal?           @map("target_volume_kg") @db.Decimal(7, 1)
+
+  @@unique([sessionId, position])
+  @@index([sessionId])
+  @@map("session_plan_items")
 }
 
 model WaterEntry {
