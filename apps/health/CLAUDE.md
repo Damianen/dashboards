@@ -52,3 +52,25 @@ Root definition (pnpm --filter health typecheck && lint && test green)
 + migrations applied to health_dev + the phase's acceptance check
 verified. Pure logic (date bucketing, water target, macro math, token
 crypto) must have vitest coverage.
+
+## Deploy
+Ships as one Docker container on the external `homelab` network (CT 103),
+talking to the shared Postgres at host `postgres:5432`.
+
+- Build: `docker compose -f apps/health/docker-compose.yml build` — the
+  context is the repo root so the pnpm workspace is visible.
+- Run: `cp apps/health/.env.production.example apps/health/.env.production`,
+  fill the secrets (DATABASE_URL from `create-service.sh health`), then
+  `docker compose -f apps/health/docker-compose.yml up -d`.
+- Startup: the entrypoint runs `prisma migrate deploy` (deploy ONLY — never
+  reset) before `node apps/health/server.js`. Migrations apply with the Debian
+  schema-engine binary (`schema-engine-debian-openssl-3.0.x`) on the node:26-slim
+  base; the prisma CLI lives in a self-contained `/app/migrate` dir.
+- Health: Docker healthcheck hits `GET /api/sync/status` via node `fetch` (no
+  curl on slim).
+
+The MCP endpoint (`POST /api/mcp`, `Authorization: Bearer $MCP_BEARER_TOKEN`) is
+consumed over the LAN via the published `3000:3000` port — Hermes and Claude Code
+reach it directly on the homelab network, NOT through the Cloudflare tunnel. The
+web UI is fronted by Cloudflare Access upstream; the bearer check is the only
+in-app auth surface.

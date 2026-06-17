@@ -1,7 +1,8 @@
-# env — only .env.example is committed
+# env — only the *.example templates are committed
 .env
 .env.*
 !.env.example
+!.env.production.example
 
 # next.js build output
 .next/
