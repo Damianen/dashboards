@@ -60,7 +60,8 @@ export function TemplateCard({ template }: { template: TemplateDTO }) {
   function startWorkout() {
     setOpen(false);
     start.mutate(template.id, {
-      onSuccess: () => router.push("/lifting"),
+      onSuccess: (session) =>
+        router.push(`/lifting/sessions/${session.sessionId}`),
     });
   }
   function edit() {

@@ -12,6 +12,9 @@ export const queryKeys = {
     ["lifting", "sessions", day ?? "recent"] as const,
   liftingHistory: (exercise: string, limit: number) =>
     ["lifting", "history", exercise, limit] as const,
+  // One session's full detail (plan + sets + progress), keyed on its own id so the
+  // session view refetches after each set without disturbing the sessions list.
+  session: (id: string) => ["session", id] as const,
   // Templates nest under one ["templates"] prefix so a single invalidate after any
   // mutation refreshes the list (both filters) and any open editor detail.
   templates: () => ["templates"] as const,

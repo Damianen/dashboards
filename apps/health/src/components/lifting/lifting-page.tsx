@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Plus } from "lucide-react";
+import { ClipboardList, Plus } from "lucide-react";
 
 import { AddSetSheet } from "@/components/lifting/add-set-sheet";
 import { RecentSessions } from "@/components/lifting/recent-sessions";
+import { TemplateChooserSheet } from "@/components/lifting/template-chooser-sheet";
 import { TemplatesSection } from "@/components/lifting/templates-section";
 import { TodaySessions } from "@/components/lifting/today-sessions";
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,7 @@ function PageSkeleton() {
 export function LiftingPage() {
   const day = todayLocal();
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [chooserOpen, setChooserOpen] = useState(false);
 
   const today = useLiftingSessions(day);
   const recent = useLiftingSessions();
@@ -49,13 +51,23 @@ export function LiftingPage() {
         <p className="text-muted-foreground text-sm">{dateLabel(day)}</p>
       </header>
 
-      <Button
-        className="h-12 w-full text-base"
-        onClick={() => setSheetOpen(true)}
-      >
-        <Plus className="size-5" aria-hidden />
-        Add set
-      </Button>
+      <div className="space-y-2">
+        <Button
+          className="h-12 w-full text-base"
+          onClick={() => setSheetOpen(true)}
+        >
+          <Plus className="size-5" aria-hidden />
+          Add set
+        </Button>
+        <Button
+          variant="outline"
+          className="h-12 w-full text-base"
+          onClick={() => setChooserOpen(true)}
+        >
+          <ClipboardList className="size-5" aria-hidden />
+          Start from template
+        </Button>
+      </div>
 
       <TemplatesSection />
 
@@ -85,6 +97,7 @@ export function LiftingPage() {
       )}
 
       <AddSetSheet open={sheetOpen} onOpenChange={setSheetOpen} day={day} />
+      <TemplateChooserSheet open={chooserOpen} onOpenChange={setChooserOpen} />
     </div>
   );
 }

@@ -31,10 +31,12 @@ export function AddSetSheet({
   open,
   onOpenChange,
   day,
+  sessionId,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   day: string;
+  sessionId?: string;
 }) {
   const [picked, setPicked] = useState<Exercise | null>(null);
   const { data: sessions } = useLiftingSessions();
@@ -66,6 +68,7 @@ export function AddSetSheet({
                 key={picked.id}
                 exercise={picked}
                 day={day}
+                sessionId={sessionId}
                 onBack={() => setPicked(null)}
               />
             )}

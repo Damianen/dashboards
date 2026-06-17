@@ -8,37 +8,60 @@ import { LastTime } from "@/components/lifting/last-time";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Stepper } from "@/components/ui/stepper";
-import type { Exercise } from "@/lib/hooks/use-exercises";
 import { useExerciseHistory } from "@/lib/hooks/use-exercise-history";
 import { useLogSet } from "@/lib/hooks/use-log-set";
 import { logSetSchema } from "@/lib/schemas/lifting";
 import { cn } from "@/lib/utils";
 
+/** The plan's rep range as a hint string, or null when there's no useful range. */
+function repRangeHint(hint?: {
+  repMin: number | null;
+  repMax: number | null;
+}): string | null {
+  if (!hint) return null;
+  const { repMin, repMax } = hint;
+  if (repMin != null && repMax != null) return `${repMin}–${repMax} reps`;
+  if (repMin != null) return `≥${repMin} reps`;
+  if (repMax != null) return `≤${repMax} reps`;
+  return null;
+}
+
 /**
  * Log sets for one exercise. Fields seed from the exercise's last session, and
  * after each submit the sheet stays open with the fields untouched — so logging
  * set 2 and 3 is a single tap each. Warmups never affect volume.
+ *
+ * From a planned session, `seedWeightKg` (the plan's target / last actual) takes
+ * priority over the last-time weight, `repHint` shows the plan's rep range, and
+ * `sessionId` makes the logged set refetch that session's detail.
  */
 export function SetForm({
   exercise,
   day,
   onBack,
+  seedWeightKg,
+  repHint,
+  sessionId,
 }: {
-  exercise: Exercise;
+  exercise: { id: string; name: string };
   day: string;
   onBack: () => void;
+  seedWeightKg?: number;
+  repHint?: { repMin: number | null; repMax: number | null };
+  sessionId?: string;
 }) {
   const [reps, setReps] = useState(8);
-  const [weight, setWeight] = useState(20);
+  const [weight, setWeight] = useState(seedWeightKg ?? 20);
   const [rpe, setRpe] = useState<number | null>(null);
   const [warmup, setWarmup] = useState(false);
 
-  const { mutate, isPending } = useLogSet(day);
+  const { mutate, isPending } = useLogSet(day, sessionId);
 
   // Seed reps/weight from the last working set of the most recent session, once,
   // before the user edits anything (React's render-time "store info from previous
   // renders" pattern). Shares the cached history with <LastTime>; the form remounts
-  // per exercise, so `seeded` resets cleanly.
+  // per exercise, so `seeded` resets cleanly. A provided `seedWeightKg` wins for
+  // weight, so the history seed only fills weight when none was given.
   const { data: history } = useExerciseHistory(exercise.name, 1);
   const [seeded, setSeeded] = useState(false);
   const working = history?.[0]?.sets.filter((s) => !s.isWarmup) ?? [];
@@ -46,8 +69,10 @@ export function SetForm({
   if (!seeded && seed) {
     setSeeded(true);
     setReps(seed.reps);
-    setWeight(Number(seed.weightKg));
+    if (seedWeightKg == null) setWeight(Number(seed.weightKg));
   }
+
+  const hint = repRangeHint(repHint);
 
   function submit() {
     const parsed = logSetSchema.safeParse({
@@ -82,7 +107,12 @@ export function SetForm({
       <LastTime exercise={exercise.name} />
 
       <div className="space-y-1.5">
-        <Label htmlFor="set-reps">Reps</Label>
+        <div className="flex items-center justify-between">
+          <Label htmlFor="set-reps">Reps</Label>
+          {hint && (
+            <span className="text-muted-foreground text-xs">Target {hint}</span>
+          )}
+        </div>
         <Stepper
           id="set-reps"
           label="reps"

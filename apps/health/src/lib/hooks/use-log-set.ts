@@ -18,8 +18,10 @@ type Ctx = { previous: DailySummary | null | undefined };
  * Log a lifting set. Optimistically bumps the day's working volume / set count
  * (warmups add nothing — the domain guardrail), rolls back on error, and on
  * settle invalidates ["lifting"] (sessions + history) and the day's summary.
+ * Pass `sessionId` from the session view so its ["session", id] detail refetches
+ * too (the planned-vs-actual progress is read from there).
  */
-export function useLogSet(day: string) {
+export function useLogSet(day: string, sessionId?: string) {
   const qc = useQueryClient();
 
   return useMutation({
@@ -44,6 +46,9 @@ export function useLogSet(day: string) {
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.lifting() });
       void qc.invalidateQueries({ queryKey: queryKeys.summary(day) });
+      if (sessionId) {
+        void qc.invalidateQueries({ queryKey: queryKeys.session(sessionId) });
+      }
     },
   });
 }
