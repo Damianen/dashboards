@@ -1,9 +1,15 @@
 import { describe, expect, it } from "vitest";
+import { DomainError } from "@/server/services/errors";
 import {
+  type ActualSet,
   computeWaterTarget,
   type Macros,
+  type PlanTarget,
   scaleMacros,
+  setMeetsRepRange,
   shouldReuseSession,
+  summarizePlanProgress,
+  validateTemplateTarget,
 } from "./rules";
 
 describe("computeWaterTarget", () => {
@@ -84,5 +90,136 @@ describe("scaleMacros", () => {
       saltG: null,
     };
     expect(scaleMacros(empty, 250)).toEqual(empty);
+  });
+});
+
+describe("validateTemplateTarget", () => {
+  it("accepts a valid REPS target", () => {
+    expect(() =>
+      validateTemplateTarget({
+        targetType: "REPS",
+        targetSets: 4,
+        repMin: 6,
+        repMax: 10,
+      }),
+    ).not.toThrow();
+  });
+
+  it("accepts a valid VOLUME target", () => {
+    expect(() =>
+      validateTemplateTarget({ targetType: "VOLUME", targetVolumeKg: 5000 }),
+    ).not.toThrow();
+  });
+
+  it("rejects a REPS target with repMin > repMax", () => {
+    expect(() =>
+      validateTemplateTarget({
+        targetType: "REPS",
+        targetSets: 4,
+        repMin: 10,
+        repMax: 6,
+      }),
+    ).toThrow(DomainError);
+  });
+
+  it("rejects a REPS target missing targetSets", () => {
+    expect(() =>
+      validateTemplateTarget({ targetType: "REPS", repMin: 6, repMax: 10 }),
+    ).toThrow(DomainError);
+  });
+});
+
+describe("setMeetsRepRange", () => {
+  it("is true within the range", () => {
+    expect(setMeetsRepRange(8, 6, 10)).toBe(true);
+  });
+
+  it("is false below the range", () => {
+    expect(setMeetsRepRange(5, 6, 10)).toBe(false);
+  });
+
+  it("is false above the range", () => {
+    expect(setMeetsRepRange(11, 6, 10)).toBe(false);
+  });
+
+  it("is true with no range and respects open-ended bounds", () => {
+    expect(setMeetsRepRange(99)).toBe(true);
+    expect(setMeetsRepRange(99, 6, null)).toBe(true);
+    expect(setMeetsRepRange(3, null, 10)).toBe(true);
+    expect(setMeetsRepRange(3, 6, null)).toBe(false);
+  });
+});
+
+describe("summarizePlanProgress", () => {
+  const repsPlan: PlanTarget = {
+    exerciseId: "ex_bench",
+    targetType: "REPS",
+    targetSets: 3,
+    repMin: 6,
+    repMax: 10,
+    targetVolumeKg: null,
+  };
+
+  it("marks a REPS item complete and counts in-range, non-warmup sets", () => {
+    const sets: ActualSet[] = [
+      { exerciseId: "ex_bench", reps: 12, weightKg: 40, isWarmup: true }, // warmup ignored
+      { exerciseId: "ex_bench", reps: 8, weightKg: 80, isWarmup: false }, // in range
+      { exerciseId: "ex_bench", reps: 9, weightKg: 80, isWarmup: false }, // in range
+      { exerciseId: "ex_bench", reps: 5, weightKg: 80, isWarmup: false }, // below range
+    ];
+    expect(summarizePlanProgress([repsPlan], sets)).toEqual([
+      {
+        exerciseId: "ex_bench",
+        targetSets: 3,
+        setsDone: 3,
+        inRangeSets: 2,
+        targetVolumeKg: null,
+        actualVolumeKg: 8 * 80 + 9 * 80 + 5 * 80,
+        complete: true,
+      },
+    ]);
+  });
+
+  it("marks a REPS item incomplete when too few sets are done", () => {
+    const sets: ActualSet[] = [
+      { exerciseId: "ex_bench", reps: 8, weightKg: 80, isWarmup: false },
+    ];
+    expect(summarizePlanProgress([repsPlan], sets)).toEqual([
+      {
+        exerciseId: "ex_bench",
+        targetSets: 3,
+        setsDone: 1,
+        inRangeSets: 1,
+        targetVolumeKg: null,
+        actualVolumeKg: 640,
+        complete: false,
+      },
+    ]);
+  });
+
+  it("completes a VOLUME item once worked volume reaches the goal", () => {
+    const volumePlan: PlanTarget = {
+      exerciseId: "ex_row",
+      targetType: "VOLUME",
+      targetSets: null,
+      repMin: null,
+      repMax: null,
+      targetVolumeKg: 1000,
+    };
+    const sets: ActualSet[] = [
+      { exerciseId: "ex_row", reps: 10, weightKg: 60, isWarmup: false }, // 600
+      { exerciseId: "ex_row", reps: 10, weightKg: 60, isWarmup: false }, // 600
+    ];
+    expect(summarizePlanProgress([volumePlan], sets)).toEqual([
+      {
+        exerciseId: "ex_row",
+        targetSets: null,
+        setsDone: 2,
+        inRangeSets: 2,
+        targetVolumeKg: 1000,
+        actualVolumeKg: 1200,
+        complete: true,
+      },
+    ]);
   });
 });

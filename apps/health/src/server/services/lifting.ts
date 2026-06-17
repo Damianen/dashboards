@@ -11,7 +11,12 @@ import {
   sessionVolumeKg,
   sessionWorkingSets,
 } from "@/lib/lifting-grouping";
-import { shouldReuseSession } from "@/lib/rules";
+import {
+  type PlanProgress,
+  type PlanTarget,
+  shouldReuseSession,
+  summarizePlanProgress,
+} from "@/lib/rules";
 import { logSetSchema, type LogSetInput } from "@/lib/schemas/lifting";
 import { prisma } from "@/server/db";
 import { NotFoundError } from "./errors";
@@ -163,6 +168,131 @@ export async function listSessions(
       exercises,
     };
   });
+}
+
+/** A session's plan snapshot for one exercise (targets only — Decimals coerced). */
+export interface SessionPlanTargetView {
+  position: number;
+  targetType: "REPS" | "VOLUME";
+  targetSets: number | null;
+  repMin: number | null;
+  repMax: number | null;
+  targetWeightKg: number | null;
+  targetVolumeKg: number | null;
+}
+
+/** One exercise in a session: its plan snapshot (null if unplanned), the sets
+ *  logged for it (null if planned but nothing logged yet), and progress vs target
+ *  (null when there's no plan to measure against). */
+export interface SessionExerciseView {
+  exerciseId: string;
+  exerciseName: string;
+  plan: SessionPlanTargetView | null;
+  sets: ExerciseGroup | null;
+  progress: PlanProgress | null;
+}
+
+export interface SessionDetail {
+  sessionId: string;
+  day: string;
+  startedAt: Date;
+  endedAt: Date | null;
+  templateId: string | null;
+  volumeKg: number;
+  workingSets: number;
+  exercises: SessionExerciseView[];
+}
+
+/**
+ * One session in full: its plan snapshot merged with the sets actually logged.
+ * Planned exercises come first in plan order, each with its progress; exercises
+ * logged that weren't in the plan follow (plan = null), in first-appearance order.
+ */
+export async function getSession(id: string): Promise<SessionDetail> {
+  const session = await prisma.liftingSession.findUnique({
+    where: { id },
+    include: {
+      planItems: {
+        orderBy: { position: "asc" },
+        include: {
+          exercise: { select: { id: true, name: true, muscleGroup: true } },
+        },
+      },
+      sets: {
+        orderBy: { loggedAt: "asc" },
+        include: { exercise: { select: { id: true, name: true } } },
+      },
+    },
+  });
+  if (!session) throw new NotFoundError("session", id);
+
+  const plain: PlainSet[] = session.sets.map((s) => ({
+    id: s.id,
+    exerciseId: s.exerciseId,
+    exerciseName: s.exercise.name,
+    setNumber: s.setNumber,
+    reps: s.reps,
+    weightKg: Number(s.weightKg),
+    rpe: s.rpe == null ? null : Number(s.rpe),
+    isWarmup: s.isWarmup,
+  }));
+  const groups = groupSetsByExercise(plain);
+  const groupByExerciseId = new Map(groups.map((g) => [g.exerciseId, g]));
+
+  const planTargets: PlanTarget[] = session.planItems.map((p) => ({
+    exerciseId: p.exerciseId,
+    targetType: p.targetType,
+    targetSets: p.targetSets,
+    repMin: p.repMin,
+    repMax: p.repMax,
+    targetVolumeKg: p.targetVolumeKg == null ? null : Number(p.targetVolumeKg),
+  }));
+  // progress[i] lines up with planItems[i] (summarizePlanProgress preserves order).
+  const progress = summarizePlanProgress(planTargets, plain);
+
+  const exercises: SessionExerciseView[] = [];
+  const plannedExerciseIds = new Set<string>();
+  session.planItems.forEach((p, i) => {
+    plannedExerciseIds.add(p.exerciseId);
+    exercises.push({
+      exerciseId: p.exerciseId,
+      exerciseName: p.exercise.name,
+      plan: {
+        position: p.position,
+        targetType: p.targetType,
+        targetSets: p.targetSets,
+        repMin: p.repMin,
+        repMax: p.repMax,
+        targetWeightKg:
+          p.targetWeightKg == null ? null : Number(p.targetWeightKg),
+        targetVolumeKg:
+          p.targetVolumeKg == null ? null : Number(p.targetVolumeKg),
+      },
+      sets: groupByExerciseId.get(p.exerciseId) ?? null,
+      progress: progress[i] ?? null,
+    });
+  });
+  for (const g of groups) {
+    if (plannedExerciseIds.has(g.exerciseId)) continue;
+    exercises.push({
+      exerciseId: g.exerciseId,
+      exerciseName: g.exerciseName,
+      plan: null,
+      sets: g,
+      progress: null,
+    });
+  }
+
+  return {
+    sessionId: session.id,
+    day: dayOf(session.day),
+    startedAt: session.startedAt,
+    endedAt: session.endedAt,
+    templateId: session.templateId,
+    volumeKg: sessionVolumeKg(groups),
+    workingSets: sessionWorkingSets(groups),
+    exercises,
+  };
 }
 
 export function listExercises(): Promise<Exercise[]> {

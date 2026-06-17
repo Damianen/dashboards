@@ -9,10 +9,16 @@ import { DomainError, NotFoundError } from "@/server/services/errors";
 import { logFood, searchFoodLog } from "@/server/services/food";
 import {
   getHistory,
+  getSession,
+  listSessions,
   logSet,
   suggestExercises,
 } from "@/server/services/lifting";
 import { searchProducts } from "@/server/services/off";
+import {
+  listTemplates,
+  startSessionFromTemplate,
+} from "@/server/services/templates";
 import { logStimulant } from "@/server/services/stimulants";
 import { logSupplement } from "@/server/services/supplements";
 import { getDailySummary, getTrends } from "@/server/services/summary";
@@ -138,6 +144,50 @@ export function buildServer(): McpServer {
       },
     },
     ({ exercise, limit }) => run(() => getHistory(exercise, limit)),
+  );
+
+  server.registerTool(
+    "list_workout_templates",
+    {
+      description:
+        "Workout templates with their exercises and per-exercise targets, in plan " +
+        'order — so you can read a plan like "Push Day A: Bench 4×6–10, …". A REPS ' +
+        "target gives sets + a rep range (+ optional working weight); a VOLUME target " +
+        "gives a Σ reps×weight goal. Excludes archived templates unless " +
+        "include_archived is true.",
+      inputSchema: {
+        include_archived: z
+          .boolean()
+          .optional()
+          .describe("Include archived templates too (default false)."),
+      },
+    },
+    ({ include_archived }) =>
+      run(() => listTemplates({ includeArchived: include_archived ?? false })),
+  );
+
+  server.registerTool(
+    "get_session_progress",
+    {
+      description:
+        "A lifting session's plan vs. what's been logged: per exercise, sets done vs " +
+        "target, in-range set count, and worked volume vs any volume goal. Unplanned " +
+        "exercises that were logged appear with plan null. Without a session_id, uses " +
+        "the most recent session today; errors if there is none.",
+      inputSchema: {
+        session_id: z
+          .string()
+          .optional()
+          .describe("Session id; omit for the most recent session today."),
+      },
+    },
+    ({ session_id }) =>
+      run(async () => {
+        if (session_id) return getSession(session_id);
+        const [latest] = await listSessions(dayOf(new Date()));
+        if (!latest) throw new DomainError("no lifting session today");
+        return getSession(latest.sessionId);
+      }),
   );
 
   server.registerTool(
@@ -362,6 +412,45 @@ export function buildServer(): McpServer {
         return fail("internal error");
       }
     },
+  );
+
+  server.registerTool(
+    "start_workout_from_template",
+    {
+      description:
+        "Start a new lifting session by snapshotting a template (matched by name, " +
+        "case-insensitive). The session captures the plan at start time — later edits " +
+        "or archival of the template never change it. Returns the new session id and " +
+        "its plan items. Log actual sets with log_lifting_set; track progress with " +
+        "get_session_progress.",
+      inputSchema: {
+        template: z
+          .string()
+          .min(1)
+          .describe("Template name (case-insensitive exact match)."),
+      },
+    },
+    ({ template }) =>
+      run(async () => {
+        const templates = await listTemplates({ includeArchived: true });
+        const match = templates.find(
+          (t) => t.name.toLowerCase() === template.toLowerCase(),
+        );
+        if (!match) {
+          const available = templates
+            .filter((t) => !t.archived)
+            .map((t) => t.name);
+          throw new DomainError(
+            `no template named "${template}"; available: ${
+              available.length ? available.join(", ") : "(none)"
+            }`,
+          );
+        }
+        if (match.archived) {
+          throw new DomainError(`template "${match.name}" is archived`);
+        }
+        return startSessionFromTemplate({ templateId: match.id });
+      }),
   );
 
   server.registerTool(
