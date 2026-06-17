@@ -42,6 +42,12 @@ recharts, vitest.
 - Rotating OAuth tokens (Withings, Google) live AES-256-GCM-encrypted in
   the oauth_tokens table — never in env, never logged. Withings refresh
   tokens are single-use: persist the new pair atomically before using it.
+- AI vision outputs are ESTIMATES. Label scans are drafts the user confirms before
+  save (OCR can misread). Meal-photo calorie/macro figures are low-confidence guesses:
+  always labeled 'AI estimate' in UI and MCP, always shown with the model's stated
+  confidence and assumptions, always editable before they log. Vision endpoints have
+  NO side effects — they return drafts; persisting is a separate explicit call. Images
+  are processed and discarded; never store raw image bytes, only the structured result.
 
 ## Environment
 See .env.example. DATABASE_URL is health_dev locally and health in prod,
