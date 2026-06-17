@@ -1,6 +1,11 @@
 import { Cron } from "croner";
 
 import {
+  alertSyncFailure,
+  waterNudge,
+  weeklySummary,
+} from "@/server/services/notifications";
+import {
   type SyncSourceConfig,
   SYNC_SOURCES,
 } from "@/server/services/sync";
@@ -34,8 +39,22 @@ async function guarded(cfg: SyncSourceConfig): Promise<void> {
     console.log(
       `${tag}: sync finished — ${result.status}, ${result.itemsUpserted} item(s)`,
     );
+    // Alert only when this run flips the feed OK→ERROR (transition, not every fail).
+    if (result.status === "ERROR") await alertSyncFailure(cfg.source);
   } catch (err) {
     console.error(`${tag}: sync crashed`, err);
+  }
+}
+
+/** Run a notification job, swallowing errors so a throw can't take the scheduler down. */
+async function runNotificationJob(
+  name: string,
+  fn: () => Promise<void>,
+): Promise<void> {
+  try {
+    await fn();
+  } catch (err) {
+    console.error(`[scheduler] ${name} failed`, err);
   }
 }
 
@@ -52,7 +71,17 @@ export function startScheduler(): void {
       guarded(cfg),
     );
   }
+
+  // 20:00 daily — nudge if today's water is still under target.
+  new Cron("0 20 * * *", { timezone: TIMEZONE, name: "water-nudge" }, () =>
+    runNotificationJob("water-nudge", waterNudge),
+  );
+  // 18:00 Sundays — the weekly summary.
+  new Cron("0 18 * * 0", { timezone: TIMEZONE, name: "weekly-summary" }, () =>
+    runNotificationJob("weekly-summary", weeklySummary),
+  );
+
   console.log(
-    `[scheduler] started ${SYNC_SOURCES.length} job(s) (${TIMEZONE})`,
+    `[scheduler] started ${SYNC_SOURCES.length + 2} job(s) (${TIMEZONE})`,
   );
 }

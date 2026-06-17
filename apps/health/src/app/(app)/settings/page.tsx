@@ -1,4 +1,5 @@
 import { ConnectionsSection } from "@/components/settings/connections-section";
+import { NotificationsCard } from "@/components/settings/notifications-card";
 import { SyncStatusCard } from "@/components/settings/sync-status-card";
 
 export default function SettingsPage() {
@@ -9,6 +10,7 @@ export default function SettingsPage() {
         <p className="text-muted-foreground text-sm">Connections &amp; sync</p>
       </header>
       <SyncStatusCard />
+      <NotificationsCard />
       <ConnectionsSection />
     </div>
   );
