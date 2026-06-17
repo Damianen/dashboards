@@ -144,6 +144,8 @@ model FoodEntry {
   productBarcode String?      @map("product_barcode")
   product        FoodProduct? @relation(fields: [productBarcode], references: [barcode])
   customName     String?      @map("custom_name")
+  customFoodId   String?      @map("custom_food_id")
+  customFood     CustomFood?  @relation(fields: [customFoodId], references: [id])
   quantityG      Decimal      @map("quantity_g") @db.Decimal(7, 1)
   kcal           Decimal      @db.Decimal(7, 1)
   proteinG       Decimal      @map("protein_g") @db.Decimal(6, 1)
@@ -160,6 +162,20 @@ model FoodEntry {
 
   @@index([day])
   @@map("food_entries")
+}
+
+model CustomFood {
+  id        String      @id @default(cuid())
+  name      String
+  brand     String?
+  per100g   Json
+  servingG  Decimal?    @map("serving_g") @db.Decimal(7, 1)
+  source    String // "LABEL_SCAN" | "MANUAL" (enforced by Zod at the boundary)
+  createdAt DateTime    @default(now()) @map("created_at")
+  entries   FoodEntry[]
+
+  @@index([name])
+  @@map("custom_foods")
 }
 
 model Exercise {

@@ -6,7 +6,12 @@ import { dayOf } from "@/lib/dates";
 import { daySchema } from "@/lib/schemas/common";
 import { trendMetricSchema } from "@/lib/schemas/summary";
 import { DomainError, NotFoundError } from "@/server/services/errors";
-import { logFood, searchFoodLog } from "@/server/services/food";
+import {
+  createCustomFood,
+  logFood,
+  searchCustomFoods,
+  searchFoodLog,
+} from "@/server/services/food";
 import {
   getHistory,
   getSession,
@@ -282,24 +287,82 @@ export function buildServer(): McpServer {
   );
 
   server.registerTool(
+    "create_custom_food",
+    {
+      description:
+        "Save a reusable custom food (e.g. a home recipe) from its per-100g macros, so " +
+        "it can be logged later by name with log_food. Always saved as a MANUAL entry " +
+        "(label scans are confirmed in the app, not over MCP). Returns the created food " +
+        "with its id. Does NOT log anything — call log_food with custom_food_name to log it.",
+      inputSchema: {
+        name: z.string().describe("Display name of the food."),
+        brand: z.string().optional().describe("Brand, if any."),
+        per100g: z
+          .object({
+            kcal: z.number().describe("Calories per 100 g."),
+            protein_g: z.number().describe("Protein grams per 100 g."),
+            carb_g: z.number().describe("Carbohydrate grams per 100 g."),
+            fat_g: z.number().describe("Fat grams per 100 g."),
+            fiber_g: z.number().optional().describe("Fiber grams per 100 g."),
+            sugar_g: z.number().optional().describe("Sugar grams per 100 g."),
+            salt_g: z.number().optional().describe("Salt grams per 100 g."),
+          })
+          .describe("Macros per 100 g."),
+        serving_g: z
+          .number()
+          .optional()
+          .describe("Typical serving size in grams, if known."),
+      },
+    },
+    ({ name, brand, per100g, serving_g }) =>
+      run(() =>
+        createCustomFood({
+          name,
+          brand,
+          per100g: {
+            kcal: per100g.kcal,
+            proteinG: per100g.protein_g,
+            carbG: per100g.carb_g,
+            fatG: per100g.fat_g,
+            fiberG: per100g.fiber_g,
+            sugarG: per100g.sugar_g,
+            saltG: per100g.salt_g,
+          },
+          servingG: serving_g,
+          source: "MANUAL",
+        }),
+      ),
+  );
+
+  server.registerTool(
     "log_food",
     {
       description:
-        "Log food in one of three deterministic modes. " +
+        "Log food in one of four deterministic modes. " +
         "(1) barcode given → resolves the product and logs it, scaling macros by quantity_g. " +
-        "(2) name only, no kcal → does NOT log; returns up to 5 Open Food Facts candidates " +
-        "{ name, brand, barcode } — pick one and re-call with its barcode. " +
-        "(3) name + kcal → logs a custom entry with the provided macros. " +
-        "quantity_g is grams; meal is optional.",
+        "(2) custom_food_name given → looks up a SAVED custom food (see create_custom_food); " +
+        "an exact single match logs it directly (macros scaled by quantity_g), multiple " +
+        "matches do NOT log and return candidates { id, name, brand } — re-call with the " +
+        "exact name. (3) name only, no kcal → does NOT log; returns up to 5 Open Food Facts " +
+        "candidates { name, brand, barcode } — pick one and re-call with its barcode. " +
+        "(4) name + kcal → logs a one-off custom entry with the provided macros. " +
+        "Provide exactly one of barcode / custom_food_name / name. quantity_g is grams; " +
+        "meal is optional; protein_g/carb_g/fat_g override the resolved macros.",
       inputSchema: {
         barcode: z
           .string()
           .optional()
           .describe("Numeric product barcode (6–14 digits)."),
+        custom_food_name: z
+          .string()
+          .optional()
+          .describe("Name of a saved custom food to look up and log."),
         name: z
           .string()
           .optional()
-          .describe("Food name — for a custom entry or to search Open Food Facts."),
+          .describe(
+            "Food name — for a one-off custom entry or to search Open Food Facts.",
+          ),
         quantity_g: z.number().describe("Amount in grams (positive, ≤ 5000)."),
         kcal: z
           .number()
@@ -314,21 +377,63 @@ export function buildServer(): McpServer {
           .describe("Which meal this belongs to."),
       },
     },
-    ({ barcode, name, quantity_g, kcal, protein_g, carb_g, fat_g, meal }) =>
+    ({
+      barcode,
+      custom_food_name,
+      name,
+      quantity_g,
+      kcal,
+      protein_g,
+      carb_g,
+      fat_g,
+      meal,
+    }) =>
       run(async () => {
+        const overrides = {
+          quantityG: quantity_g,
+          kcal,
+          proteinG: protein_g,
+          carbG: carb_g,
+          fatG: fat_g,
+          meal,
+        };
         if (barcode != null) {
-          return await logFood(
-            {
-              barcode,
-              quantityG: quantity_g,
-              meal,
-              kcal,
-              proteinG: protein_g,
-              carbG: carb_g,
-              fatG: fat_g,
-            },
-            "MCP",
+          return await logFood({ barcode, ...overrides }, "MCP");
+        }
+        if (custom_food_name != null) {
+          const matches = await searchCustomFoods(custom_food_name);
+          const exact = matches.filter(
+            (f) => f.name.toLowerCase() === custom_food_name.trim().toLowerCase(),
           );
+          // Prefer an exact-name match (a `contains` search can return several);
+          // fall back to the sole result when the search itself is unambiguous.
+          const chosen =
+            exact.length === 1
+              ? exact[0]
+              : matches.length === 1
+                ? matches[0]
+                : null;
+          if (chosen) {
+            return await logFood(
+              { customFoodId: chosen.id, ...overrides },
+              "MCP",
+            );
+          }
+          if (matches.length === 0) {
+            throw new DomainError(
+              `no custom food matches "${custom_food_name}"`,
+            );
+          }
+          return {
+            logged: false,
+            message:
+              "Multiple custom foods match. Re-call log_food with an exact name.",
+            candidates: matches.map((c) => ({
+              id: c.id,
+              name: c.name,
+              brand: c.brand,
+            })),
+          };
         }
         if (name != null && kcal == null) {
           const candidates = await searchProducts(name, 5);
@@ -344,21 +449,10 @@ export function buildServer(): McpServer {
           };
         }
         if (name != null) {
-          return await logFood(
-            {
-              customName: name,
-              quantityG: quantity_g,
-              kcal,
-              proteinG: protein_g,
-              carbG: carb_g,
-              fatG: fat_g,
-              meal,
-            },
-            "MCP",
-          );
+          return await logFood({ customName: name, ...overrides }, "MCP");
         }
         throw new DomainError(
-          "provide a barcode, or a name (optionally with kcal for a custom entry)",
+          "provide a barcode, a custom_food_name, or a name (optionally with kcal for a custom entry)",
         );
       }),
   );

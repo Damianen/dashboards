@@ -1,4 +1,5 @@
 import {
+  type CustomFood,
   EntryOrigin,
   type FoodEntry,
   type FoodProduct,
@@ -6,7 +7,12 @@ import {
 } from "@/generated/prisma/client";
 import { dayOf, dayToDbDate, todayLocal } from "@/lib/dates";
 import { type Macros, scaleMacros } from "@/lib/rules";
-import { type LogFoodInput, logFoodSchema } from "@/lib/schemas/food";
+import {
+  type CreateCustomFoodInput,
+  createCustomFoodSchema,
+  type LogFoodInput,
+  logFoodSchema,
+} from "@/lib/schemas/food";
 import { prisma } from "@/server/db";
 import { NotFoundError } from "./errors";
 import { fetchProduct } from "./off";
@@ -48,9 +54,9 @@ export async function getOrFetchProduct(
   }
 }
 
-/** Read our normalized per-100g macros back off a cached product's JSON column. */
-function macrosFromProduct(product: FoodProduct): Macros {
-  const json = product.per100g;
+/** Read our normalized per-100g macros back off a per100g JSON column (a cached
+ *  product or a saved custom food). Missing keys → null, never 0. */
+function macrosFromJson(json: Prisma.JsonValue): Macros {
   const m: Record<string, unknown> =
     typeof json === "object" && json !== null && !Array.isArray(json)
       ? (json as Record<string, unknown>)
@@ -68,10 +74,69 @@ function macrosFromProduct(product: FoodProduct): Macros {
   };
 }
 
+/** Read our normalized per-100g macros back off a cached product's JSON column. */
+function macrosFromProduct(product: FoodProduct): Macros {
+  return macrosFromJson(product.per100g);
+}
+
+/**
+ * Create a reusable saved food (a home recipe, or a confirmed label scan). The
+ * per-100g macros are stored verbatim so logFood can scale them by quantity at
+ * log time, exactly like an OFF product — but these are entirely user-owned and
+ * never touched by the OFF cache.
+ */
+export async function createCustomFood(
+  input: CreateCustomFoodInput,
+): Promise<CustomFood> {
+  const data = createCustomFoodSchema.parse(input);
+  return prisma.customFood.create({
+    data: {
+      name: data.name,
+      brand: data.brand ?? null,
+      per100g: data.per100g as unknown as Prisma.InputJsonValue,
+      servingG: data.servingG ?? null,
+      source: data.source,
+    },
+  });
+}
+
+/** All saved custom foods, alphabetical (the natural pick-list order). */
+export function listCustomFoods(): Promise<CustomFood[]> {
+  return prisma.customFood.findMany({ orderBy: { name: "asc" } });
+}
+
+/**
+ * Saved custom foods whose name or brand contains `query` (case-insensitive);
+ * an empty query lists all. Powers both the UI picker and the MCP
+ * custom_food_name resolution.
+ */
+export function searchCustomFoods(query: string): Promise<CustomFood[]> {
+  const q = query.trim();
+  return prisma.customFood.findMany({
+    where: q
+      ? {
+          OR: [
+            { name: { contains: q, mode: "insensitive" } },
+            { brand: { contains: q, mode: "insensitive" } },
+          ],
+        }
+      : {},
+    orderBy: { name: "asc" },
+  });
+}
+
+/** A single saved custom food; 404s if it doesn't exist. */
+export async function getCustomFood(id: string): Promise<CustomFood> {
+  const food = await prisma.customFood.findUnique({ where: { id } });
+  if (!food) throw new NotFoundError("custom food", id);
+  return food;
+}
+
 /**
  * Log a food entry, SNAPSHOTTING its macros at log time (CLAUDE.md: history never
- * recomputes from the cache). A `barcode` resolves through the product cache and
- * scales by quantity; a custom entry needs `customName` + `kcal`. Explicit macro
+ * recomputes from the cache). Exactly one source resolves the macros: a `barcode`
+ * through the product cache, a `customFoodId` through a saved custom food (both
+ * scaled by quantity), or a free-form `customName` + `kcal`. Explicit macro
  * fields in the input override the computed ones. The four required columns
  * (kcal/protein/carb/fat) coalesce unknown → 0 so daily_summary SUMs stay clean;
  * fiber/sugar/salt keep their nulls.
@@ -86,6 +151,7 @@ export async function logFood(
 
   let base: Macros;
   let productBarcode: string | null = null;
+  let customFoodId: string | null = null;
   let customName: string | null = null;
 
   if (data.barcode != null) {
@@ -93,6 +159,13 @@ export async function logFood(
     if (!product) throw new NotFoundError("product", data.barcode);
     productBarcode = product.barcode;
     base = scaleMacros(macrosFromProduct(product), data.quantityG);
+  } else if (data.customFoodId != null) {
+    const food = await prisma.customFood.findUnique({
+      where: { id: data.customFoodId },
+    });
+    if (!food) throw new NotFoundError("custom food", data.customFoodId);
+    customFoodId = food.id;
+    base = scaleMacros(macrosFromJson(food.per100g), data.quantityG);
   } else {
     customName = data.customName ?? null; // refine guarantees presence
     base = {
@@ -125,6 +198,7 @@ export async function logFood(
       eatenAt: at,
       day,
       productBarcode,
+      customFoodId,
       customName,
       quantityG: data.quantityG,
       kcal: snap.kcal ?? 0,
