@@ -6,16 +6,24 @@ import {
   Prisma,
 } from "@/generated/prisma/client";
 import { dayOf, dayToDbDate, todayLocal } from "@/lib/dates";
-import { type Macros, scaleMacros } from "@/lib/rules";
+import {
+  type LabelNutrients,
+  type Macros,
+  normalizeToPer100g,
+  scaleMacros,
+} from "@/lib/rules";
 import {
   type CreateCustomFoodInput,
   createCustomFoodSchema,
   type LogFoodInput,
   logFoodSchema,
+  type Per100g,
 } from "@/lib/schemas/food";
+import { labelScanResultSchema } from "@/lib/schemas/vision";
 import { prisma } from "@/server/db";
 import { NotFoundError } from "./errors";
 import { fetchProduct } from "./off";
+import { analyzeImage } from "./vision";
 
 const PRODUCT_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
@@ -98,6 +106,78 @@ export async function createCustomFood(
       source: data.source,
     },
   });
+}
+
+// The vision instruction for a nutrition-label photo. Drives the read toward our
+// per-100g model: prefer per-100g, fall back to per-serving + size, kcal not kJ,
+// and — critically — null (never a guessed number) for anything not printed.
+const LABEL_SCAN_INSTRUCTION =
+  "Read this nutrition label. Extract the product name and brand if visible, the " +
+  "serving size in grams, and the nutrition values. Report values per 100 g if the " +
+  "label gives them; otherwise report per serving and include the serving size. " +
+  "Energy in kcal (convert from kJ if only kJ is shown: kcal = kJ / 4.184). Use null " +
+  "for anything not printed — never guess a number. Rate your confidence.";
+
+/** A confirm-before-save draft built from a label scan: a createCustomFood-shaped
+ *  object (source LABEL_SCAN). per100g is null when the label gave neither a
+ *  per-100g block nor a usable serving size — the UI then starts those fields empty. */
+export interface LabelScanDraft {
+  name: string;
+  brand?: string;
+  servingG?: number;
+  per100g: Per100g | null;
+  source: "LABEL_SCAN";
+}
+
+export interface LabelScanResponse {
+  draft: LabelScanDraft;
+  confidence: "high" | "medium" | "low";
+  notes: string;
+}
+
+/** Drop unreported (null) detail macros so the result satisfies per100gSchema,
+ *  whose optionals are `number | undefined`, never null. */
+function toPer100gInput(n: LabelNutrients): Per100g {
+  return {
+    kcal: n.kcal,
+    proteinG: n.proteinG,
+    carbG: n.carbG,
+    fatG: n.fatG,
+    ...(n.fiberG != null ? { fiberG: n.fiberG } : {}),
+    ...(n.sugarG != null ? { sugarG: n.sugarG } : {}),
+    ...(n.saltG != null ? { saltG: n.saltG } : {}),
+  };
+}
+
+/**
+ * Read a nutrition-label photo into a DRAFT custom food the caller must confirm —
+ * NO side effects (CLAUDE.md: vision endpoints return drafts, persisting is a
+ * separate explicit call via createCustomFood/logFood). The image is analyzed,
+ * validated against labelScanResultSchema, then reduced to per-100g macros
+ * (normalizeToPer100g handles a per-serving-only label). Throws VisionError on a
+ * provider/parse failure — the caller surfaces it without leaking internals.
+ */
+export async function scanLabel(
+  imageDataUrl: string,
+): Promise<LabelScanResponse> {
+  const read = await analyzeImage({
+    imageDataUrl,
+    instruction: LABEL_SCAN_INSTRUCTION,
+    schema: labelScanResultSchema,
+  });
+  const per100g = normalizeToPer100g({
+    servingSizeG: read.servingSizeG,
+    per100g: read.per100g,
+    perServing: read.perServing,
+  });
+  const draft: LabelScanDraft = {
+    name: read.name,
+    ...(read.brand ? { brand: read.brand } : {}),
+    ...(read.servingSizeG != null ? { servingG: read.servingSizeG } : {}),
+    per100g: per100g ? toPer100gInput(per100g) : null,
+    source: "LABEL_SCAN",
+  };
+  return { draft, confidence: read.confidence, notes: read.notes };
 }
 
 /** All saved custom foods, alphabetical (the natural pick-list order). */
@@ -227,6 +307,7 @@ export function listByDay(day: string = todayLocal()) {
     orderBy: { eatenAt: "desc" },
     include: {
       product: { select: { name: true, brand: true, imageUrl: true } },
+      customFood: { select: { name: true, brand: true } },
     },
   });
 }

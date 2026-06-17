@@ -57,6 +57,60 @@ export function scaleMacros(per100g: Macros, quantityG: number): Macros {
   };
 }
 
+// ----- Nutrition-label normalization -----
+
+/**
+ * Nutrition numbers as a label scan reports them — the same shape as per100gSchema
+ * (the four energy macros required, the detail macros optional), expressed
+ * structurally so this module stays free of Zod. A null/absent detail macro means
+ * the label didn't print it, never 0.
+ */
+export interface LabelNutrients {
+  kcal: number;
+  proteinG: number;
+  carbG: number;
+  fatG: number;
+  fiberG?: number | null;
+  sugarG?: number | null;
+  saltG?: number | null;
+}
+
+/** A label's raw readout: macros per 100 g and/or per serving, plus the serving
+ *  size needed to convert the latter. */
+export interface LabelReadout {
+  servingSizeG: number | null;
+  per100g: LabelNutrients | null;
+  perServing: LabelNutrients | null;
+}
+
+/**
+ * Reduce a label readout to per-100 g macros, the form a CustomFood stores. Prefers
+ * an explicit per-100 g block; otherwise converts a per-serving block by × 100 /
+ * servingSizeG (rounded to 1 dp, same idiom as scaleMacros), leaving unreported
+ * detail macros null. Returns null when neither path is possible (no per-100 g and
+ * no usable serving size) — the caller then starts the user with empty fields.
+ */
+export function normalizeToPer100g(r: LabelReadout): LabelNutrients | null {
+  if (r.per100g) return r.per100g;
+  if (r.perServing && r.servingSizeG != null && r.servingSizeG > 0) {
+    const f = 100 / r.servingSizeG;
+    const round1 = (v: number): number => Math.round(v * f * 10) / 10;
+    const opt = (v: number | null | undefined): number | null =>
+      v == null ? null : round1(v);
+    const p = r.perServing;
+    return {
+      kcal: round1(p.kcal),
+      proteinG: round1(p.proteinG),
+      carbG: round1(p.carbG),
+      fatG: round1(p.fatG),
+      fiberG: opt(p.fiberG),
+      sugarG: opt(p.sugarG),
+      saltG: opt(p.saltG),
+    };
+  }
+  return null;
+}
+
 // ----- Workout template targets & progress -----
 
 /** The shape a target carries, regardless of where it's stored (template, plan

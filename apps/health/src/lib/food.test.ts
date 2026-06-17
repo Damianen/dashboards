@@ -45,6 +45,7 @@ const dto = (over: Partial<FoodEntryDTO>): FoodEntryDTO => ({
   fatG: "0",
   meal: null,
   product: null,
+  customFood: null,
   ...over,
 });
 
@@ -72,6 +73,18 @@ describe("toView", () => {
     const v = toView(dto({ customName: "Homemade soup" }));
     expect(v.displayName).toBe("Homemade soup");
     expect(v.isCustom).toBe(true);
+  });
+
+  it("uses a saved custom food's name and shows its grams (non-custom)", () => {
+    const v = toView(
+      dto({
+        customFood: { name: "Protein granola", brand: "DIY" },
+        quantityG: "60",
+      }),
+    );
+    expect(v.displayName).toBe("Protein granola");
+    expect(v.quantityG).toBe(60);
+    expect(v.isCustom).toBe(false); // real per-100g portion → grams shown
   });
 
   it("falls back to the barcode when a product join is missing", () => {

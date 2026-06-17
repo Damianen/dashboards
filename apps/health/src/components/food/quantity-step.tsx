@@ -7,10 +7,11 @@ import { MealPicker } from "@/components/food/meal-picker";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Stepper } from "@/components/ui/stepper";
-import { type FoodProductDTO, suggestMeal } from "@/lib/food";
+import { type LoggableItem, suggestMeal } from "@/lib/food";
 import { formatNumber } from "@/lib/format";
 import { useLogFood } from "@/lib/hooks/use-log-food";
 import { scaleMacros } from "@/lib/rules";
+import type { LogFoodInput } from "@/lib/schemas/food";
 
 function PreviewStat({ value, label }: { value: string; label: string }) {
   return (
@@ -22,27 +23,29 @@ function PreviewStat({ value, label }: { value: string; label: string }) {
 }
 
 /**
- * The grams step a scan/search converges on: pick a portion, preview the scaled
- * macros live (reusing scaleMacros — the same math the server snapshots), pick a
- * meal, confirm. Confirm logs via useLogFood with an optimistic preview row.
+ * The grams step a scan/search/label-scan converges on: pick a portion, preview the
+ * scaled macros live (reusing scaleMacros — the same math the server snapshots), pick
+ * a meal, confirm. Confirm logs via useLogFood with an optimistic preview row. Works
+ * for any LoggableItem — `ref` decides whether the entry resolves by barcode or by
+ * saved custom food id.
  */
 export function QuantityStep({
-  product,
+  item,
   day,
   onBack,
   onLogged,
 }: {
-  product: FoodProductDTO;
+  item: LoggableItem;
   day: string;
   onBack: () => void;
   onLogged: () => void;
 }) {
-  const servingG = product.servingG != null ? Number(product.servingG) : null;
+  const servingG = item.servingG;
   const [grams, setGrams] = useState(servingG && servingG > 0 ? servingG : 100);
   const [meal, setMeal] = useState(() => suggestMeal(new Date()));
   const { mutate, isPending } = useLogFood(day);
 
-  const scaled = scaleMacros(product.per100g, grams);
+  const scaled = scaleMacros(item.per100g, grams);
   const macros = {
     kcal: scaled.kcal ?? 0,
     proteinG: scaled.proteinG ?? 0,
@@ -60,12 +63,16 @@ export function QuantityStep({
   }
 
   function confirm() {
+    const source: Pick<LogFoodInput, "barcode" | "customFoodId"> =
+      item.ref.kind === "barcode"
+        ? { barcode: item.ref.barcode }
+        : { customFoodId: item.ref.customFoodId };
     mutate(
       {
-        input: { barcode: product.barcode, quantityG: grams, meal },
+        input: { ...source, quantityG: grams, meal },
         preview: {
-          displayName: product.name,
-          imageUrl: product.imageUrl,
+          displayName: item.name,
+          imageUrl: item.imageUrl,
           quantityG: grams,
           meal,
           macros,
@@ -87,10 +94,10 @@ export function QuantityStep({
           <ChevronLeft className="size-5" aria-hidden />
         </button>
         <div className="min-w-0">
-          <h2 className="truncate text-base font-semibold">{product.name}</h2>
-          {product.brand && (
+          <h2 className="truncate text-base font-semibold">{item.name}</h2>
+          {item.brand && (
             <p className="text-muted-foreground truncate text-xs">
-              {product.brand}
+              {item.brand}
             </p>
           )}
         </div>

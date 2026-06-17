@@ -16,6 +16,32 @@ export interface FoodProductDTO {
   servingG: string | null;
 }
 
+/**
+ * Anything the quantity step can log: a display head plus per-100g macros to scale,
+ * and a `ref` saying which source resolves the entry server-side. A barcode product
+ * and a saved custom food both reach the same step this way.
+ */
+export interface LoggableItem {
+  name: string;
+  brand: string | null;
+  imageUrl: string | null;
+  per100g: Macros;
+  servingG: number | null;
+  ref: { kind: "barcode"; barcode: string } | { kind: "customFood"; customFoodId: string };
+}
+
+/** Adapt a fetched product (Decimal servingG → number) into a LoggableItem. */
+export function productToLoggable(product: FoodProductDTO): LoggableItem {
+  return {
+    name: product.name,
+    brand: product.brand,
+    imageUrl: product.imageUrl,
+    per100g: product.per100g,
+    servingG: product.servingG != null ? Number(product.servingG) : null,
+    ref: { kind: "barcode", barcode: product.barcode },
+  };
+}
+
 export const MEAL_ORDER = ["BREAKFAST", "LUNCH", "DINNER", "SNACK"] as const;
 export type MealSlot = (typeof MEAL_ORDER)[number];
 
@@ -60,6 +86,8 @@ export interface FoodEntryDTO {
   fatG: string;
   meal: MealSlot | null;
   product: FoodEntryProductDTO | null;
+  /** A saved custom food joined in for display (name/brand only — no image). */
+  customFood: { name: string; brand: string | null } | null;
 }
 
 /** A diary entry ready to render: numeric macros + derived display fields. */
@@ -69,7 +97,8 @@ export interface FoodEntryView {
   meal: MealSlot | null;
   displayName: string;
   quantityG: number;
-  /** Custom (manually-typed) entries have no product, so we hide the gram count. */
+  /** A free-form (manually-typed) entry: macros are absolute, not per-100g, so the
+   *  diary hides its gram count. Barcode and saved-custom-food entries are false. */
   isCustom: boolean;
   kcal: number;
   proteinG: number;
@@ -92,9 +121,13 @@ export function toView(dto: FoodEntryDTO): FoodEntryView {
     eatenAt: dto.eatenAt,
     meal: dto.meal,
     displayName:
-      dto.product?.name ?? dto.customName ?? dto.productBarcode ?? "Food",
+      dto.product?.name ??
+      dto.customFood?.name ??
+      dto.customName ??
+      dto.productBarcode ??
+      "Food",
     quantityG: Number(dto.quantityG),
-    isCustom: dto.productBarcode == null,
+    isCustom: dto.customName != null,
     kcal: Number(dto.kcal),
     proteinG: Number(dto.proteinG),
     carbG: Number(dto.carbG),

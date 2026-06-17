@@ -77,6 +77,9 @@ export function useLogFood(day: string) {
         product: input.barcode
           ? { name: preview.displayName, brand: null, imageUrl: preview.imageUrl }
           : null,
+        customFood: input.customFoodId
+          ? { name: preview.displayName, brand: null }
+          : null,
       };
       qc.setQueryData<FoodEntryDTO[]>(foodKey, (cur) => [
         optimistic,

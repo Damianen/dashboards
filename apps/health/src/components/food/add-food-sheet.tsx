@@ -7,16 +7,22 @@ import { Drawer } from "vaul";
 
 import { CustomTab } from "@/components/food/custom-tab";
 import { QuantityStep } from "@/components/food/quantity-step";
+import { ScanLabelTab } from "@/components/food/scan-label-tab";
 import { ScanTab } from "@/components/food/scan-tab";
 import { SearchTab } from "@/components/food/search-tab";
 import { getJSON, HttpError } from "@/lib/fetcher";
-import type { FoodProductDTO } from "@/lib/food";
+import {
+  type FoodProductDTO,
+  type LoggableItem,
+  productToLoggable,
+} from "@/lib/food";
 import { cn } from "@/lib/utils";
 
-type Tab = "scan" | "search" | "custom";
+type Tab = "scan" | "scanLabel" | "search" | "custom";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "scan", label: "Scan" },
+  { id: "scanLabel", label: "Scan label" },
   { id: "search", label: "Search" },
   { id: "custom", label: "Custom" },
 ];
@@ -36,13 +42,13 @@ export function AddFoodSheet({
   day: string;
 }) {
   const [tab, setTab] = useState<Tab>("scan");
-  const [product, setProduct] = useState<FoodProductDTO | null>(null);
+  const [loggable, setLoggable] = useState<LoggableItem | null>(null);
   const [looking, setLooking] = useState(false);
   const [prefillName, setPrefillName] = useState<string | null>(null);
 
   function reset() {
     setTab("scan");
-    setProduct(null);
+    setLoggable(null);
     setLooking(false);
     setPrefillName(null);
   }
@@ -58,7 +64,7 @@ export function AddFoodSheet({
       const found = await getJSON<FoodProductDTO>(
         `/api/food/products/${encodeURIComponent(barcode)}`,
       );
-      setProduct(found);
+      setLoggable(productToLoggable(found));
     } catch (err) {
       if (err instanceof HttpError && err.status === 404) {
         setPrefillName(barcode);
@@ -72,7 +78,7 @@ export function AddFoodSheet({
     }
   }
 
-  const showTabs = !product && !looking;
+  const showTabs = !loggable && !looking;
 
   return (
     <Drawer.Root open={open} onOpenChange={handleOpenChange}>
@@ -90,7 +96,7 @@ export function AddFoodSheet({
             </Drawer.Description>
 
             {showTabs && (
-              <div className="bg-muted grid grid-cols-3 gap-1 rounded-lg p-1">
+              <div className="bg-muted grid grid-cols-4 gap-1 rounded-lg p-1">
                 {TABS.map((t) => (
                   <button
                     key={t.id}
@@ -109,11 +115,11 @@ export function AddFoodSheet({
               </div>
             )}
 
-            {product ? (
+            {loggable ? (
               <QuantityStep
-                product={product}
+                item={loggable}
                 day={day}
-                onBack={() => setProduct(null)}
+                onBack={() => setLoggable(null)}
                 onLogged={() => handleOpenChange(false)}
               />
             ) : looking ? (
@@ -123,6 +129,12 @@ export function AddFoodSheet({
               </div>
             ) : tab === "scan" ? (
               <ScanTab active={open && tab === "scan"} onBarcode={handleBarcode} />
+            ) : tab === "scanLabel" ? (
+              <ScanLabelTab
+                onLog={setLoggable}
+                onSaved={() => handleOpenChange(false)}
+                onFallback={() => setTab("custom")}
+              />
             ) : tab === "search" ? (
               <SearchTab onBarcode={handleBarcode} />
             ) : (

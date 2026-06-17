@@ -9,6 +9,7 @@ import { DomainError, NotFoundError } from "@/server/services/errors";
 import {
   createCustomFood,
   logFood,
+  scanLabel,
   searchCustomFoods,
   searchFoodLog,
 } from "@/server/services/food";
@@ -27,6 +28,7 @@ import {
 import { logStimulant } from "@/server/services/stimulants";
 import { logSupplement } from "@/server/services/supplements";
 import { getDailySummary, getTrends } from "@/server/services/summary";
+import { VisionError } from "@/server/services/vision";
 import { syncGoogleHealth } from "@/server/services/sync/google-health";
 import { syncOura } from "@/server/services/sync/oura";
 import { latestRunsBySource } from "@/server/services/sync/runs";
@@ -61,6 +63,9 @@ async function run(fn: () => Promise<unknown>): Promise<CallToolResult> {
       return fail("invalid input", { issues: err.flatten() });
     }
     if (err instanceof DomainError) return fail(err.message);
+    // VisionError is an upstream provider/parse failure; its message is already
+    // generic (never leaks the image or API key), so surface it to the agent.
+    if (err instanceof VisionError) return fail(err.message);
     console.error(err);
     return fail("internal error");
   }
@@ -291,9 +296,10 @@ export function buildServer(): McpServer {
     {
       description:
         "Save a reusable custom food (e.g. a home recipe) from its per-100g macros, so " +
-        "it can be logged later by name with log_food. Always saved as a MANUAL entry " +
-        "(label scans are confirmed in the app, not over MCP). Returns the created food " +
-        "with its id. Does NOT log anything — call log_food with custom_food_name to log it.",
+        "it can be logged later by name with log_food. Saved as a MANUAL entry; to " +
+        "capture a packaged product, call scan_nutrition_label first for a draft, then " +
+        "confirm it here. Returns the created food with its id. Does NOT log anything — " +
+        "call log_food with custom_food_name to log it.",
       inputSchema: {
         name: z.string().describe("Display name of the food."),
         brand: z.string().optional().describe("Brand, if any."),
@@ -332,6 +338,26 @@ export function buildServer(): McpServer {
           source: "MANUAL",
         }),
       ),
+  );
+
+  server.registerTool(
+    "scan_nutrition_label",
+    {
+      description:
+        "Read a nutrition-label photo into a DRAFT custom food. Returns { draft (name, " +
+        "brand, serving size, and per-100g macros — camelCase, ready for create_custom_food), " +
+        "confidence, notes }. AI vision is an ESTIMATE and OCR can misread, so this persists " +
+        "NOTHING: confirm the values with the user, then call create_custom_food (and " +
+        "log_food) to save. Provide the image as a data: URL.",
+      inputSchema: {
+        image_data_url: z
+          .string()
+          .describe(
+            "The label photo as a data: URL (base64; downscale before sending).",
+          ),
+      },
+    },
+    ({ image_data_url }) => run(() => scanLabel(image_data_url)),
   );
 
   server.registerTool(

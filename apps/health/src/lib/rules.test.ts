@@ -3,7 +3,9 @@ import { DomainError } from "@/server/services/errors";
 import {
   type ActualSet,
   computeWaterTarget,
+  type LabelNutrients,
   type Macros,
+  normalizeToPer100g,
   type PlanTarget,
   scaleMacros,
   setMeetsRepRange,
@@ -90,6 +92,113 @@ describe("scaleMacros", () => {
       saltG: null,
     };
     expect(scaleMacros(empty, 250)).toEqual(empty);
+  });
+});
+
+describe("normalizeToPer100g", () => {
+  const per100g: LabelNutrients = {
+    kcal: 250,
+    proteinG: 8,
+    carbG: 30,
+    fatG: 10,
+    fiberG: 2,
+    sugarG: 12,
+    saltG: 0.5,
+  };
+
+  it("passes an explicit per-100g block through unchanged", () => {
+    expect(
+      normalizeToPer100g({ servingSizeG: 50, per100g, perServing: null }),
+    ).toEqual(per100g);
+  });
+
+  it("prefers per-100g even when per-serving is also present", () => {
+    const perServing: LabelNutrients = { ...per100g, kcal: 999 };
+    expect(
+      normalizeToPer100g({ servingSizeG: 50, per100g, perServing }),
+    ).toBe(per100g);
+  });
+
+  it("converts a per-serving block by × 100 / servingSizeG", () => {
+    const perServing: LabelNutrients = {
+      kcal: 200,
+      proteinG: 5,
+      carbG: 15,
+      fatG: 4,
+    };
+    // 50 g serving → ×2 to reach 100 g.
+    expect(
+      normalizeToPer100g({ servingSizeG: 50, per100g: null, perServing }),
+    ).toEqual({
+      kcal: 400,
+      proteinG: 10,
+      carbG: 30,
+      fatG: 8,
+      fiberG: null,
+      sugarG: null,
+      saltG: null,
+    });
+  });
+
+  it("rounds the converted values to one decimal", () => {
+    const perServing: LabelNutrients = {
+      kcal: 133,
+      proteinG: 7,
+      carbG: 21,
+      fatG: 3,
+    };
+    // 30 g serving → × 3.3333…
+    expect(
+      normalizeToPer100g({ servingSizeG: 30, per100g: null, perServing }),
+    ).toEqual({
+      kcal: 443.3, // 443.33… → 443.3
+      proteinG: 23.3, // 23.33… → 23.3
+      carbG: 70, // 69.99… → 70
+      fatG: 10, // 9.99… → 10
+      fiberG: null,
+      sugarG: null,
+      saltG: null,
+    });
+  });
+
+  it("scales a reported detail macro but keeps unreported ones null", () => {
+    const perServing: LabelNutrients = {
+      kcal: 100,
+      proteinG: 2,
+      carbG: 10,
+      fatG: 1,
+      fiberG: 3,
+      sugarG: null,
+    };
+    expect(
+      normalizeToPer100g({ servingSizeG: 50, per100g: null, perServing }),
+    ).toEqual({
+      kcal: 200,
+      proteinG: 4,
+      carbG: 20,
+      fatG: 2,
+      fiberG: 6, // reported → scaled
+      sugarG: null, // null stays null
+      saltG: null, // absent stays null
+    });
+  });
+
+  it("returns null when neither block is present", () => {
+    expect(
+      normalizeToPer100g({ servingSizeG: 50, per100g: null, perServing: null }),
+    ).toBe(null);
+  });
+
+  it("returns null when only per-serving is given but the serving size is missing", () => {
+    const perServing: LabelNutrients = {
+      kcal: 200,
+      proteinG: 5,
+      carbG: 15,
+      fatG: 4,
+    };
+    expect(
+      normalizeToPer100g({ servingSizeG: null, per100g: null, perServing }),
+    ).toBe(null);
   });
 });
 
