@@ -6,6 +6,10 @@ node_modules/
 .env.*
 !.env.example
 
+# private keys (e.g. Enable Banking) must never be committed
+*.pem
+*.key
+
 # builds
 dist/
 .next/
