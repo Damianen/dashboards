@@ -1,0 +1,246 @@
+"use client";
+
+import { useState } from "react";
+import { ChevronDown, ChevronUp, Trash2 } from "lucide-react";
+
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Segmented } from "@/components/ui/segmented";
+import { Stepper } from "@/components/ui/stepper";
+
+/** One editable exercise in the template editor. All fields for both target modes
+ *  are always present (with defaults) so toggling REPS↔VOLUME preserves values. A
+ *  stable `rowId` keys the row across reorders. */
+export interface EditorExercise {
+  rowId: string;
+  exerciseId: string;
+  exerciseName: string;
+  muscleGroup: string | null;
+  targetType: "REPS" | "VOLUME";
+  targetSets: number;
+  repMin: number;
+  repMax: number;
+  /** null = no working weight set (optional). */
+  targetWeightKg: number | null;
+  targetVolumeKg: number;
+  /** null = no rest set (optional). */
+  restSec: number | null;
+  notes: string;
+}
+
+const iconBtn =
+  "flex size-11 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-30";
+
+export function TemplateExerciseRow({
+  exercise: e,
+  index,
+  count,
+  onChange,
+  onRemove,
+  onMoveUp,
+  onMoveDown,
+}: {
+  exercise: EditorExercise;
+  index: number;
+  count: number;
+  onChange: (next: EditorExercise) => void;
+  onRemove: () => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+}) {
+  const [showNotes, setShowNotes] = useState(e.notes.trim() !== "");
+  const [volText, setVolText] = useState(String(e.targetVolumeKg));
+
+  function set(patch: Partial<EditorExercise>) {
+    onChange({ ...e, ...patch });
+  }
+
+  // Keep min ≤ max as either bound moves.
+  function setRepMin(repMin: number) {
+    set({ repMin, repMax: Math.max(repMin, e.repMax) });
+  }
+  function setRepMax(repMax: number) {
+    set({ repMax, repMin: Math.min(repMax, e.repMin) });
+  }
+
+  return (
+    <div className="space-y-3 rounded-lg border p-3">
+      <div className="flex items-center gap-1">
+        <span className="flex-1 truncate font-medium">{e.exerciseName}</span>
+        <button
+          type="button"
+          aria-label={`Move ${e.exerciseName} up`}
+          className={iconBtn}
+          disabled={index === 0}
+          onClick={onMoveUp}
+        >
+          <ChevronUp className="size-5" aria-hidden />
+        </button>
+        <button
+          type="button"
+          aria-label={`Move ${e.exerciseName} down`}
+          className={iconBtn}
+          disabled={index === count - 1}
+          onClick={onMoveDown}
+        >
+          <ChevronDown className="size-5" aria-hidden />
+        </button>
+        <button
+          type="button"
+          aria-label={`Remove ${e.exerciseName}`}
+          className={`${iconBtn} text-muted-foreground hover:text-destructive`}
+          onClick={onRemove}
+        >
+          <Trash2 className="size-5" aria-hidden />
+        </button>
+      </div>
+
+      <Segmented
+        ariaLabel="Target type"
+        value={e.targetType}
+        onChange={(targetType) => set({ targetType })}
+        options={[
+          { value: "REPS", label: "Reps" },
+          { value: "VOLUME", label: "Volume" },
+        ]}
+      />
+
+      {e.targetType === "REPS" ? (
+        <>
+          <div className="space-y-1.5">
+            <Label htmlFor={`sets-${e.rowId}`}>Sets</Label>
+            <Stepper
+              id={`sets-${e.rowId}`}
+              label="target sets"
+              value={e.targetSets}
+              onChange={(targetSets) => set({ targetSets })}
+              min={1}
+              max={20}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Rep range</Label>
+            <div className="flex items-center gap-2">
+              <Stepper
+                label="minimum reps"
+                value={e.repMin}
+                onChange={setRepMin}
+                min={1}
+                max={100}
+                className="flex-1"
+              />
+              <span className="text-muted-foreground" aria-hidden>
+                –
+              </span>
+              <Stepper
+                label="maximum reps"
+                value={e.repMax}
+                onChange={setRepMax}
+                min={1}
+                max={100}
+                className="flex-1"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label htmlFor={`weight-${e.rowId}`}>Target weight (kg)</Label>
+              <button
+                type="button"
+                onClick={() =>
+                  set({ targetWeightKg: e.targetWeightKg === null ? 20 : null })
+                }
+                className="text-muted-foreground hover:text-foreground text-sm font-medium transition-colors"
+              >
+                {e.targetWeightKg === null ? "Add" : "Remove"}
+              </button>
+            </div>
+            {e.targetWeightKg !== null && (
+              <Stepper
+                id={`weight-${e.rowId}`}
+                label="target weight in kilograms"
+                value={e.targetWeightKg}
+                onChange={(targetWeightKg) => set({ targetWeightKg })}
+                step={2.5}
+                min={0}
+                max={500}
+                inputMode="decimal"
+              />
+            )}
+          </div>
+        </>
+      ) : (
+        <div className="space-y-1.5">
+          <Label htmlFor={`volume-${e.rowId}`}>Target volume (kg)</Label>
+          <Input
+            id={`volume-${e.rowId}`}
+            inputMode="decimal"
+            aria-label="target volume in kilograms"
+            value={volText}
+            onChange={(ev) => {
+              const v = ev.target.value;
+              setVolText(v);
+              const n = Number(v);
+              if (v !== "" && !Number.isNaN(n)) {
+                set({ targetVolumeKg: Math.min(100000, Math.max(0, n)) });
+              }
+            }}
+            onBlur={() => setVolText(String(e.targetVolumeKg))}
+            className="h-11"
+          />
+        </div>
+      )}
+
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <Label htmlFor={`rest-${e.rowId}`}>Rest (sec)</Label>
+          <button
+            type="button"
+            onClick={() => set({ restSec: e.restSec === null ? 90 : null })}
+            className="text-muted-foreground hover:text-foreground text-sm font-medium transition-colors"
+          >
+            {e.restSec === null ? "Add" : "Remove"}
+          </button>
+        </div>
+        {e.restSec !== null && (
+          <Stepper
+            id={`rest-${e.rowId}`}
+            label="rest in seconds"
+            value={e.restSec}
+            onChange={(restSec) => set({ restSec })}
+            step={15}
+            min={0}
+            max={3600}
+          />
+        )}
+      </div>
+
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <Label htmlFor={`notes-${e.rowId}`}>Notes</Label>
+          <button
+            type="button"
+            onClick={() => {
+              if (showNotes) set({ notes: "" });
+              setShowNotes((s) => !s);
+            }}
+            className="text-muted-foreground hover:text-foreground text-sm font-medium transition-colors"
+          >
+            {showNotes ? "Remove" : "Add"}
+          </button>
+        </div>
+        {showNotes && (
+          <Input
+            id={`notes-${e.rowId}`}
+            value={e.notes}
+            onChange={(ev) => set({ notes: ev.target.value })}
+            placeholder="e.g. last set to failure"
+            className="h-11"
+          />
+        )}
+      </div>
+    </div>
+  );
+}

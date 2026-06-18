@@ -1,7 +1,13 @@
-# env — only .env.example is committed
+# env — only the *.example templates are committed
 .env
 .env.*
 !.env.example
+!.env.production.example
 
 # next.js build output
 .next/
+
+# serwist — service worker is generated at build time
+public/sw.js
+public/sw.js.map
+public/swe-worker-*.js

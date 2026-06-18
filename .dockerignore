@@ -1,0 +1,18 @@
+# Build context is the repo root for every app (compose context: ../..), so this
+# one file covers them all. node_modules / .next / the generated Prisma client are
+# regenerated inside the build, never copied from context. Real .env* files are
+# kept out of image layers; only the committed examples are let through.
+**/node_modules
+**/.next
+**/src/generated
+.git
+**/.git
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.production.example
+**/*.log
+**/coverage
+**/.turbo
+**/*.tsbuildinfo
+**/.DS_Store

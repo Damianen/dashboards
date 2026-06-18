@@ -1,10 +1,11 @@
 # dependencies
 node_modules/
 
-# env — only .env.example is committed
+# env — only the *.example templates are committed
 .env
 .env.*
 !.env.example
+!.env.production.example
 
 # private keys (e.g. Enable Banking) must never be committed
 *.pem

@@ -42,6 +42,12 @@ recharts, vitest.
 - Rotating OAuth tokens (Withings, Google) live AES-256-GCM-encrypted in
   the oauth_tokens table — never in env, never logged. Withings refresh
   tokens are single-use: persist the new pair atomically before using it.
+- AI vision outputs are ESTIMATES. Label scans are drafts the user confirms before
+  save (OCR can misread). Meal-photo calorie/macro figures are low-confidence guesses:
+  always labeled 'AI estimate' in UI and MCP, always shown with the model's stated
+  confidence and assumptions, always editable before they log. Vision endpoints have
+  NO side effects — they return drafts; persisting is a separate explicit call. Images
+  are processed and discarded; never store raw image bytes, only the structured result.
 
 ## Environment
 See .env.example. DATABASE_URL is health_dev locally and health in prod,
@@ -52,3 +58,25 @@ Root definition (pnpm --filter health typecheck && lint && test green)
 + migrations applied to health_dev + the phase's acceptance check
 verified. Pure logic (date bucketing, water target, macro math, token
 crypto) must have vitest coverage.
+
+## Deploy
+Ships as one Docker container on the external `homelab` network (CT 103),
+talking to the shared Postgres at host `postgres:5432`.
+
+- Build: `docker compose -f apps/health/docker-compose.yml build` — the
+  context is the repo root so the pnpm workspace is visible.
+- Run: `cp apps/health/.env.production.example apps/health/.env.production`,
+  fill the secrets (DATABASE_URL from `create-service.sh health`), then
+  `docker compose -f apps/health/docker-compose.yml up -d`.
+- Startup: the entrypoint runs `prisma migrate deploy` (deploy ONLY — never
+  reset) before `node apps/health/server.js`. Migrations apply with the Debian
+  schema-engine binary (`schema-engine-debian-openssl-3.0.x`) on the node:26-slim
+  base; the prisma CLI lives in a self-contained `/app/migrate` dir.
+- Health: Docker healthcheck hits `GET /api/sync/status` via node `fetch` (no
+  curl on slim).
+
+The MCP endpoint (`POST /api/mcp`, `Authorization: Bearer $MCP_BEARER_TOKEN`) is
+consumed over the LAN via the published `3000:3000` port — Hermes and Claude Code
+reach it directly on the homelab network, NOT through the Cloudflare tunnel. The
+web UI is fronted by Cloudflare Access upstream; the bearer check is the only
+in-app auth surface.

@@ -1,0 +1,357 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql" // url lives in prisma.config.ts (Prisma 7)
+}
+
+enum Source {
+  WITHINGS
+  OURA
+  GOOGLE_HEALTH
+  MANUAL
+}
+
+enum EntryOrigin {
+  PWA
+  MCP
+}
+
+enum MealSlot {
+  BREAKFAST
+  LUNCH
+  DINNER
+  SNACK
+}
+
+enum SyncSource {
+  OURA
+  WITHINGS
+  GOOGLE_HEALTH
+}
+
+enum SyncStatus {
+  RUNNING
+  OK
+  ERROR
+}
+
+enum OauthProvider {
+  WITHINGS
+  GOOGLE
+}
+
+enum TemplateTargetType {
+  REPS
+  VOLUME
+}
+
+model WeightMeasurement {
+  id           String   @id @default(cuid())
+  measuredAt   DateTime @map("measured_at") @db.Timestamptz(6)
+  day          DateTime @db.Date
+  weightKg     Decimal  @map("weight_kg") @db.Decimal(5, 2)
+  bodyFatPct   Decimal? @map("body_fat_pct") @db.Decimal(4, 1)
+  muscleMassKg Decimal? @map("muscle_mass_kg") @db.Decimal(5, 2)
+  hydrationKg  Decimal? @map("hydration_kg") @db.Decimal(5, 2)
+  boneMassKg   Decimal? @map("bone_mass_kg") @db.Decimal(4, 2)
+  source       Source   @default(WITHINGS)
+  externalId   String?  @unique @map("external_id")
+  raw          Json?
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([day])
+  @@map("weight_measurements")
+}
+
+model SleepSession {
+  id            String   @id @default(cuid())
+  day           DateTime @db.Date
+  bedtimeStart  DateTime @map("bedtime_start") @db.Timestamptz(6)
+  bedtimeEnd    DateTime @map("bedtime_end") @db.Timestamptz(6)
+  totalSleepMin Int      @map("total_sleep_min")
+  deepMin       Int?     @map("deep_min")
+  remMin        Int?     @map("rem_min")
+  lightMin      Int?     @map("light_min")
+  awakeMin      Int?     @map("awake_min")
+  efficiency    Int?
+  latencySec    Int?     @map("latency_sec")
+  avgHrBpm      Decimal? @map("avg_hr_bpm") @db.Decimal(5, 2)
+  avgHrvMs      Int?     @map("avg_hrv_ms")
+  lowestHrBpm   Int?     @map("lowest_hr_bpm")
+  source        Source   @default(OURA)
+  externalId    String   @unique @map("external_id")
+  raw           Json?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([day])
+  @@map("sleep_sessions")
+}
+
+model DailySleep {
+  day       DateTime @id @db.Date
+  score     Int?
+  raw       Json?
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("daily_sleep")
+}
+
+model DailyReadiness {
+  day                  DateTime @id @db.Date
+  score                Int?
+  temperatureDeviation Decimal? @map("temperature_deviation") @db.Decimal(4, 2)
+  restingHrBpm         Int?     @map("resting_hr_bpm")
+  hrvBalance           Int?     @map("hrv_balance")
+  raw                  Json?
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  @@map("daily_readiness")
+}
+
+model DailyActivity {
+  day        DateTime @id @db.Date
+  activeKcal Int?     @map("active_kcal")
+  totalKcal  Int?     @map("total_kcal")
+  steps      Int?
+  source     Source   @default(GOOGLE_HEALTH)
+  raw        Json?
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("daily_activity")
+}
+
+model FoodProduct {
+  barcode   String      @id
+  name      String
+  brand     String?
+  imageUrl  String?     @map("image_url")
+  per100g   Json
+  servingG  Decimal?    @map("serving_g") @db.Decimal(7, 1)
+  raw       Json?
+  fetchedAt DateTime    @map("fetched_at")
+  entries   FoodEntry[]
+
+  @@map("food_products")
+}
+
+model FoodEntry {
+  id             String       @id @default(cuid())
+  eatenAt        DateTime     @map("eaten_at") @db.Timestamptz(6)
+  day            DateTime     @db.Date
+  productBarcode String?      @map("product_barcode")
+  product        FoodProduct? @relation(fields: [productBarcode], references: [barcode])
+  customName     String?      @map("custom_name")
+  customFoodId   String?      @map("custom_food_id")
+  customFood     CustomFood?  @relation(fields: [customFoodId], references: [id])
+  quantityG      Decimal      @map("quantity_g") @db.Decimal(7, 1)
+  kcal           Decimal      @db.Decimal(7, 1)
+  proteinG       Decimal      @map("protein_g") @db.Decimal(6, 1)
+  carbG          Decimal      @map("carb_g") @db.Decimal(6, 1)
+  fatG           Decimal      @map("fat_g") @db.Decimal(6, 1)
+  fiberG         Decimal?     @map("fiber_g") @db.Decimal(6, 1)
+  sugarG         Decimal?     @map("sugar_g") @db.Decimal(6, 1)
+  saltG          Decimal?     @map("salt_g") @db.Decimal(6, 2)
+  micros         Json?
+  meal           MealSlot?
+  origin         EntryOrigin
+  notes          String?
+  createdAt      DateTime     @default(now()) @map("created_at")
+
+  @@index([day])
+  @@map("food_entries")
+}
+
+model CustomFood {
+  id        String      @id @default(cuid())
+  name      String
+  brand     String?
+  per100g   Json
+  servingG  Decimal?    @map("serving_g") @db.Decimal(7, 1)
+  source    String // "LABEL_SCAN" | "MANUAL" (enforced by Zod at the boundary)
+  createdAt DateTime    @default(now()) @map("created_at")
+  entries   FoodEntry[]
+
+  @@index([name])
+  @@map("custom_foods")
+}
+
+model Exercise {
+  id              String             @id @default(cuid())
+  name            String             @unique
+  muscleGroup     String?            @map("muscle_group")
+  sets            LiftingSet[]
+  templateEntries TemplateExercise[]
+  planItems       SessionPlanItem[]
+
+  @@map("exercises")
+}
+
+model LiftingSession {
+  id         String            @id @default(cuid())
+  day        DateTime          @db.Date
+  startedAt  DateTime          @map("started_at") @db.Timestamptz(6)
+  endedAt    DateTime?         @map("ended_at") @db.Timestamptz(6)
+  notes      String?
+  templateId String?           @map("template_id")
+  template   WorkoutTemplate?  @relation(fields: [templateId], references: [id])
+  sets       LiftingSet[]
+  planItems  SessionPlanItem[]
+
+  @@index([day])
+  @@map("lifting_sessions")
+}
+
+model LiftingSet {
+  id         String         @id @default(cuid())
+  sessionId  String         @map("session_id")
+  session    LiftingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  exerciseId String         @map("exercise_id")
+  exercise   Exercise       @relation(fields: [exerciseId], references: [id])
+  setNumber  Int            @map("set_number")
+  reps       Int
+  weightKg   Decimal        @map("weight_kg") @db.Decimal(5, 2)
+  rpe        Decimal?       @db.Decimal(3, 1)
+  isWarmup   Boolean        @default(false) @map("is_warmup")
+  loggedAt   DateTime       @default(now()) @map("logged_at") @db.Timestamptz(6)
+  origin     EntryOrigin
+
+  @@index([exerciseId, loggedAt])
+  @@map("lifting_sets")
+}
+
+model WorkoutTemplate {
+  id        String             @id @default(cuid())
+  name      String             @unique
+  notes     String?
+  archived  Boolean            @default(false)
+  createdAt DateTime           @default(now()) @map("created_at")
+  updatedAt DateTime           @updatedAt @map("updated_at")
+  exercises TemplateExercise[]
+  sessions  LiftingSession[]
+
+  @@map("workout_templates")
+}
+
+model TemplateExercise {
+  id             String             @id @default(cuid())
+  templateId     String             @map("template_id")
+  template       WorkoutTemplate    @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  exerciseId     String             @map("exercise_id")
+  exercise       Exercise           @relation(fields: [exerciseId], references: [id])
+  position       Int
+  targetType     TemplateTargetType @default(REPS) @map("target_type")
+  targetSets     Int?               @map("target_sets")
+  repMin         Int?               @map("rep_min")
+  repMax         Int?               @map("rep_max")
+  targetWeightKg Decimal?           @map("target_weight_kg") @db.Decimal(5, 2)
+  targetVolumeKg Decimal?           @map("target_volume_kg") @db.Decimal(7, 1)
+  restSec        Int?               @map("rest_sec")
+  notes          String?
+
+  @@unique([templateId, position])
+  @@index([templateId])
+  @@map("template_exercises")
+}
+
+model SessionPlanItem {
+  id             String             @id @default(cuid())
+  sessionId      String             @map("session_id")
+  session        LiftingSession     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  exerciseId     String             @map("exercise_id")
+  exercise       Exercise           @relation(fields: [exerciseId], references: [id])
+  position       Int
+  targetType     TemplateTargetType @default(REPS) @map("target_type")
+  targetSets     Int?               @map("target_sets")
+  repMin         Int?               @map("rep_min")
+  repMax         Int?               @map("rep_max")
+  targetWeightKg Decimal?           @map("target_weight_kg") @db.Decimal(5, 2)
+  targetVolumeKg Decimal?           @map("target_volume_kg") @db.Decimal(7, 1)
+
+  @@unique([sessionId, position])
+  @@index([sessionId])
+  @@map("session_plan_items")
+}
+
+model WaterEntry {
+  id       String      @id @default(cuid())
+  loggedAt DateTime    @map("logged_at") @db.Timestamptz(6)
+  day      DateTime    @db.Date
+  amountMl Int         @map("amount_ml")
+  origin   EntryOrigin
+
+  @@index([day])
+  @@map("water_entries")
+}
+
+model StimulantEntry {
+  id        String      @id @default(cuid())
+  loggedAt  DateTime    @map("logged_at") @db.Timestamptz(6)
+  day       DateTime    @db.Date
+  substance String      @default("caffeine")
+  amountMg  Decimal     @map("amount_mg") @db.Decimal(7, 1)
+  origin    EntryOrigin
+  notes     String?
+
+  @@index([day])
+  @@map("stimulant_entries")
+}
+
+model SupplementEntry {
+  id       String      @id @default(cuid())
+  loggedAt DateTime    @map("logged_at") @db.Timestamptz(6)
+  day      DateTime    @db.Date
+  name     String
+  dose     Decimal     @db.Decimal(8, 2)
+  unit     String
+  origin   EntryOrigin
+
+  @@index([day])
+  @@map("supplement_entries")
+}
+
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("settings")
+}
+
+model PushSubscription {
+  endpoint  String   @id
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now()) @map("created_at")
+  failCount Int      @default(0) @map("fail_count")
+
+  @@map("push_subscriptions")
+}
+
+model OauthToken {
+  provider        OauthProvider @id
+  accessTokenEnc  String        @map("access_token_enc")
+  refreshTokenEnc String        @map("refresh_token_enc")
+  expiresAt       DateTime      @map("expires_at") @db.Timestamptz(6)
+  scope           String?
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  @@map("oauth_tokens")
+}
+
+model SyncRun {
+  id            String     @id @default(cuid())
+  source        SyncSource
+  startedAt     DateTime   @default(now()) @map("started_at") @db.Timestamptz(6)
+  finishedAt    DateTime?  @map("finished_at") @db.Timestamptz(6)
+  status        SyncStatus @default(RUNNING)
+  itemsUpserted Int        @default(0) @map("items_upserted")
+  windowStart   DateTime?  @map("window_start") @db.Timestamptz(6)
+  windowEnd     DateTime?  @map("window_end") @db.Timestamptz(6)
+  error         String?
+
+  @@index([source, startedAt])
+  @@map("sync_runs")
+}

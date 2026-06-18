@@ -1,0 +1,36 @@
+# Reaches the shared DB at host "postgres" on the external homelab network.
+# Prod .env.production needs the DATABASE_URL minted by create-service.sh health
+# (the prod role health_app / db health, host postgres — not health_dev/localhost).
+#
+# Ports are published to the LAN so Hermes / Claude Code reach /api/mcp directly
+# (bearer-protected). The web UI is fronted by Cloudflare Access upstream.
+services:
+  health:
+    build:
+      context: ../..
+      dockerfile: apps/health/Dockerfile
+    container_name: health
+    env_file: .env.production
+    environment:
+      TZ: Europe/Amsterdam
+    ports:
+      - "3000:3000"
+    networks:
+      - homelab
+    restart: unless-stopped
+    healthcheck:
+      # node:26-slim has no curl/wget; use the bundled node runtime + global fetch.
+      # Exit 0 only on a non-error HTTP status from the sync-status route.
+      test:
+        - "CMD"
+        - "node"
+        - "-e"
+        - "fetch('http://127.0.0.1:3000/api/sync/status').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+networks:
+  homelab:
+    external: true

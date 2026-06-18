@@ -23,3 +23,14 @@ export function dayToDbDate(day: string): Date {
 export function todayLocal(): string {
   return dayOf(new Date());
 }
+
+/**
+ * Shift a "YYYY-MM-DD" civil date by `delta` calendar days (negative = earlier).
+ * Pure string→string arithmetic anchored at noon UTC so a ±1 day step can never
+ * be swallowed by a DST transition; the result is re-formatted in Amsterdam.
+ */
+export function shiftDay(day: string, delta: number): string {
+  const at = new Date(`${day}T12:00:00.000Z`);
+  at.setUTCDate(at.getUTCDate() + delta);
+  return dayOf(at);
+}

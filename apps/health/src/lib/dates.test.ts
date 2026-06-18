@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { dayOf, dayToDbDate, todayLocal } from "./dates";
+import { dayOf, dayToDbDate, shiftDay, todayLocal } from "./dates";
 
 describe("dayOf", () => {
   it("buckets a late-evening UTC instant to the next Amsterdam day in summer (CEST, +02:00)", () => {
@@ -45,6 +45,33 @@ describe("dayToDbDate", () => {
     expect(dayToDbDate("2026-06-14").toISOString()).toBe(
       "2026-06-14T00:00:00.000Z",
     );
+  });
+});
+
+describe("shiftDay", () => {
+  it("steps back one day", () => {
+    expect(shiftDay("2026-06-16", -1)).toBe("2026-06-15");
+  });
+
+  it("steps forward one day", () => {
+    expect(shiftDay("2026-06-16", 1)).toBe("2026-06-17");
+  });
+
+  it("returns the same day for a zero delta", () => {
+    expect(shiftDay("2026-06-16", 0)).toBe("2026-06-16");
+  });
+
+  it("crosses a month boundary backwards", () => {
+    expect(shiftDay("2026-07-01", -1)).toBe("2026-06-30");
+  });
+
+  it("crosses a year boundary forwards", () => {
+    expect(shiftDay("2026-12-31", 1)).toBe("2027-01-01");
+  });
+
+  it("steps across the spring-forward DST day without losing a day", () => {
+    expect(shiftDay("2026-03-29", -1)).toBe("2026-03-28");
+    expect(shiftDay("2026-03-28", 1)).toBe("2026-03-29");
   });
 });
 
