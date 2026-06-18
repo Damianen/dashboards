@@ -8,6 +8,7 @@ import { trendMetricSchema } from "@/lib/schemas/summary";
 import { DomainError, NotFoundError } from "@/server/services/errors";
 import {
   createCustomFood,
+  estimateMeal,
   logFood,
   scanLabel,
   searchCustomFoods,
@@ -358,6 +359,28 @@ export function buildServer(): McpServer {
       },
     },
     ({ image_data_url }) => run(() => scanLabel(image_data_url)),
+  );
+
+  server.registerTool(
+    "estimate_meal_from_photo",
+    {
+      description:
+        "Estimate the calories and macros of a meal/plate photo — the restaurant / " +
+        "no-label fallback. Returns a DRAFT { description, components (each with " +
+        "estGrams + kcal/protein/carb/fat), totalKcal/totalProteinG/totalCarbG/totalFatG, " +
+        "confidence, assumptions, caveat } and persists NOTHING. These are ROUGH AI " +
+        "ESTIMATES (usually 'low' or 'medium' confidence), so confirm and edit the totals " +
+        "with the user, then log via log_food with custom_food_name '<description> " +
+        "(AI estimate)' and the explicit kcal/macros. Provide the image as a data: URL.",
+      inputSchema: {
+        image_data_url: z
+          .string()
+          .describe(
+            "The meal photo as a data: URL (base64; downscale before sending).",
+          ),
+      },
+    },
+    ({ image_data_url }) => run(() => estimateMeal(image_data_url)),
   );
 
   server.registerTool(

@@ -11,6 +11,7 @@ import {
   type Macros,
   normalizeToPer100g,
   scaleMacros,
+  sumMealTotals,
 } from "@/lib/rules";
 import {
   type CreateCustomFoodInput,
@@ -19,7 +20,11 @@ import {
   logFoodSchema,
   type Per100g,
 } from "@/lib/schemas/food";
-import { labelScanResultSchema } from "@/lib/schemas/vision";
+import {
+  labelScanResultSchema,
+  type MealEstimate,
+  mealEstimateSchema,
+} from "@/lib/schemas/vision";
 import { prisma } from "@/server/db";
 import { NotFoundError } from "./errors";
 import { fetchProduct } from "./off";
@@ -178,6 +183,39 @@ export async function scanLabel(
     source: "LABEL_SCAN",
   };
   return { draft, confidence: read.confidence, notes: read.notes };
+}
+
+// The vision instruction for a meal/plate photo — the restaurant / no-label
+// fallback. Drives a per-component breakdown (weight + macros) plus the model's
+// own assumptions and a caveat, biased toward honest, conservative uncertainty.
+const MEAL_ESTIMATE_INSTRUCTION =
+  "Estimate the food in this photo for calorie tracking. Identify each distinct " +
+  "component, estimate its weight in grams, and its kcal, protein, carbs and fat. " +
+  "Sum them into totals. State the assumptions you made (cooking oil, portion size, " +
+  "hidden ingredients) and a one-line caveat that this is a rough estimate. Be " +
+  "conservative and honest about uncertainty; most plates warrant 'low' or 'medium' " +
+  "confidence. Energy in kcal.";
+
+/**
+ * Estimate a meal/plate photo into a DRAFT the caller must confirm — NO side
+ * effects (CLAUDE.md: vision endpoints return drafts; persisting is a separate
+ * explicit call via logFood). The image is analyzed and validated against
+ * mealEstimateSchema, then the four totals are recomputed from the components so
+ * they always match the parts even if the model's sums drift. These are ROUGH
+ * estimates: the UI/MCP label them 'AI estimate' and surface the model's
+ * confidence, assumptions and caveat. Throws VisionError on a provider/parse
+ * failure — the caller surfaces it without leaking internals.
+ */
+export async function estimateMeal(
+  imageDataUrl: string,
+): Promise<MealEstimate> {
+  const read = await analyzeImage({
+    imageDataUrl,
+    instruction: MEAL_ESTIMATE_INSTRUCTION,
+    schema: mealEstimateSchema,
+    maxTokens: 1500,
+  });
+  return { ...read, ...sumMealTotals(read.components) };
 }
 
 /** All saved custom foods, alphabetical (the natural pick-list order). */

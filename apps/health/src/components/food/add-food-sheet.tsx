@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Drawer } from "vaul";
 
 import { CustomTab } from "@/components/food/custom-tab";
+import { EstimatePhotoTab } from "@/components/food/estimate-photo-tab";
 import { QuantityStep } from "@/components/food/quantity-step";
 import { ScanLabelTab } from "@/components/food/scan-label-tab";
 import { ScanTab } from "@/components/food/scan-tab";
@@ -18,11 +19,12 @@ import {
 } from "@/lib/food";
 import { cn } from "@/lib/utils";
 
-type Tab = "scan" | "scanLabel" | "search" | "custom";
+type Tab = "scan" | "scanLabel" | "estimate" | "search" | "custom";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "scan", label: "Scan" },
   { id: "scanLabel", label: "Scan label" },
+  { id: "estimate", label: "Estimate" },
   { id: "search", label: "Search" },
   { id: "custom", label: "Custom" },
 ];
@@ -96,14 +98,14 @@ export function AddFoodSheet({
             </Drawer.Description>
 
             {showTabs && (
-              <div className="bg-muted grid grid-cols-4 gap-1 rounded-lg p-1">
+              <div className="bg-muted grid grid-cols-5 gap-1 rounded-lg p-1">
                 {TABS.map((t) => (
                   <button
                     key={t.id}
                     type="button"
                     onClick={() => setTab(t.id)}
                     className={cn(
-                      "rounded-md py-2 text-sm font-medium transition-colors",
+                      "rounded-md py-2 text-xs font-medium transition-colors",
                       tab === t.id
                         ? "bg-background text-foreground shadow-sm"
                         : "text-muted-foreground",
@@ -133,6 +135,12 @@ export function AddFoodSheet({
               <ScanLabelTab
                 onLog={setLoggable}
                 onSaved={() => handleOpenChange(false)}
+                onFallback={() => setTab("custom")}
+              />
+            ) : tab === "estimate" ? (
+              <EstimatePhotoTab
+                day={day}
+                onLogged={() => handleOpenChange(false)}
                 onFallback={() => setTab("custom")}
               />
             ) : tab === "search" ? (

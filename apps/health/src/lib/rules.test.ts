@@ -5,11 +5,13 @@ import {
   computeWaterTarget,
   type LabelNutrients,
   type Macros,
+  type MealComponentMacros,
   normalizeToPer100g,
   type PlanTarget,
   scaleMacros,
   setMeetsRepRange,
   shouldReuseSession,
+  sumMealTotals,
   summarizePlanProgress,
   validateTemplateTarget,
 } from "./rules";
@@ -330,5 +332,46 @@ describe("summarizePlanProgress", () => {
         complete: true,
       },
     ]);
+  });
+});
+
+describe("sumMealTotals", () => {
+  const comp = (
+    kcal: number,
+    proteinG: number,
+    carbG: number,
+    fatG: number,
+  ): MealComponentMacros => ({ kcal, proteinG, carbG, fatG });
+
+  it("sums the components into the four plate totals", () => {
+    expect(
+      sumMealTotals([comp(300, 25, 30, 10), comp(150, 5, 20, 4)]),
+    ).toEqual({
+      totalKcal: 450,
+      totalProteinG: 30,
+      totalCarbG: 50,
+      totalFatG: 14,
+    });
+  });
+
+  it("rounds each total to 1 dp", () => {
+    expect(
+      sumMealTotals([comp(0, 1.05, 0.1, 0.04), comp(0, 0, 0.05, 0.03)]),
+    ).toEqual({
+      totalKcal: 0,
+      totalProteinG: 1.1, // 1.05 → 1.1
+      totalCarbG: 0.2, // 0.15 → 0.2
+      totalFatG: 0.1, // 0.07 → 0.1
+    });
+  });
+
+  it("ignores a single component's drifting totals — the parts are the truth", () => {
+    // A lone component whose own numbers the caller would otherwise trust.
+    expect(sumMealTotals([comp(523, 41, 62, 19)])).toEqual({
+      totalKcal: 523,
+      totalProteinG: 41,
+      totalCarbG: 62,
+      totalFatG: 19,
+    });
   });
 });

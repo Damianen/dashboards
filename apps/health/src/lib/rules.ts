@@ -57,6 +57,41 @@ export function scaleMacros(per100g: Macros, quantityG: number): Macros {
   };
 }
 
+/** One component of a meal-photo estimate: a guessed weight and macros for a single
+ *  item on the plate (the macro fields of mealEstimateSchema's components, expressed
+ *  structurally so this module stays free of Zod). */
+export interface MealComponentMacros {
+  kcal: number;
+  proteinG: number;
+  carbG: number;
+  fatG: number;
+}
+
+/** The four plate totals a meal estimate recomputes from its components. */
+export interface MealTotals {
+  totalKcal: number;
+  totalProteinG: number;
+  totalCarbG: number;
+  totalFatG: number;
+}
+
+/**
+ * Sum a meal estimate's per-component macros into the four plate totals (each to
+ * 1 dp, the scaleMacros idiom). Pure — `estimateMeal` recomputes the totals from
+ * the parts with this so they always agree even when the model's own sums drift.
+ */
+export function sumMealTotals(components: MealComponentMacros[]): MealTotals {
+  const round1 = (v: number): number => Math.round(v * 10) / 10;
+  const sum = (pick: (c: MealComponentMacros) => number): number =>
+    round1(components.reduce((t, c) => t + pick(c), 0));
+  return {
+    totalKcal: sum((c) => c.kcal),
+    totalProteinG: sum((c) => c.proteinG),
+    totalCarbG: sum((c) => c.carbG),
+    totalFatG: sum((c) => c.fatG),
+  };
+}
+
 // ----- Nutrition-label normalization -----
 
 /**
