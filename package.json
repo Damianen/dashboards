@@ -8,6 +8,8 @@
     "typecheck": "pnpm --filter tasks typecheck",
     "lint": "pnpm --filter tasks lint",
     "test": "pnpm --filter tasks test",
-    "seed": "pnpm --filter tasks seed"
+    "seed": "pnpm --filter tasks seed",
+    "up": "./scripts/up.sh",
+    "down": "./scripts/down.sh"
   }
 }

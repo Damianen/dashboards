@@ -1,0 +1,102 @@
+# Unified app stack — tasks + finance + health on the shared homelab network.
+#
+# The shared Postgres is intentionally NOT defined here: it is separate infra
+# (infra/postgres/compose.yaml), the single server that backs every app. This
+# file only builds and runs the apps, which reach it at host "postgres" over the
+# external `homelab` network.
+#
+# Run the whole repo in one go (provisions DBs + secrets, brings up the DB, then
+# builds and starts everything):
+#
+#     ./scripts/up.sh
+#
+# Or, once Postgres is up and each apps/<app>/.env.production is filled:
+#
+#     docker compose up -d --build
+#
+# Per-app ports on the host: health 3000, tasks 3001, finance 3002.
+name: homelab
+
+services:
+  tasks:
+    build:
+      context: .
+      dockerfile: apps/tasks/Dockerfile
+    container_name: tasks
+    env_file: apps/tasks/.env.production
+    environment:
+      TZ: Europe/Amsterdam
+    ports:
+      - "3001:3000"
+    healthcheck:
+      test:
+        - "CMD"
+        - "node"
+        - "-e"
+        - "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    networks:
+      - homelab
+    restart: unless-stopped
+
+  finance:
+    build:
+      context: .
+      dockerfile: apps/finance/Dockerfile
+    container_name: finance
+    env_file: apps/finance/.env.production
+    environment:
+      TZ: Europe/Amsterdam
+    volumes:
+      # Enable Banking private key — kept out of the image, mounted read-only.
+      # scripts/up.sh touches an empty placeholder so this never fails to start;
+      # replace it with the real key (or set EB_PRIVATE_KEY_HOST_PATH) to use EB.
+      - ${EB_PRIVATE_KEY_HOST_PATH:-./apps/finance/eb-finance.pem}:/run/secrets/eb-finance.pem:ro
+    ports:
+      - "3002:3000"
+    healthcheck:
+      test:
+        - "CMD"
+        - "node"
+        - "-e"
+        - "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+    networks:
+      - homelab
+    restart: unless-stopped
+
+  health:
+    build:
+      context: .
+      dockerfile: apps/health/Dockerfile
+    container_name: health
+    env_file: apps/health/.env.production
+    environment:
+      TZ: Europe/Amsterdam
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test:
+        - "CMD"
+        - "node"
+        - "-e"
+        - "fetch('http://127.0.0.1:3000/api/sync/status').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    networks:
+      - homelab
+    restart: unless-stopped
+
+networks:
+  homelab:
+    # Shared with the Postgres container — create once with:
+    #   docker network create homelab
+    external: true
