@@ -27,12 +27,19 @@ RUN pnpm install --frozen-lockfile --offline --filter health...
 ENV DATABASE_URL="postgresql://build:build@localhost:5432/build"
 RUN pnpm --filter health build
 
-# pnpm deploy flattens the symlinked store into a real node_modules so the prisma
-# CLI + @prisma/engines (schema-engine binary) + its TS-config loader (c12/jiti)
-# + dotenv are self-contained for `migrate deploy` — no hashed .pnpm paths to copy.
-FROM builder AS deployer
+# Self-contained migrate deps only. Deploys the tiny `migrate` package
+# (prisma + dotenv) instead of the app's full prod tree, and branches off `base`
+# + manifests (not the built app) so this layer caches across source changes —
+# it only re-runs when a package.json or the lockfile changes.
+FROM base AS deployer
 WORKDIR /repo
-RUN pnpm --filter health deploy --prod --legacy /deploy
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY apps/health/package.json apps/health/
+COPY apps/tasks/package.json apps/tasks/
+COPY apps/finance/package.json apps/finance/
+COPY packages/migrate/package.json packages/migrate/
+RUN pnpm fetch
+RUN pnpm --filter migrate deploy --prod --legacy /deploy
 
 FROM base AS runner
 WORKDIR /app
