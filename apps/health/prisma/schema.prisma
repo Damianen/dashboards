@@ -223,6 +223,31 @@ model LiftingSet {
   @@map("lifting_sets")
 }
 
+/// Apple Watch cardio/HealthKit workout pushed from Health Auto Export (HAE)
+/// over Tailscale — distinct from LiftingSession (lifting-specific). One row per
+/// workout, keyed on externalId so HAE's overlapping re-sends stay idempotent.
+model Workout {
+  id               String    @id @default(cuid())
+  externalId       String    @unique @map("external_id")
+  source           String    @default("apple_health")
+  type             String
+  name             String?
+  startedAt        DateTime  @map("started_at") @db.Timestamptz(6)
+  endedAt          DateTime? @map("ended_at") @db.Timestamptz(6)
+  durationSeconds  Int?      @map("duration_seconds")
+  day              DateTime  @db.Date
+  distance         Float?
+  activeEnergyKcal Float?    @map("active_energy_kcal")
+  avgHeartRate     Int?      @map("avg_heart_rate")
+  maxHeartRate     Int?      @map("max_heart_rate")
+  raw              Json?
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  @@index([day])
+  @@map("workouts")
+}
+
 model WorkoutTemplate {
   id        String             @id @default(cuid())
   name      String             @unique
