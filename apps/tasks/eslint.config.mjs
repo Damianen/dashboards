@@ -14,6 +14,10 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Generated prisma client:
     "src/generated/**",
+    // Generated service worker (built by @serwist/next):
+    "public/sw.js",
+    "public/sw.js.map",
+    "public/swe-worker-*.js",
   ]),
 ]);
 

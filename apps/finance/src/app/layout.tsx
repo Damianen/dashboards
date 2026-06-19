@@ -18,11 +18,22 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Finance",
   description: "Single-user personal finance dashboard",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Finance",
+  },
+  icons: {
+    icon: "/icon-192.png",
+    apple: "/apple-touch-icon.png",
+  },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  themeColor: "#0a0a0a",
   // Lets the layout extend under notches/home bars; safe-area-inset
   // padding in the shell keeps content out of them.
   viewportFit: "cover",

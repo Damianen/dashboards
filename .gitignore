@@ -32,5 +32,10 @@ next-env.d.ts
 # generated prisma client
 apps/*/src/generated/
 
+# serwist — service worker generated at build time
+apps/*/public/sw.js
+apps/*/public/sw.js.map
+apps/*/public/swe-worker-*.js
+
 # misc
 .DS_Store
