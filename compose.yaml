@@ -14,7 +14,8 @@
 #
 #     docker compose up -d --build
 #
-# Per-app ports on the host: health 3000, tasks 3001, finance 3002.
+# Per-app ports on the host: health 3000, tasks 3001, finance 3002,
+# oauth-relay 3003 (public OAuth callback relay — see services/oauth-relay).
 name: homelab
 
 services:
@@ -91,6 +92,29 @@ services:
       timeout: 5s
       retries: 3
       start_period: 60s
+    networks:
+      - homelab
+    restart: unless-stopped
+
+  oauth-relay:
+    build:
+      context: services/oauth-relay
+    container_name: oauth-relay
+    env_file: services/oauth-relay/.env.production
+    environment:
+      TZ: Europe/Amsterdam
+    ports:
+      - "3003:3003"
+    healthcheck:
+      test:
+        - "CMD"
+        - "node"
+        - "-e"
+        - "fetch('http://127.0.0.1:3003/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     networks:
       - homelab
     restart: unless-stopped

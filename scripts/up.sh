@@ -113,6 +113,14 @@ if [[ ! -f apps/finance/eb-finance.pem ]]; then
   log "Created empty apps/finance/eb-finance.pem placeholder (replace to use Enable Banking)"
 fi
 
+# OAuth callback relay env — not DB-backed, so it skips provision_app; just ensure
+# the config file exists (fill RELAY_TARGET_HOST with the health .ts.net URL).
+RELAY_ENV="services/oauth-relay/.env.production"
+if [[ ! -f "$RELAY_ENV" ]]; then
+  log "Creating $RELAY_ENV (fill RELAY_TARGET_HOST with your health .ts.net URL)"
+  cp services/oauth-relay/.env.production.example "$RELAY_ENV"
+fi
+
 # ---------------------------------------------------------------------------
 log "Building + starting apps (migrations run on each container's boot)"
 docker compose up -d --build
@@ -121,5 +129,6 @@ log "Up. Apps on the host:"
 printf '  health   -> http://localhost:3000\n'
 printf '  tasks    -> http://localhost:3001\n'
 printf '  finance  -> http://localhost:3002\n'
+printf '  oauth-relay -> http://localhost:3003 (expose publicly via your Cloudflare Tunnel)\n'
 printf '\nNext: fill any third-party credentials in apps/<app>/.env.production\n'
 printf 'then re-run: docker compose up -d   (see docs/ENVIRONMENT.md)\n'
