@@ -42,14 +42,14 @@ describe("runSyncSequential", () => {
         ran.push(SyncSource.OURA);
         throw new Error("pre-flight failure");
       }),
-      cfg(SyncSource.GOOGLE_HEALTH, async () => {
-        ran.push(SyncSource.GOOGLE_HEALTH);
+      cfg(SyncSource.WITHINGS, async () => {
+        ran.push(SyncSource.WITHINGS);
         return { status: "OK", itemsUpserted: 5 };
       }),
     ]);
 
     // The throwing source did not abort the run — the next source still executed.
-    expect(ran).toEqual([SyncSource.OURA, SyncSource.GOOGLE_HEALTH]);
+    expect(ran).toEqual([SyncSource.OURA, SyncSource.WITHINGS]);
     expect(results[0]).toEqual({
       source: SyncSource.OURA,
       status: "ERROR",
@@ -57,7 +57,7 @@ describe("runSyncSequential", () => {
       error: "pre-flight failure",
     });
     expect(results[1]).toMatchObject({
-      source: SyncSource.GOOGLE_HEALTH,
+      source: SyncSource.WITHINGS,
       status: "OK",
       itemsUpserted: 5,
     });

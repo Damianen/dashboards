@@ -31,7 +31,7 @@ After it finishes:
 | finance | http://localhost:3002   |
 | postgres| localhost:5432          |
 
-The **third-party** credentials (Oura, Withings, Google, Enable Banking, Vision,
+The **third-party** credentials (Oura, Withings, Enable Banking, Vision,
 ntfy) are left blank — the app boots fine without them and only the related
 feature is inactive. Fill the ones you want in `apps/<app>/.env.production`
 (sections below), then `docker compose up -d`.
@@ -74,7 +74,7 @@ Every variable is one of four kinds:
 
 Notes:
 - `TOKEN_ENCRYPTION_KEY` must decode to **exactly 32 bytes** — `openssl rand
-  -base64 32` does this. It encrypts Withings/Google OAuth tokens at rest; if you
+  -base64 32` does this. It encrypts Withings/Oura OAuth tokens at rest; if you
   rotate it, previously stored tokens can no longer be decrypted (re-link those
   integrations).
 - MCP tokens are checked with a timing-safe compare on every `POST /api/mcp`.
@@ -151,7 +151,6 @@ first provisioning of each app.
 | `SYNC_BACKFILL_DAYS`   | yes | first-run backfill window in days (default `90`) |
 | `ENABLE_SCHEDULER`     | prod | `true` to run the in-process scheduler |
 | `WITHINGS_CLIENT_ID` / `WITHINGS_CLIENT_SECRET` / `WITHINGS_REDIRECT_URI` | for Withings | Withings developer portal (§6) |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` / `GOOGLE_REDIRECT_URI` | for Google Health | Google Cloud Console (§6) |
 | `OFF_USER_AGENT`       | for food lookup | a UA string identifying your app, e.g. `health-dashboard/0.1 (you@example.com)` (Open Food Facts requires it) |
 | `VISION_API_BASE_URL` / `VISION_API_KEY` / `VISION_MODEL` | for meal-photo / label scan | any OpenAI-compatible vision provider (§6) |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | optional | `npx web-push generate-vapid-keys`; subject is `mailto:you@example.com` |
@@ -184,14 +183,6 @@ first provisioning of each app.
    `http://localhost:3000/...`, prod: `https://health.<domain>/...`).
 3. Copy the client id + secret into the matching vars; set `WITHINGS_REDIRECT_URI`
    to the same callback you registered.
-
-### Google Health API (`GOOGLE_CLIENT_ID/SECRET/REDIRECT_URI`)
-1. In the **Google Cloud Console** (<https://console.cloud.google.com/>) create a
-   project and enable the relevant Health/Fitness API.
-2. Configure the OAuth consent screen, then create an **OAuth 2.0 Client ID** of
-   type *Web application*.
-3. Add `…/api/oauth/google/callback` as an authorized redirect URI.
-4. Copy the client id + secret; set `GOOGLE_REDIRECT_URI` to that callback.
 
 ### Enable Banking (`EB_*`, finance)
 1. In the Enable Banking control panel (<https://enablebanking.com/>) create a

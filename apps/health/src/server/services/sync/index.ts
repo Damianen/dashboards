@@ -3,7 +3,6 @@ import {
   SyncSource,
   type SyncStatus,
 } from "@/generated/prisma/client";
-import { syncGoogleHealth } from "@/server/services/sync/google-health";
 import { syncOura } from "@/server/services/sync/oura";
 import { latestRunsBySource } from "@/server/services/sync/runs";
 import { syncWithings } from "@/server/services/sync/withings";
@@ -41,12 +40,6 @@ export const SYNC_SOURCES: SyncSourceConfig[] = [
     cron: "20 */6 * * *",
     cadence: "Every 6 hours",
     run: syncWithings,
-  },
-  {
-    source: SyncSource.GOOGLE_HEALTH,
-    cron: "30 */6 * * *",
-    cadence: "Every 6 hours",
-    run: syncGoogleHealth,
   },
 ];
 

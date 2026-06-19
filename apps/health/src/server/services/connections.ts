@@ -5,7 +5,6 @@ import {
   type SyncStatus,
 } from "@/generated/prisma/client";
 import { prisma } from "@/server/db";
-import { GOOGLE_REAUTH_MSG } from "@/server/services/sync/google-health";
 import { OURA_REAUTH_MSG } from "@/server/services/sync/oura";
 import { latestRunsBySource } from "@/server/services/sync/runs";
 import { WITHINGS_REAUTH_MSG } from "@/server/services/sync/withings";
@@ -19,7 +18,7 @@ export interface ConnectionLastRun {
 }
 
 export interface Connection {
-  provider: "withings" | "oura" | "google_health";
+  provider: "withings" | "oura";
   label: string;
   /** How it connects: rotating OAuth, a static PAT, or not yet available. */
   kind: "oauth" | "pat" | "unavailable";
@@ -64,12 +63,6 @@ export async function getConnections(): Promise<Connection[]> {
   });
   const ouraRun = runBySource.get(SyncSource.OURA);
 
-  const googleToken = await prisma.oauthToken.findUnique({
-    where: { provider: OauthProvider.GOOGLE },
-    select: { expiresAt: true },
-  });
-  const googleRun = runBySource.get(SyncSource.GOOGLE_HEALTH);
-
   return [
     {
       provider: "withings",
@@ -91,16 +84,6 @@ export async function getConnections(): Promise<Connection[]> {
       needsReauth:
         ouraRun?.status === "ERROR" && ouraRun?.error === OURA_REAUTH_MSG,
       lastRun: toLastRun(ouraRun),
-    },
-    {
-      provider: "google_health",
-      label: "Google Health",
-      kind: "oauth",
-      connected: googleToken !== null,
-      expiresAt: googleToken?.expiresAt ?? null,
-      needsReauth:
-        googleRun?.status === "ERROR" && googleRun?.error === GOOGLE_REAUTH_MSG,
-      lastRun: toLastRun(googleRun),
     },
   ];
 }

@@ -1,9 +1,8 @@
 # CLAUDE.md — health
 
 Single-user health dashboard + MCP server. Unifies wearable pulls (Oura,
-Withings, Fitbit Air via the Google Health API) with manual logs (food,
-water, stimulants, supplements, lifting). All root CLAUDE.md conventions
-apply; this file adds only the health domain.
+Withings) with manual logs (food, water, stimulants, supplements, lifting).
+All root CLAUDE.md conventions apply; this file adds only the health domain.
 
 ## App-specific deps
 Prisma, zod, @tanstack/react-query, vaul, shadcn/ui, lucide-react,
@@ -39,7 +38,7 @@ recharts, vitest.
   daily_summary SQL view + the summary service):
   target_ml(day) = settings['water.baseTargetMl']
                  + Σ(day's stimulant amount_mg) × settings['water.mlPerMgStimulant'].
-- Rotating OAuth tokens (Withings, Google) live AES-256-GCM-encrypted in
+- Rotating OAuth tokens (Withings, Oura) live AES-256-GCM-encrypted in
   the oauth_tokens table — never in env, never logged. Withings refresh
   tokens are single-use: persist the new pair atomically before using it.
 - AI vision outputs are ESTIMATES. Label scans are drafts the user confirms before

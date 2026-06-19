@@ -1,4 +1,4 @@
-// Encrypted storage for rotating OAuth tokens (Withings, Google). Tokens live
+// Encrypted storage for rotating OAuth tokens (Withings, Oura). Tokens live
 // AES-256-GCM-encrypted in the oauth_tokens table (CLAUDE.md guardrail): never in
 // env, never logged. The decrypted form leaves this service only as the return
 // value of getTokens() — handed straight to the integration client, nothing else.

@@ -20,14 +20,12 @@ import { type Connection, useConnections } from "@/lib/hooks/use-connections";
 const BLURB: Record<Connection["provider"], string> = {
   withings: "Body weight & composition",
   oura: "Sleep & readiness",
-  google_health: "Activity & steps",
 };
 
 // OAuth providers expose a connect link; the server sets the state cookie on this nav.
 const AUTHORIZE_PATH: Partial<Record<Connection["provider"], string>> = {
   withings: "/api/oauth/withings",
   oura: "/api/oauth/oura",
-  google_health: "/api/oauth/google",
 };
 
 type BadgeVariant = "default" | "secondary" | "destructive" | "outline";
