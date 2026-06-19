@@ -93,6 +93,7 @@ provision_app() {
     health)
       set_env "$prod" MCP_BEARER_TOKEN "$(gen_b64)"
       set_env "$prod" TOKEN_ENCRYPTION_KEY "$(gen_b64)"
+      set_env "$prod" HEALTH_IMPORT_TOKEN "$(gen_b64)"
       local vapid
       vapid="$(npx --yes web-push generate-vapid-keys --json 2>/dev/null || true)"
       if [[ -n "$vapid" ]]; then
