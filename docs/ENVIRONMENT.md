@@ -69,7 +69,7 @@ Every variable is one of four kinds:
 | Command | Use it for |
 | --- | --- |
 | `openssl rand -hex 32`    | `MCP_BEARER_TOKEN` (tasks), `FINANCE_MCP_TOKEN` (finance) |
-| `openssl rand -base64 32` | `POSTGRES_PASSWORD`, health's `MCP_BEARER_TOKEN`, `TOKEN_ENCRYPTION_KEY` |
+| `openssl rand -base64 32` | `POSTGRES_PASSWORD`, health's `MCP_BEARER_TOKEN`, `TOKEN_ENCRYPTION_KEY`, `HEALTH_IMPORT_TOKEN` |
 | `npx web-push generate-vapid-keys` | health's `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` |
 
 Notes:
@@ -147,6 +147,8 @@ first provisioning of each app.
 | `DATABASE_URL`         | yes | `create-service.sh health` (§4) |
 | `MCP_BEARER_TOKEN`     | yes for MCP | `openssl rand -base64 32` |
 | `TOKEN_ENCRYPTION_KEY` | yes | `openssl rand -base64 32` (exactly 32 bytes) |
+| `HEALTH_IMPORT_TOKEN`  | for workout import | `openssl rand -base64 32`; bearer for `POST /api/health-import` (§6) |
+| `HEALTH_IMPORT_DEBUG`  | optional | `true` to log the raw HAE payload on each import; blank to disable |
 | `OURA_CLIENT_ID` / `OURA_CLIENT_SECRET` / `OURA_REDIRECT_URI` | for Oura | Oura API Application — client id + secret (§6) |
 | `SYNC_BACKFILL_DAYS`   | yes | first-run backfill window in days (default `90`) |
 | `ENABLE_SCHEDULER`     | prod | `true` to run the in-process scheduler |
@@ -183,6 +185,24 @@ first provisioning of each app.
    `http://localhost:3000/...`, prod: `https://health.<domain>/...`).
 3. Copy the client id + secret into the matching vars; set `WITHINGS_REDIRECT_URI`
    to the same callback you registered.
+
+### Health Auto Export workout ingest (`HEALTH_IMPORT_TOKEN`, health)
+Apple Watch workouts are **pushed** into the health app by the Health Auto Export
+(HAE) iOS app — no polling, no OAuth. The endpoint stays **tailnet-private**: HAE
+runs on your phone (on the tailnet) and POSTs straight to the health app's Tailscale
+URL, so it never goes through Cloudflare or the public internet.
+
+- **Endpoint:** `POST https://<machine>.<tailnet>.ts.net/api/health-import`
+- **Auth header:** `Authorization: Bearer <HEALTH_IMPORT_TOKEN>` (timing-safe compare;
+  missing/wrong token → 401). Generate the token with `openssl rand -base64 32`
+  (`scripts/up.sh` does this for prod).
+
+In HAE: add a **REST API** automation, set the URL to the endpoint above, choose
+**JSON** export (Version 2), select **Workouts**, disable GPS/route data (keeps
+payloads tiny), and paste `HEALTH_IMPORT_TOKEN` into the request's **Authorization**
+header as `Bearer <token>`. Re-sends are safe — workouts upsert by id, so overlapping
+exports never duplicate. Set `HEALTH_IMPORT_DEBUG=true` once to log the first raw
+payload, confirm the shape, then unset it.
 
 ### Enable Banking (`EB_*`, finance)
 1. In the Enable Banking control panel (<https://enablebanking.com/>) create a
