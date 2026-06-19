@@ -3,23 +3,17 @@ import { randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 
 import { authorizeUrl } from "@/server/integrations/oura";
+import { rememberOauthState } from "@/server/services/oauth-state";
 
 export const runtime = "nodejs";
 
-// CSRF token cookie name, shared with the callback route (kept httpOnly so the SPA can't
-// read it). Lax SameSite so it rides the top-level GET redirect back from Oura.
-const STATE_COOKIE = "oura_oauth_state";
-
-/** Begin the Oura OAuth flow: mint a state token, stash it, and bounce to consent. */
+/**
+ * Begin the Oura OAuth flow: mint a state token, remember it server-side, and bounce to
+ * consent. State is validated server-side (not via a cookie) so the flow survives iOS
+ * Safari dropping the Set-Cookie that would ride this cross-origin authorize redirect.
+ */
 export function GET() {
   const state = randomBytes(16).toString("hex");
-  const res = NextResponse.redirect(authorizeUrl(state));
-  res.cookies.set(STATE_COOKIE, state, {
-    httpOnly: true,
-    secure: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: 600, // 10 min to finish consent
-  });
-  return res;
+  rememberOauthState("oura", state);
+  return NextResponse.redirect(authorizeUrl(state));
 }
