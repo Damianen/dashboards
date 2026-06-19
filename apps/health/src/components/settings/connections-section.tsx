@@ -26,6 +26,7 @@ const BLURB: Record<Connection["provider"], string> = {
 // OAuth providers expose a connect link; the server sets the state cookie on this nav.
 const AUTHORIZE_PATH: Partial<Record<Connection["provider"], string>> = {
   withings: "/api/oauth/withings",
+  oura: "/api/oauth/oura",
   google_health: "/api/oauth/google",
 };
 

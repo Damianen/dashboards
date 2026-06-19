@@ -147,7 +147,7 @@ first provisioning of each app.
 | `DATABASE_URL`         | yes | `create-service.sh health` (§4) |
 | `MCP_BEARER_TOKEN`     | yes for MCP | `openssl rand -base64 32` |
 | `TOKEN_ENCRYPTION_KEY` | yes | `openssl rand -base64 32` (exactly 32 bytes) |
-| `OURA_PAT`             | for Oura | Oura personal access token (§6) |
+| `OURA_CLIENT_ID` / `OURA_CLIENT_SECRET` / `OURA_REDIRECT_URI` | for Oura | Oura API Application — client id + secret (§6) |
 | `SYNC_BACKFILL_DAYS`   | yes | first-run backfill window in days (default `90`) |
 | `ENABLE_SCHEDULER`     | prod | `true` to run the in-process scheduler |
 | `WITHINGS_CLIENT_ID` / `WITHINGS_CLIENT_SECRET` / `WITHINGS_REDIRECT_URI` | for Withings | Withings developer portal (§6) |
@@ -166,10 +166,16 @@ first provisioning of each app.
 > env and the value registered in the vendor portal), including http/https, host,
 > and path. Use the localhost form for dev, the prod domain for prod.
 
-### Oura (`OURA_PAT`)
+### Oura (`OURA_CLIENT_ID/SECRET/REDIRECT_URI`)
+> Oura retired Personal Access Tokens (Dec 2025); OAuth2 is now the only option. A
+> single-user app (< 10 users) needs no Oura review.
 1. Sign in at <https://cloud.ouraring.com/>.
-2. Open **Personal Access Tokens** and create a token.
-3. Paste it as `OURA_PAT`.
+2. Register an **API Application** (OAuth2). Set the redirect URI to
+   `…/api/oauth/oura/callback` (dev: `http://localhost:3000/...`, prod: the Tailscale
+   `https://<machine>.<tailnet>.ts.net/...` — Oura matches the registered URI with no
+   reachability check). Grant the `daily` scope.
+3. Copy the client id + secret into `OURA_CLIENT_ID` / `OURA_CLIENT_SECRET`; set
+   `OURA_REDIRECT_URI` to the same callback you registered. Connect from **Settings**.
 
 ### Withings (`WITHINGS_CLIENT_ID/SECRET/REDIRECT_URI`)
 1. Register an app at the Withings developer portal

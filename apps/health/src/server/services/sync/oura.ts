@@ -5,6 +5,7 @@ import {
   fetchDailyReadiness,
   fetchDailySleep,
   fetchSleep,
+  OuraAuthError,
   type OuraDailyReadinessRecord,
   type OuraDailySleepRecord,
   type OuraSleepRecord,
@@ -16,6 +17,14 @@ import {
   finishSyncRun,
   openSyncRun,
 } from "./runs";
+
+/**
+ * The exact error recorded when a sync fails because Oura is unlinked or its (rotated)
+ * refresh token was rejected. The connections status service matches this string to flag
+ * `needsReauth`, so no separate state is needed — the sync_runs row IS the re-auth marker.
+ */
+export const OURA_REAUTH_MSG =
+  "Oura needs re-auth: refresh token rejected. Reconnect in Settings.";
 
 // A fresh ring with no prior OK run backfills this many days; incremental runs use a
 // fixed re-fetch overlap so a late-arriving day upstream is never skipped.
@@ -93,6 +102,7 @@ export interface OuraSyncSummary {
   windowStart: string;
   windowEnd: string;
   rateLimited: boolean;
+  needsReauth: boolean;
   error?: string;
 }
 
@@ -102,10 +112,12 @@ export interface OuraSyncSummary {
  * the overlap touches no duplicates, and absence upstream never deletes a local row.
  *
  * Resilient by design — it does not throw for sync-level failures. A 429 stops the run
- * early but closes it OK (partial; the overlap re-covers the gap next run); any other
- * error closes it ERROR. Either way an auditable SyncRun row is written and a structured
- * summary returned, so the MCP agent / route always gets a readable result. Only a
- * failure before the run row exists (missing env, DB down at openSyncRun) propagates.
+ * early but closes it OK (partial; the overlap re-covers the gap next run). An unlinked
+ * Oura or a rejected refresh token (OuraAuthError) closes the run ERROR with the stable
+ * re-auth marker and returns needsReauth: true; any other error closes it ERROR with its
+ * message. Either way an auditable SyncRun row is written and a structured summary
+ * returned, so the MCP agent / route always gets a readable result. Only a failure before
+ * the run row exists (missing env, DB down at openSyncRun) propagates.
  */
 export async function syncOura(): Promise<OuraSyncSummary> {
   const today = todayLocal();
@@ -164,8 +176,15 @@ export async function syncOura(): Promise<OuraSyncSummary> {
       upserted++;
     }
   } catch (err) {
-    if (!(err instanceof OuraRateLimitError)) {
-      const message = err instanceof Error ? err.message : String(err);
+    if (err instanceof OuraRateLimitError) {
+      rateLimited = true;
+    } else {
+      const needsReauth = err instanceof OuraAuthError;
+      const message = needsReauth
+        ? OURA_REAUTH_MSG
+        : err instanceof Error
+          ? err.message
+          : String(err);
       await failSyncRun(run.id, message, upserted);
       return {
         runId: run.id,
@@ -174,10 +193,10 @@ export async function syncOura(): Promise<OuraSyncSummary> {
         windowStart: window.startDate,
         windowEnd: window.endDate,
         rateLimited: false,
+        needsReauth,
         error: message,
       };
     }
-    rateLimited = true;
   }
 
   await finishSyncRun(
@@ -192,5 +211,6 @@ export async function syncOura(): Promise<OuraSyncSummary> {
     windowStart: window.startDate,
     windowEnd: window.endDate,
     rateLimited,
+    needsReauth: false,
   };
 }

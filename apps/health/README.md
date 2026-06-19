@@ -55,16 +55,18 @@ then `node apps/health/server.js`. The Docker healthcheck polls
 ### From external providers
 | Key | Where |
 |---|---|
-| `OURA_PAT` | personal access token at cloud.ouraring.com |
+| `OURA_CLIENT_ID` / `OURA_CLIENT_SECRET` | Oura API Application at cloud.ouraring.com (OAuth2; PATs retired) |
 | `WITHINGS_CLIENT_ID` / `WITHINGS_CLIENT_SECRET` | Withings developer portal |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google Cloud Console → OAuth client |
 
-For both OAuth apps, register the **prod** callback URLs in their consoles —
-they must exactly match `.env.production`:
+For each OAuth app, register the **prod** callback URL in its console — it must
+exactly match `.env.production`. Withings/Google use the Cloudflare domain; Oura matches
+its registered URI without a reachability check, so it uses the Tailscale URL directly:
 
 ```
 https://health.<your-domain>/api/oauth/withings/callback
 https://health.<your-domain>/api/oauth/google/callback
+https://<machine>.<tailnet>.ts.net/api/oauth/oura/callback
 ```
 
 ### From infra
@@ -74,7 +76,8 @@ https://health.<your-domain>/api/oauth/google/callback
 
 ### Already set in the template — just confirm / set your domain
 `SYNC_BACKFILL_DAYS=90`, `ENABLE_SCHEDULER=true`, `APP_BASE_URL`,
-`WITHINGS_REDIRECT_URI`, `GOOGLE_REDIRECT_URI`, `TZ=Europe/Amsterdam`.
+`OURA_REDIRECT_URI`, `WITHINGS_REDIRECT_URI`, `GOOGLE_REDIRECT_URI`,
+`TZ=Europe/Amsterdam`.
 
 ### What's needed when
 - **Boot:** only `DATABASE_URL`. Add `MCP_BEARER_TOKEN` + `TOKEN_ENCRYPTION_KEY`
