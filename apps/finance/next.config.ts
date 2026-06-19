@@ -1,4 +1,5 @@
 import path from "node:path";
+import withSerwistInit from "@serwist/next";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
@@ -6,6 +7,19 @@ const nextConfig: NextConfig = {
   // monorepo root so they land in .next/standalone (see Dockerfile).
   output: "standalone",
   outputFileTracingRoot: path.join(import.meta.dirname, "../.."),
+  // @serwist/next always attaches a `webpack` config (even when disabled), which
+  // Next 16's default Turbopack dev server rejects unless a turbopack config also
+  // exists. An empty object opts dev into Turbopack; the production build runs
+  // `next build --webpack` so serwist can bundle the service worker.
+  turbopack: {},
 };
 
-export default nextConfig;
+const withSerwist = withSerwistInit({
+  swSrc: "src/sw.ts",
+  swDest: "public/sw.js",
+  // The service worker only matters in production; turning it off in dev avoids
+  // stale-cache surprises during local development.
+  disable: process.env.NODE_ENV === "development",
+});
+
+export default withSerwist(nextConfig);
