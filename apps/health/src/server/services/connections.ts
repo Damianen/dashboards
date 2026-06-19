@@ -6,6 +6,7 @@ import {
 } from "@/generated/prisma/client";
 import { prisma } from "@/server/db";
 import { GOOGLE_REAUTH_MSG } from "@/server/services/sync/google-health";
+import { OURA_REAUTH_MSG } from "@/server/services/sync/oura";
 import { latestRunsBySource } from "@/server/services/sync/runs";
 import { WITHINGS_REAUTH_MSG } from "@/server/services/sync/withings";
 
@@ -57,6 +58,12 @@ export async function getConnections(): Promise<Connection[]> {
   });
   const withingsRun = runBySource.get(SyncSource.WITHINGS);
 
+  const ouraToken = await prisma.oauthToken.findUnique({
+    where: { provider: OauthProvider.OURA },
+    select: { expiresAt: true },
+  });
+  const ouraRun = runBySource.get(SyncSource.OURA);
+
   const googleToken = await prisma.oauthToken.findUnique({
     where: { provider: OauthProvider.GOOGLE },
     select: { expiresAt: true },
@@ -78,11 +85,12 @@ export async function getConnections(): Promise<Connection[]> {
     {
       provider: "oura",
       label: "Oura",
-      kind: "pat",
-      connected: Boolean(process.env.OURA_PAT),
-      expiresAt: null,
-      needsReauth: false,
-      lastRun: toLastRun(runBySource.get(SyncSource.OURA)),
+      kind: "oauth",
+      connected: ouraToken !== null,
+      expiresAt: ouraToken?.expiresAt ?? null,
+      needsReauth:
+        ouraRun?.status === "ERROR" && ouraRun?.error === OURA_REAUTH_MSG,
+      lastRun: toLastRun(ouraRun),
     },
     {
       provider: "google_health",

@@ -602,7 +602,8 @@ export function buildServer(): McpServer {
       description:
         "Trigger a wearable sync for a source since the last successful run (idempotent " +
         "UPSERT by external id / day), returning a run summary { status, itemsUpserted, " +
-        "window }. Oura pulls sleep, daily sleep and readiness. Withings pulls body " +
+        "window }. Oura pulls sleep, daily sleep and readiness; an unlinked Oura or a " +
+        "rejected refresh token returns needsReauth: true. Withings pulls body " +
         "measurements (weight + composition); a rejected refresh token returns " +
         "needsReauth: true rather than erroring out. Google Health pulls daily activity " +
         "rollups — steps and active/total energy expenditure (active_kcal is a wearable " +
