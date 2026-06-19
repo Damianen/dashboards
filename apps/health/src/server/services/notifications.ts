@@ -12,10 +12,9 @@ import { getWaterStatus } from "@/server/services/water";
 
 // Server-side source labels for notification copy. Kept here (not imported from
 // the client SOURCE_META) so this service has no client-component dependency.
-const SOURCE_LABELS: Record<SyncSource, string> = {
+const SOURCE_LABELS: Partial<Record<SyncSource, string>> = {
   [SyncSource.OURA]: "Oura",
   [SyncSource.WITHINGS]: "Withings",
-  [SyncSource.GOOGLE_HEALTH]: "Google Health",
 };
 
 /** Evening nudge: if today's water is under target, remind with the litres remaining. */
@@ -38,7 +37,7 @@ export async function alertSyncFailure(source: SyncSource): Promise<void> {
   });
   if (!isOkToErrorTransition(latest?.status, previous?.status)) return;
   await sendToAll({
-    title: `${SOURCE_LABELS[source]} sync failing`,
+    title: `${SOURCE_LABELS[source] ?? source} sync failing`,
     body: latest?.error ?? "The latest sync ended with an error.",
     url: "/settings",
   });

@@ -19,7 +19,6 @@ import {
 const SOURCE_META: Record<string, { label: string; provider: string }> = {
   OURA: { label: "Oura", provider: "oura" },
   WITHINGS: { label: "Withings", provider: "withings" },
-  GOOGLE_HEALTH: { label: "Google Health", provider: "google_health" },
 };
 
 type BadgeVariant = "default" | "secondary" | "destructive" | "outline";

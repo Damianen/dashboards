@@ -1,7 +1,7 @@
 // Oura v2 API client. Auth is standard OAuth2 (authorization code) since Oura retired
 // Personal Access Tokens — tokens are stored AES-256-GCM-encrypted via the tokens service
 // and getAccessToken() pre-emptively refreshes behind one in-process lock (same shape as
-// Withings/Google) so two concurrent syncs never race a refresh. Oura rotates its refresh
+// Withings) so two concurrent syncs never race a refresh. Oura rotates its refresh
 // token on every refresh (single-use, like Withings), so the rotated pair is persisted
 // BEFORE the new access token is returned. Unlike Withings, Oura is plain OAuth2: real HTTP
 // status codes, client_id + client_secret in the form body, no request signing.

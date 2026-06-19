@@ -7,8 +7,8 @@ import { dayOf, dayToDbDate, shiftDay } from "@/lib/dates";
 import { prisma } from "@/server/db";
 
 /**
- * The most recent sync run per source. Empty until a sync phase (Oura, Withings,
- * Google Health) lands and writes its first run. The local DB is the source of
+ * The most recent sync run per source. Empty until a sync phase (Oura, Withings)
+ * lands and writes its first run. The local DB is the source of
  * truth — this only reports the latest attempt per feed.
  */
 export async function latestRunsBySource(): Promise<SyncRun[]> {

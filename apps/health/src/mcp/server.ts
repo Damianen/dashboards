@@ -30,7 +30,6 @@ import { logStimulant } from "@/server/services/stimulants";
 import { logSupplement } from "@/server/services/supplements";
 import { getDailySummary, getTrends } from "@/server/services/summary";
 import { VisionError } from "@/server/services/vision";
-import { syncGoogleHealth } from "@/server/services/sync/google-health";
 import { syncOura } from "@/server/services/sync/oura";
 import { latestRunsBySource } from "@/server/services/sync/runs";
 import { syncWithings } from "@/server/services/sync/withings";
@@ -225,7 +224,7 @@ export function buildServer(): McpServer {
     "get_sync_status",
     {
       description:
-        "The most recent sync run per source (Oura, Withings, Google Health). " +
+        "The most recent sync run per source (Oura, Withings). " +
         "Empty until sync phases land.",
       inputSchema: {},
     },
@@ -605,20 +604,16 @@ export function buildServer(): McpServer {
         "window }. Oura pulls sleep, daily sleep and readiness; an unlinked Oura or a " +
         "rejected refresh token returns needsReauth: true. Withings pulls body " +
         "measurements (weight + composition); a rejected refresh token returns " +
-        "needsReauth: true rather than erroring out. Google Health pulls daily activity " +
-        "rollups — steps and active/total energy expenditure (active_kcal is a wearable " +
-        "trend estimate, never absolute; a rejected refresh token also returns " +
-        "needsReauth: true).",
+        "needsReauth: true rather than erroring out.",
       inputSchema: {
         source: z
-          .enum(["oura", "withings", "google_health"])
+          .enum(["oura", "withings"])
           .describe("Which source to sync."),
       },
     },
     ({ source }) => {
       if (source === "oura") return run(() => syncOura());
-      if (source === "withings") return run(() => syncWithings());
-      return run(() => syncGoogleHealth());
+      return run(() => syncWithings());
     },
   );
 
