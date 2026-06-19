@@ -10,12 +10,17 @@ export const runtime = "nodejs";
 
 const STATE_COOKIE = "oura_oauth_state";
 
-/** Redirect to /settings with the given query, clearing the one-shot state cookie. */
-function settingsRedirect(req: NextRequest, search: string): NextResponse {
-  const url = req.nextUrl.clone();
-  url.pathname = "/settings";
-  url.search = search;
-  const res = NextResponse.redirect(url);
+/**
+ * Redirect to /settings with the given query, clearing the one-shot state cookie.
+ * Uses a relative Location so the browser resolves it against the public host it
+ * actually used — never the 0.0.0.0/localhost host this server sees behind Tailscale
+ * Serve (where `NextResponse.redirect` would emit an unreachable http://0.0.0.0:3000/…).
+ */
+function settingsRedirect(search: string): NextResponse {
+  const res = new NextResponse(null, {
+    status: 307,
+    headers: { Location: `/settings${search}` },
+  });
   res.cookies.set(STATE_COOKIE, "", { path: "/", maxAge: 0, httpOnly: true });
   return res;
 }
@@ -39,15 +44,15 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const cookieState = req.cookies.get(STATE_COOKIE)?.value;
 
   if (!code || !state || !cookieState || !statesMatch(state, cookieState)) {
-    return settingsRedirect(req, "?error=oura");
+    return settingsRedirect("?error=oura");
   }
 
   try {
     const tokens = await exchangeCode(code);
     await saveTokens(OauthProvider.OURA, tokens);
   } catch {
-    return settingsRedirect(req, "?error=oura");
+    return settingsRedirect("?error=oura");
   }
 
-  return settingsRedirect(req, "?connected=oura");
+  return settingsRedirect("?connected=oura");
 }
