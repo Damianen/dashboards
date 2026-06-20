@@ -1,16 +1,22 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Search } from "lucide-react";
+import { Plus, Search } from "lucide-react";
+import { toast } from "sonner";
 
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { type Exercise, useExercises } from "@/lib/hooks/use-exercises";
+import {
+  type Exercise,
+  useCreateExercise,
+  useExercises,
+} from "@/lib/hooks/use-exercises";
 
 /**
  * Searchable exercise list. With no query, recently-used exercises lead (in the
  * order given by `recentIds`), then the rest alphabetically; a query filters by
- * name while keeping the same ranking.
+ * name while keeping the same ranking. When the query matches no existing
+ * exercise, a "+ Create" action adds it to the catalog and selects it.
  */
 export function ExercisePicker({
   recentIds,
@@ -22,6 +28,7 @@ export function ExercisePicker({
   title?: string;
 }) {
   const { data, isLoading, isError } = useExercises();
+  const create = useCreateExercise();
   const [query, setQuery] = useState("");
 
   const ranked = useMemo(() => {
@@ -40,6 +47,25 @@ export function ExercisePicker({
       return ra !== rb ? ra - rb : a.name.localeCompare(b.name);
     });
   }, [data, query, recentIds]);
+
+  const trimmed = query.trim();
+  const exactMatch = (data ?? []).some(
+    (e) => e.name.toLowerCase() === trimmed.toLowerCase(),
+  );
+  const canCreate = trimmed !== "" && !exactMatch && !isLoading && !isError;
+
+  function handleCreate() {
+    create.mutate(
+      { name: trimmed },
+      {
+        onSuccess: (created) => onPick(created),
+        onError: (err) =>
+          toast.error(
+            err instanceof Error ? err.message : "Couldn't create exercise",
+          ),
+      },
+    );
+  }
 
   return (
     <div className="space-y-3">
@@ -68,7 +94,7 @@ export function ExercisePicker({
           <p className="text-muted-foreground py-6 text-center text-sm">
             Couldn&apos;t load exercises.
           </p>
-        ) : ranked.length === 0 ? (
+        ) : ranked.length === 0 && !canCreate ? (
           <p className="text-muted-foreground py-6 text-center text-sm">
             No exercises match.
           </p>
@@ -92,6 +118,20 @@ export function ExercisePicker({
           })
         )}
       </div>
+
+      {canCreate && (
+        <button
+          type="button"
+          onClick={handleCreate}
+          disabled={create.isPending}
+          className="hover:bg-accent flex min-h-11 w-full items-center gap-2 rounded-md border border-dashed px-3 py-2 text-left transition-colors disabled:pointer-events-none disabled:opacity-50"
+        >
+          <Plus className="size-5 shrink-0" aria-hidden />
+          <span className="truncate">
+            {create.isPending ? "Creating…" : `Create "${trimmed}"`}
+          </span>
+        </button>
+      )}
     </div>
   );
 }

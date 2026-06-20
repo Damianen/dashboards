@@ -2,6 +2,7 @@ import {
   EntryOrigin,
   type Exercise,
   type LiftingSet,
+  Prisma,
 } from "@/generated/prisma/client";
 import { dayOf, dayToDbDate } from "@/lib/dates";
 import {
@@ -17,9 +18,13 @@ import {
   shouldReuseSession,
   summarizePlanProgress,
 } from "@/lib/rules";
+import {
+  type CreateExerciseInput,
+  createExerciseSchema,
+} from "@/lib/schemas/exercise";
 import { logSetSchema, type LogSetInput } from "@/lib/schemas/lifting";
 import { prisma } from "@/server/db";
-import { NotFoundError } from "./errors";
+import { DomainError, NotFoundError } from "./errors";
 
 // Resolve an exercise by id or case-insensitive name. Never auto-creates.
 async function resolveExercise(
@@ -297,6 +302,35 @@ export async function getSession(id: string): Promise<SessionDetail> {
 
 export function listExercises(): Promise<Exercise[]> {
   return prisma.exercise.findMany({ orderBy: { name: "asc" } });
+}
+
+/** Add a new catalog exercise. Names are unique case-insensitively: the DB
+ *  @unique on name is case-sensitive, so the findFirst is the real guard and the
+ *  P2002 catch is just the exact-case race backstop. Refuses duplicates with a
+ *  clean DomainError (→ 400). */
+export async function createExercise(
+  input: CreateExerciseInput,
+): Promise<Exercise> {
+  const data = createExerciseSchema.parse(input);
+  const existing = await prisma.exercise.findFirst({
+    where: { name: { equals: data.name, mode: "insensitive" } },
+  });
+  if (existing) {
+    throw new DomainError(`an exercise named "${existing.name}" already exists`);
+  }
+  try {
+    return await prisma.exercise.create({
+      data: { name: data.name, muscleGroup: data.muscleGroup ?? null },
+    });
+  } catch (err) {
+    if (
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      err.code === "P2002"
+    ) {
+      throw new DomainError(`an exercise named "${data.name}" already exists`);
+    }
+    throw err;
+  }
 }
 
 /** Up to `limit` exercises whose name contains `query` (case-insensitive), for
