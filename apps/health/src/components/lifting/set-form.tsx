@@ -8,10 +8,16 @@ import { LastTime } from "@/components/lifting/last-time";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Stepper } from "@/components/ui/stepper";
+import { formatNumber } from "@/lib/format";
 import { useExerciseHistory } from "@/lib/hooks/use-exercise-history";
+import type { SessionDetailDTO } from "@/lib/hooks/use-session";
 import { useLogSet } from "@/lib/hooks/use-log-set";
 import { logSetSchema } from "@/lib/schemas/lifting";
 import { cn } from "@/lib/utils";
+
+/** A progressive-overload prefill for one target set position. */
+type SetSuggestion =
+  SessionDetailDTO["exercises"][number]["suggestions"][number];
 
 /** The plan's rep range as a hint string, or null when there's no useful range. */
 function repRangeHint(hint?: {
@@ -34,6 +40,11 @@ function repRangeHint(hint?: {
  * From a planned session, `seedWeightKg` (the plan's target / last actual) takes
  * priority over the last-time weight, `repHint` shows the plan's rep range, and
  * `sessionId` makes the logged set refetch that session's detail.
+ *
+ * `suggestions` (progressive-overload prefills, one per set position) override the
+ * seeds when present: each set's reps/weight start at its suggestion, and a set
+ * whose weight was bumped shows a confirm popup. They're editable defaults only —
+ * logging always sends whatever is in the inputs.
  */
 export function SetForm({
   exercise,
@@ -42,6 +53,8 @@ export function SetForm({
   seedWeightKg,
   repHint,
   sessionId,
+  suggestions,
+  startPosition,
 }: {
   exercise: { id: string; name: string };
   day: string;
@@ -49,30 +62,56 @@ export function SetForm({
   seedWeightKg?: number;
   repHint?: { repMin: number | null; repMax: number | null };
   sessionId?: string;
+  suggestions?: SetSuggestion[];
+  startPosition?: number;
 }) {
   const [reps, setReps] = useState(8);
   const [weight, setWeight] = useState(seedWeightKg ?? 20);
   const [rpe, setRpe] = useState<number | null>(null);
   const [warmup, setWarmup] = useState(false);
+  // The set position currently being logged; advances after each working set so
+  // each set seeds from its own suggestion.
+  const [position, setPosition] = useState(startPosition ?? 1);
+  const [showBump, setShowBump] = useState(false);
 
   const { mutate, isPending } = useLogSet(day, sessionId);
 
-  // Seed reps/weight from the last working set of the most recent session, once,
-  // before the user edits anything (React's render-time "store info from previous
-  // renders" pattern). Shares the cached history with <LastTime>; the form remounts
-  // per exercise, so `seeded` resets cleanly. A provided `seedWeightKg` wins for
-  // weight, so the history seed only fills weight when none was given.
+  const hasSuggestions = (suggestions?.length ?? 0) > 0;
+  // Clamp past the last suggestion so extra sets keep the final position's value.
+  const suggestion = hasSuggestions
+    ? suggestions![Math.min(position, suggestions!.length) - 1]
+    : undefined;
+
+  // Seed reps/weight from this position's suggestion whenever the position changes
+  // (incl. first mount), using React's render-time "derive from props" pattern. The
+  // bump popup shows for a position whose weight was force-increased.
+  const [seededPos, setSeededPos] = useState<number | null>(null);
+  if (suggestion && seededPos !== position) {
+    setSeededPos(position);
+    setReps(suggestion.reps);
+    if (suggestion.weightKg != null) setWeight(suggestion.weightKg);
+    setShowBump(suggestion.weightIncreased);
+  }
+
+  // Fallback when there are no suggestions (ad-hoc / VOLUME): seed once from the
+  // last working set of the most recent session. Shares the cached history with
+  // <LastTime>; `seedWeightKg` still wins for weight when given.
   const { data: history } = useExerciseHistory(exercise.name, 1);
   const [seeded, setSeeded] = useState(false);
   const working = history?.[0]?.sets.filter((s) => !s.isWarmup) ?? [];
   const seed = working[working.length - 1];
-  if (!seeded && seed) {
+  if (!hasSuggestions && !seeded && seed) {
     setSeeded(true);
     setReps(seed.reps);
     if (seedWeightKg == null) setWeight(Number(seed.weightKg));
   }
 
   const hint = repRangeHint(repHint);
+  // Captured (and narrowed) so the popup handlers see concrete numbers.
+  const bump =
+    showBump && suggestion?.weightIncreased && suggestion.weightKg != null
+      ? { reps: suggestion.reps, weightKg: suggestion.weightKg }
+      : null;
 
   function submit() {
     const parsed = logSetSchema.safeParse({
@@ -86,8 +125,15 @@ export function SetForm({
       toast.error("Check the set values");
       return;
     }
+    const wasWorking = !warmup;
     // Keep field state as-is for one-tap repeats; don't read the response back.
-    mutate(parsed.data);
+    // Advance to the next position's suggestion only after a logged working set
+    // (warmups don't consume a planned slot).
+    mutate(parsed.data, {
+      onSuccess: () => {
+        if (wasWorking && hasSuggestions) setPosition((p) => p + 1);
+      },
+    });
   }
 
   return (
@@ -123,6 +169,39 @@ export function SetForm({
           max={100}
         />
       </div>
+
+      {bump && (
+        <div className="border-primary/40 bg-primary/5 space-y-2 rounded-lg border p-3">
+          <p className="text-sm">
+            Hit the top of the range last time — bump to{" "}
+            <span className="font-medium">
+              {formatNumber(bump.weightKg, 1)} kg
+            </span>
+            ?
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              className="h-11"
+              onClick={() => setShowBump(false)}
+            >
+              Keep editing
+            </Button>
+            <Button
+              type="button"
+              className="h-11"
+              onClick={() => {
+                setReps(bump.reps);
+                setWeight(bump.weightKg);
+                setShowBump(false);
+              }}
+            >
+              Accept
+            </Button>
+          </div>
+        </div>
+      )}
 
       <div className="space-y-1.5">
         <Label htmlFor="set-weight">Weight (kg)</Label>

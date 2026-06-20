@@ -52,6 +52,7 @@ function newRow(ex: Exercise): EditorExercise {
     repMin: 8,
     repMax: 12,
     targetWeightKg: null,
+    weightIncrementKg: 2.5,
     targetVolumeKg: 1000,
     restSec: null,
     notes: "",
@@ -70,6 +71,7 @@ function rowFromView(v: TemplateExerciseDTO): EditorExercise {
     repMin: v.repMin ?? 8,
     repMax: v.repMax ?? 12,
     targetWeightKg: v.targetWeightKg,
+    weightIncrementKg: v.weightIncrementKg ?? 2.5,
     targetVolumeKg: v.targetVolumeKg ?? 1000,
     restSec: v.restSec,
     notes: v.notes ?? "",
@@ -88,6 +90,7 @@ function toInput(e: EditorExercise): CreateTemplateInput["exercises"][number] {
       repMin: e.repMin,
       repMax: e.repMax,
       targetWeightKg: e.targetWeightKg === null ? undefined : e.targetWeightKg,
+      weightIncrementKg: e.weightIncrementKg,
       restSec,
       notes,
     };

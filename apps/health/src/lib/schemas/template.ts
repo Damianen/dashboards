@@ -2,7 +2,8 @@ import { z } from "zod";
 
 /**
  * A per-exercise target, discriminated on `targetType`:
- *  - REPS:   N sets in a rep range (e.g. 4 × 6–10), optional working weight.
+ *  - REPS:   N sets in a rep range (e.g. 4 × 6–10), optional working weight and
+ *            per-progression weight increment.
  *  - VOLUME: a single Σ reps×weightKg goal (e.g. 5000 kg of back work).
  * superRefine enforces repMin ≤ repMax in REPS mode. The branches use `z.object`
  * (not strictObject) so this schema can be intersected with the exercise fields
@@ -16,6 +17,7 @@ export const templateTargetSchema = z
       repMin: z.number().int().min(1).max(100),
       repMax: z.number().int().min(1).max(100),
       targetWeightKg: z.number().min(0).max(500).optional(),
+      weightIncrementKg: z.number().gt(0).max(50).optional(),
     }),
     z.object({
       targetType: z.literal("VOLUME"),

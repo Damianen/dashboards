@@ -15,6 +15,7 @@ import {
   searchFoodLog,
 } from "@/server/services/food";
 import {
+  createExercise,
   getHistory,
   getSession,
   listSessions,
@@ -154,6 +155,31 @@ export function buildServer(): McpServer {
       },
     },
     ({ exercise, limit }) => run(() => getHistory(exercise, limit)),
+  );
+
+  server.registerTool(
+    "create_exercise",
+    {
+      description:
+        "Add a new exercise to the catalog so it can be logged or put in a " +
+        "workout template. The name must be unique (case-insensitive) — check " +
+        "get_lifting_history / list_workout_templates first to avoid near-" +
+        "duplicates. Returns the created exercise. (log_set never auto-creates " +
+        "exercises; this is the deliberate way to add one.)",
+      inputSchema: {
+        name: z
+          .string()
+          .min(1)
+          .describe("Exercise name, e.g. 'Incline Dumbbell Press'."),
+        muscle_group: z
+          .string()
+          .min(1)
+          .optional()
+          .describe("Optional muscle-group tag, e.g. 'chest'."),
+      },
+    },
+    ({ name, muscle_group }) =>
+      run(() => createExercise({ name, muscleGroup: muscle_group })),
   );
 
   server.registerTool(

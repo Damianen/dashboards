@@ -111,6 +111,9 @@ export function PlannedExerciseCard({
     .find((s) => !s.isWarmup)?.weightKg;
   const seedWeightKg = plan.targetWeightKg ?? lastWorkingWeight ?? undefined;
   const complete = exercise.progress?.complete ?? false;
+  // The next set to log is one past the working sets already done — its
+  // suggestion (and the bump popup) seeds the form on open.
+  const startPosition = (exercise.progress?.setsDone ?? 0) + 1;
 
   return (
     <Card className="gap-0 p-4">
@@ -145,6 +148,8 @@ export function PlannedExerciseCard({
             exerciseName: exercise.exerciseName,
             seedWeightKg,
             repHint: { repMin: plan.repMin, repMax: plan.repMax },
+            suggestions: exercise.suggestions,
+            startPosition,
           })
         }
       >

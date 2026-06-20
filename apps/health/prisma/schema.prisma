@@ -262,20 +262,21 @@ model WorkoutTemplate {
 }
 
 model TemplateExercise {
-  id             String             @id @default(cuid())
-  templateId     String             @map("template_id")
-  template       WorkoutTemplate    @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  exerciseId     String             @map("exercise_id")
-  exercise       Exercise           @relation(fields: [exerciseId], references: [id])
-  position       Int
-  targetType     TemplateTargetType @default(REPS) @map("target_type")
-  targetSets     Int?               @map("target_sets")
-  repMin         Int?               @map("rep_min")
-  repMax         Int?               @map("rep_max")
-  targetWeightKg Decimal?           @map("target_weight_kg") @db.Decimal(5, 2)
-  targetVolumeKg Decimal?           @map("target_volume_kg") @db.Decimal(7, 1)
-  restSec        Int?               @map("rest_sec")
-  notes          String?
+  id                String             @id @default(cuid())
+  templateId        String             @map("template_id")
+  template          WorkoutTemplate    @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  exerciseId        String             @map("exercise_id")
+  exercise          Exercise           @relation(fields: [exerciseId], references: [id])
+  position          Int
+  targetType        TemplateTargetType @default(REPS) @map("target_type")
+  targetSets        Int?               @map("target_sets")
+  repMin            Int?               @map("rep_min")
+  repMax            Int?               @map("rep_max")
+  targetWeightKg    Decimal?           @map("target_weight_kg") @db.Decimal(5, 2)
+  weightIncrementKg Decimal?           @map("weight_increment_kg") @db.Decimal(5, 2)
+  targetVolumeKg    Decimal?           @map("target_volume_kg") @db.Decimal(7, 1)
+  restSec           Int?               @map("rest_sec")
+  notes             String?
 
   @@unique([templateId, position])
   @@index([templateId])
@@ -283,18 +284,19 @@ model TemplateExercise {
 }
 
 model SessionPlanItem {
-  id             String             @id @default(cuid())
-  sessionId      String             @map("session_id")
-  session        LiftingSession     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  exerciseId     String             @map("exercise_id")
-  exercise       Exercise           @relation(fields: [exerciseId], references: [id])
-  position       Int
-  targetType     TemplateTargetType @default(REPS) @map("target_type")
-  targetSets     Int?               @map("target_sets")
-  repMin         Int?               @map("rep_min")
-  repMax         Int?               @map("rep_max")
-  targetWeightKg Decimal?           @map("target_weight_kg") @db.Decimal(5, 2)
-  targetVolumeKg Decimal?           @map("target_volume_kg") @db.Decimal(7, 1)
+  id                String             @id @default(cuid())
+  sessionId         String             @map("session_id")
+  session           LiftingSession     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  exerciseId        String             @map("exercise_id")
+  exercise          Exercise           @relation(fields: [exerciseId], references: [id])
+  position          Int
+  targetType        TemplateTargetType @default(REPS) @map("target_type")
+  targetSets        Int?               @map("target_sets")
+  repMin            Int?               @map("rep_min")
+  repMax            Int?               @map("rep_max")
+  targetWeightKg    Decimal?           @map("target_weight_kg") @db.Decimal(5, 2)
+  weightIncrementKg Decimal?           @map("weight_increment_kg") @db.Decimal(5, 2)
+  targetVolumeKg    Decimal?           @map("target_volume_kg") @db.Decimal(7, 1)
 
   @@unique([sessionId, position])
   @@index([sessionId])

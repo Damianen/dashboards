@@ -2,8 +2,9 @@ import {
   EntryOrigin,
   type Exercise,
   type LiftingSet,
+  Prisma,
 } from "@/generated/prisma/client";
-import { dayOf, dayToDbDate } from "@/lib/dates";
+import { dayOf, dayToDbDate, todayLocal } from "@/lib/dates";
 import {
   type ExerciseGroup,
   groupSetsByExercise,
@@ -17,9 +18,14 @@ import {
   shouldReuseSession,
   summarizePlanProgress,
 } from "@/lib/rules";
+import {
+  type CreateExerciseInput,
+  createExerciseSchema,
+} from "@/lib/schemas/exercise";
 import { logSetSchema, type LogSetInput } from "@/lib/schemas/lifting";
+import { suggestNextSet } from "@/lib/progression";
 import { prisma } from "@/server/db";
-import { NotFoundError } from "./errors";
+import { DomainError, NotFoundError } from "./errors";
 
 // Resolve an exercise by id or case-insensitive name. Never auto-creates.
 async function resolveExercise(
@@ -114,6 +120,37 @@ export async function getHistory(
   }));
 }
 
+/**
+ * The `position`-th working set (isWarmup = false, ordered by set number) of an
+ * exercise in the most recent session strictly before `beforeDay`. Falls back to
+ * the highest available position when that session logged fewer working sets than
+ * `position`; null when there's no prior history. `beforeDay` (today's civil day)
+ * keeps an in-progress session from ever referencing itself.
+ */
+export async function getLastWorkingSet(
+  exerciseId: string,
+  position: number,
+  beforeDay: string,
+): Promise<{ reps: number; weightKg: number } | null> {
+  const session = await prisma.liftingSession.findFirst({
+    where: {
+      day: { lt: dayToDbDate(beforeDay) },
+      sets: { some: { exerciseId, isWarmup: false } },
+    },
+    orderBy: { startedAt: "desc" },
+    include: {
+      sets: {
+        where: { exerciseId, isWarmup: false },
+        orderBy: { setNumber: "asc" },
+      },
+    },
+  });
+  if (!session) return null;
+  const set = session.sets[Math.min(position, session.sets.length) - 1];
+  if (!set) return null;
+  return { reps: set.reps, weightKg: Number(set.weightKg) };
+}
+
 export interface SessionView {
   sessionId: string;
   day: string;
@@ -178,18 +215,30 @@ export interface SessionPlanTargetView {
   repMin: number | null;
   repMax: number | null;
   targetWeightKg: number | null;
+  weightIncrementKg: number | null;
   targetVolumeKg: number | null;
 }
 
+/** A progressive-overload prefill for one target set position (never persisted —
+ *  an editable default the UI seeds the reps/weight inputs with). */
+export interface SetSuggestion {
+  position: number;
+  reps: number;
+  weightKg: number | null;
+  weightIncreased: boolean;
+}
+
 /** One exercise in a session: its plan snapshot (null if unplanned), the sets
- *  logged for it (null if planned but nothing logged yet), and progress vs target
- *  (null when there's no plan to measure against). */
+ *  logged for it (null if planned but nothing logged yet), progress vs target
+ *  (null when there's no plan to measure against), and per-position prefill
+ *  suggestions (empty for VOLUME / unplanned exercises). */
 export interface SessionExerciseView {
   exerciseId: string;
   exerciseName: string;
   plan: SessionPlanTargetView | null;
   sets: ExerciseGroup | null;
   progress: PlanProgress | null;
+  suggestions: SetSuggestion[];
 }
 
 export interface SessionDetail {
@@ -250,6 +299,42 @@ export async function getSession(id: string): Promise<SessionDetail> {
   // progress[i] lines up with planItems[i] (summarizePlanProgress preserves order).
   const progress = summarizePlanProgress(planTargets, plain);
 
+  // Progressive-overload prefills, one per target set position, from the same
+  // exercise + position in the most recent prior session. beforeDay = today, so
+  // this in-progress session never feeds its own suggestions. Not persisted.
+  const beforeDay = todayLocal();
+  const planSuggestions: SetSuggestion[][] = await Promise.all(
+    session.planItems.map((p) => {
+      if (
+        p.targetType !== "REPS" ||
+        p.targetSets == null ||
+        p.repMin == null ||
+        p.repMax == null
+      ) {
+        return Promise.resolve<SetSuggestion[]>([]);
+      }
+      const plan = {
+        repMin: p.repMin,
+        repMax: p.repMax,
+        incrementKg:
+          p.weightIncrementKg == null ? 2.5 : Number(p.weightIncrementKg),
+        startWeightKg:
+          p.targetWeightKg == null ? null : Number(p.targetWeightKg),
+      };
+      return Promise.all(
+        Array.from({ length: p.targetSets }, (_, i) => i + 1).map(
+          async (position) => ({
+            position,
+            ...suggestNextSet(
+              await getLastWorkingSet(p.exerciseId, position, beforeDay),
+              plan,
+            ),
+          }),
+        ),
+      );
+    }),
+  );
+
   const exercises: SessionExerciseView[] = [];
   const plannedExerciseIds = new Set<string>();
   session.planItems.forEach((p, i) => {
@@ -265,11 +350,14 @@ export async function getSession(id: string): Promise<SessionDetail> {
         repMax: p.repMax,
         targetWeightKg:
           p.targetWeightKg == null ? null : Number(p.targetWeightKg),
+        weightIncrementKg:
+          p.weightIncrementKg == null ? null : Number(p.weightIncrementKg),
         targetVolumeKg:
           p.targetVolumeKg == null ? null : Number(p.targetVolumeKg),
       },
       sets: groupByExerciseId.get(p.exerciseId) ?? null,
       progress: progress[i] ?? null,
+      suggestions: planSuggestions[i] ?? [],
     });
   });
   for (const g of groups) {
@@ -280,6 +368,7 @@ export async function getSession(id: string): Promise<SessionDetail> {
       plan: null,
       sets: g,
       progress: null,
+      suggestions: [],
     });
   }
 
@@ -297,6 +386,35 @@ export async function getSession(id: string): Promise<SessionDetail> {
 
 export function listExercises(): Promise<Exercise[]> {
   return prisma.exercise.findMany({ orderBy: { name: "asc" } });
+}
+
+/** Add a new catalog exercise. Names are unique case-insensitively: the DB
+ *  @unique on name is case-sensitive, so the findFirst is the real guard and the
+ *  P2002 catch is just the exact-case race backstop. Refuses duplicates with a
+ *  clean DomainError (→ 400). */
+export async function createExercise(
+  input: CreateExerciseInput,
+): Promise<Exercise> {
+  const data = createExerciseSchema.parse(input);
+  const existing = await prisma.exercise.findFirst({
+    where: { name: { equals: data.name, mode: "insensitive" } },
+  });
+  if (existing) {
+    throw new DomainError(`an exercise named "${existing.name}" already exists`);
+  }
+  try {
+    return await prisma.exercise.create({
+      data: { name: data.name, muscleGroup: data.muscleGroup ?? null },
+    });
+  } catch (err) {
+    if (
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      err.code === "P2002"
+    ) {
+      throw new DomainError(`an exercise named "${data.name}" already exists`);
+    }
+    throw err;
+  }
 }
 
 /** Up to `limit` exercises whose name contains `query` (case-insensitive), for
