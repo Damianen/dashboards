@@ -183,6 +183,7 @@ export interface SessionPlanTargetView {
   repMin: number | null;
   repMax: number | null;
   targetWeightKg: number | null;
+  weightIncrementKg: number | null;
   targetVolumeKg: number | null;
 }
 
@@ -270,6 +271,8 @@ export async function getSession(id: string): Promise<SessionDetail> {
         repMax: p.repMax,
         targetWeightKg:
           p.targetWeightKg == null ? null : Number(p.targetWeightKg),
+        weightIncrementKg:
+          p.weightIncrementKg == null ? null : Number(p.weightIncrementKg),
         targetVolumeKg:
           p.targetVolumeKg == null ? null : Number(p.targetVolumeKg),
       },

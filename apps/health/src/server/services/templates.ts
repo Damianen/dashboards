@@ -39,6 +39,7 @@ export interface TemplateExerciseView {
   repMin: number | null;
   repMax: number | null;
   targetWeightKg: number | null;
+  weightIncrementKg: number | null;
   targetVolumeKg: number | null;
   restSec: number | null;
   notes: string | null;
@@ -75,6 +76,8 @@ function serializeTemplate(t: TemplateRow): TemplateView {
       repMin: e.repMin,
       repMax: e.repMax,
       targetWeightKg: e.targetWeightKg == null ? null : Number(e.targetWeightKg),
+      weightIncrementKg:
+        e.weightIncrementKg == null ? null : Number(e.weightIncrementKg),
       targetVolumeKg: e.targetVolumeKg == null ? null : Number(e.targetVolumeKg),
       restSec: e.restSec,
       notes: e.notes,
@@ -82,7 +85,7 @@ function serializeTemplate(t: TemplateRow): TemplateView {
   };
 }
 
-/** The six target columns shared by TemplateExercise and SessionPlanItem, with the
+/** The target columns shared by TemplateExercise and SessionPlanItem, with the
  *  inactive mode's columns nulled out. */
 function targetColumns(e: TemplateExerciseInput) {
   if (e.targetType === "REPS") {
@@ -92,6 +95,7 @@ function targetColumns(e: TemplateExerciseInput) {
       repMin: e.repMin,
       repMax: e.repMax,
       targetWeightKg: e.targetWeightKg ?? null,
+      weightIncrementKg: e.weightIncrementKg ?? null,
       targetVolumeKg: null,
     };
   }
@@ -101,6 +105,7 @@ function targetColumns(e: TemplateExerciseInput) {
     repMin: null,
     repMax: null,
     targetWeightKg: null,
+    weightIncrementKg: null,
     targetVolumeKg: e.targetVolumeKg,
   };
 }
@@ -234,6 +239,7 @@ export async function duplicateTemplate(id: string): Promise<TemplateView> {
           repMin: e.repMin,
           repMax: e.repMax,
           targetWeightKg: e.targetWeightKg,
+          weightIncrementKg: e.weightIncrementKg,
           targetVolumeKg: e.targetVolumeKg,
           restSec: e.restSec,
           notes: e.notes,
@@ -280,6 +286,7 @@ export interface SessionPlanItemView {
   repMin: number | null;
   repMax: number | null;
   targetWeightKg: number | null;
+  weightIncrementKg: number | null;
   targetVolumeKg: number | null;
 }
 
@@ -326,6 +333,7 @@ export async function startSessionFromTemplate(
           repMin: e.repMin,
           repMax: e.repMax,
           targetWeightKg: e.targetWeightKg,
+          weightIncrementKg: e.weightIncrementKg,
           targetVolumeKg: e.targetVolumeKg,
         })),
       },
@@ -356,6 +364,8 @@ export async function startSessionFromTemplate(
       repMin: p.repMin,
       repMax: p.repMax,
       targetWeightKg: p.targetWeightKg == null ? null : Number(p.targetWeightKg),
+      weightIncrementKg:
+        p.weightIncrementKg == null ? null : Number(p.weightIncrementKg),
       targetVolumeKg: p.targetVolumeKg == null ? null : Number(p.targetVolumeKg),
     })),
   };

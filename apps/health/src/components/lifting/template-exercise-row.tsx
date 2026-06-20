@@ -22,6 +22,8 @@ export interface EditorExercise {
   repMax: number;
   /** null = no working weight set (optional). */
   targetWeightKg: number | null;
+  /** Weight added each progression step; always set, defaults to 2.5. */
+  weightIncrementKg: number;
   targetVolumeKg: number;
   /** null = no rest set (optional). */
   restSec: number | null;
@@ -169,6 +171,20 @@ export function TemplateExerciseRow({
                 inputMode="decimal"
               />
             )}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor={`increment-${e.rowId}`}>Weight increment (kg)</Label>
+            <Stepper
+              id={`increment-${e.rowId}`}
+              label="weight increment in kilograms"
+              value={e.weightIncrementKg}
+              onChange={(weightIncrementKg) => set({ weightIncrementKg })}
+              step={0.5}
+              min={0.5}
+              max={50}
+              inputMode="decimal"
+            />
           </div>
         </>
       ) : (
