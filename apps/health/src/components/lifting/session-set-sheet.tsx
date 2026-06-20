@@ -3,6 +3,11 @@
 import { Drawer } from "vaul";
 
 import { SetForm } from "@/components/lifting/set-form";
+import type { SessionDetailDTO } from "@/lib/hooks/use-session";
+
+/** A progressive-overload prefill for one target set position. */
+export type SetSuggestion =
+  SessionDetailDTO["exercises"][number]["suggestions"][number];
 
 /** The exercise + prefill a planned card hands to the logging sheet. */
 export interface SheetTarget {
@@ -11,6 +16,10 @@ export interface SheetTarget {
   /** targetWeightKg ?? last actual — the form falls back to last-time when absent. */
   seedWeightKg?: number;
   repHint?: { repMin: number | null; repMax: number | null };
+  /** Per-position progressive-overload prefills; empty/absent → fall back to seeds. */
+  suggestions?: SetSuggestion[];
+  /** 1-based next set position to log (working sets done + 1). */
+  startPosition?: number;
 }
 
 /**
@@ -54,6 +63,8 @@ export function SessionSetSheet({
                 sessionId={sessionId}
                 seedWeightKg={target.seedWeightKg}
                 repHint={target.repHint}
+                suggestions={target.suggestions}
+                startPosition={target.startPosition}
                 onBack={() => onOpenChange(false)}
               />
             )}
