@@ -17,7 +17,7 @@ export function ViewHeader({
   action?: ReactNode;
 }) {
   return (
-    <header className="sticky top-0 z-10 -mx-4 flex items-center gap-1 border-b bg-background/85 px-4 py-2 backdrop-blur">
+    <header className="sticky top-0 z-10 -mx-4 -mt-[max(env(safe-area-inset-top),1rem)] flex items-center gap-1 border-b bg-background/85 px-4 pb-2 pt-[calc(max(env(safe-area-inset-top),1rem)+0.5rem)] backdrop-blur">
       <Link
         href={backHref}
         aria-label="Back"
