@@ -19,6 +19,12 @@ enum EntryOrigin {
   MCP
 }
 
+enum SupplementTimeGroup {
+  MORNING
+  EVENING
+  PRE_WORKOUT
+}
+
 enum MealSlot {
   BREAKFAST
   LUNCH
@@ -386,6 +392,8 @@ model StimulantEntry {
   @@map("stimulant_entries")
 }
 
+// Legacy ad-hoc supplement log — retained so existing rows survive (no new writes).
+// Superseded by the Supplement / SupplementLog checklist below. Do NOT drop.
 model SupplementEntry {
   id       String      @id @default(cuid())
   loggedAt DateTime    @map("logged_at") @db.Timestamptz(6)
@@ -397,6 +405,43 @@ model SupplementEntry {
 
   @@index([day])
   @@map("supplement_entries")
+}
+
+// A supplement on the user's managed daily list. Grouped by time of day and
+// ordered within its group by `position`. Archived (not deleted) to retire one
+// without losing its logged history.
+model Supplement {
+  id        String              @id @default(cuid())
+  name      String
+  dose      Decimal             @db.Decimal(8, 2)
+  unit      String
+  timeGroup SupplementTimeGroup @map("time_group")
+  position  Int
+  archived  Boolean             @default(false)
+  createdAt DateTime            @default(now()) @map("created_at")
+  updatedAt DateTime            @updatedAt @map("updated_at")
+  logs      SupplementLog[]
+
+  @@index([timeGroup, position])
+  @@map("supplements")
+}
+
+// One "taken today" tick. Exactly one row per supplement per civil day (the
+// unique key makes checking idempotent); dose/unit are snapshotted at check time
+// so later edits to the supplement never rewrite past days.
+model SupplementLog {
+  id           String      @id @default(cuid())
+  supplementId String      @map("supplement_id")
+  supplement   Supplement  @relation(fields: [supplementId], references: [id])
+  day          DateTime    @db.Date
+  takenAt      DateTime    @map("taken_at") @db.Timestamptz(6)
+  doseSnapshot Decimal     @map("dose_snapshot") @db.Decimal(8, 2)
+  unitSnapshot String      @map("unit_snapshot")
+  origin       EntryOrigin
+
+  @@unique([supplementId, day])
+  @@index([day])
+  @@map("supplement_logs")
 }
 
 model Setting {

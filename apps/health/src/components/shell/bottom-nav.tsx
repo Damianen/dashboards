@@ -6,6 +6,7 @@ import {
   Dumbbell,
   Home,
   LineChart,
+  Pill,
   Settings,
   Utensils,
   type LucideIcon,
@@ -19,6 +20,7 @@ const TABS: Tab[] = [
   { href: "/", label: "Today", icon: Home },
   { href: "/food", label: "Food", icon: Utensils },
   { href: "/lifting", label: "Lifting", icon: Dumbbell },
+  { href: "/supplements", label: "Supps", icon: Pill },
   { href: "/trends", label: "Trends", icon: LineChart },
   { href: "/settings", label: "Settings", icon: Settings },
 ];

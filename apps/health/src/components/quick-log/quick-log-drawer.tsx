@@ -4,17 +4,15 @@ import { useState } from "react";
 import { Drawer } from "vaul";
 
 import { StimulantForm } from "@/components/quick-log/stimulant-form";
-import { SupplementForm } from "@/components/quick-log/supplement-form";
 import { WaterForm } from "@/components/quick-log/water-form";
 import { todayLocal } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 
-type Segment = "water" | "stimulant" | "supplement";
+type Segment = "water" | "stimulant";
 
 const SEGMENTS: { id: Segment; label: string }[] = [
   { id: "water", label: "Water" },
   { id: "stimulant", label: "Stimulant" },
-  { id: "supplement", label: "Supplement" },
 ];
 
 export function QuickLogDrawer({
@@ -43,10 +41,10 @@ export function QuickLogDrawer({
               Quick log
             </Drawer.Title>
             <Drawer.Description className="sr-only">
-              Log water, a stimulant, or a supplement.
+              Log water or a stimulant.
             </Drawer.Description>
 
-            <div className="bg-muted grid grid-cols-3 gap-1 rounded-lg p-1">
+            <div className="bg-muted grid grid-cols-2 gap-1 rounded-lg p-1">
               {SEGMENTS.map((s) => (
                 <button
                   key={s.id}
@@ -67,9 +65,6 @@ export function QuickLogDrawer({
             {segment === "water" && <WaterForm day={day} onLogged={close} />}
             {segment === "stimulant" && (
               <StimulantForm day={day} onLogged={close} />
-            )}
-            {segment === "supplement" && (
-              <SupplementForm day={day} onLogged={close} />
             )}
           </div>
         </Drawer.Content>
