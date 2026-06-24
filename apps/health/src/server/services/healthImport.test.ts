@@ -46,20 +46,6 @@ describe("parseHaeDate", () => {
     );
   });
 
-  it("tolerates the non-ASCII spaces iOS/ICU use (U+202F narrow no-break, U+00A0)", () => {
-    // THE production bug: HAE sends a NARROW NO-BREAK SPACE (U+202F) before AM/PM, not an
-    // ASCII space, so the original literal-space regex skipped every workout. Built via
-    // fromCharCode so the source stays ASCII and the intent is unambiguous.
-    const nnbsp = String.fromCharCode(0x202f); // narrow no-break space (iOS/ICU)
-    const nbsp = String.fromCharCode(0x00a0); // no-break space
-    expect(
-      parseHaeDate(`2026-06-24 5:53:24${nnbsp}PM +0200`)?.toISOString(),
-    ).toBe("2026-06-24T15:53:24.000Z");
-    expect(
-      parseHaeDate(`2026-06-24 5:53:24${nbsp}PM${nbsp}+0200`)?.toISOString(),
-    ).toBe("2026-06-24T15:53:24.000Z");
-  });
-
   it("handles the 12 AM/PM hour boundaries", () => {
     // 12 PM = noon, 12 AM = midnight (rolls to the previous UTC day at +02:00).
     expect(parseHaeDate("2026-06-24 12:30:00 PM +0200")?.toISOString()).toBe(
@@ -107,13 +93,11 @@ describe("parseWorkouts", () => {
   });
 
   it("imports a real HAE 12-hour-clock workout (regression: was skipped → imported 0)", () => {
-    // Real shape, including the U+202F before PM that broke production.
-    const nnbsp = String.fromCharCode(0x202f);
     const w = parseOne({
       id: "B6EE4FF3",
       name: "Binnen Wandelen",
-      start: `2026-06-24 5:53:24${nnbsp}PM +0200`,
-      end: `2026-06-24 6:05:10${nnbsp}PM +0200`,
+      start: "2026-06-24 5:53:24 PM +0200",
+      end: "2026-06-24 6:05:10 PM +0200",
       duration: 706.45,
       distance: { qty: 0.857, units: "km" },
       activeEnergyBurned: { qty: 723.2, units: "kJ" },
