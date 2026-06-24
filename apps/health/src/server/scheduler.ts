@@ -2,6 +2,8 @@ import { Cron } from "croner";
 
 import {
   alertSyncFailure,
+  observationDigest,
+  streakMilestones,
   waterNudge,
   weeklySummary,
 } from "@/server/services/notifications";
@@ -80,8 +82,16 @@ export function startScheduler(): void {
   new Cron("0 18 * * 0", { timezone: TIMEZONE, name: "weekly-summary" }, () =>
     runNotificationJob("weekly-summary", weeklySummary),
   );
+  // 19:00 daily — the observation digest (after the day's Oura/lifting data has landed).
+  new Cron("0 19 * * *", { timezone: TIMEZONE, name: "observations" }, () =>
+    runNotificationJob("observations", observationDigest),
+  );
+  // 09:00 daily — celebrate any streak that has hit a milestone (gentle, fires once per run).
+  new Cron("0 9 * * *", { timezone: TIMEZONE, name: "streak-milestones" }, () =>
+    runNotificationJob("streak-milestones", streakMilestones),
+  );
 
   console.log(
-    `[scheduler] started ${SYNC_SOURCES.length + 2} job(s) (${TIMEZONE})`,
+    `[scheduler] started ${SYNC_SOURCES.length + 4} job(s) (${TIMEZONE})`,
   );
 }

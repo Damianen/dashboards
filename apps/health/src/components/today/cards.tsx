@@ -2,7 +2,9 @@ import {
   Apple,
   Coffee,
   Droplets,
+  Drumstick,
   Dumbbell,
+  Flame,
   Footprints,
   Moon,
   Scale,
@@ -16,9 +18,11 @@ import {
   Stat,
 } from "@/components/today/metric-card";
 import { clampPercent, formatHm, formatKg, formatNumber } from "@/lib/format";
+import type { AdherenceResult } from "@/lib/hooks/use-adherence";
 import type { DailySummary } from "@/lib/hooks/use-summary";
 
 type Props = { s: DailySummary | null };
+type AdherenceProps = { a: AdherenceResult | null };
 
 export function WaterCard({ s }: Props) {
   const target = s?.waterTargetMl ?? null;
@@ -152,6 +156,74 @@ export function IntakeCard({ s }: Props) {
             carbs {s?.carbG != null ? `${formatNumber(s.carbG, 1)} g` : "—"} ·
             fat {s?.fatG != null ? `${formatNumber(s.fatG, 1)} g` : "—"}
           </div>
+        </div>
+      )}
+    </MetricCard>
+  );
+}
+
+export function ProteinCard({ a }: AdherenceProps) {
+  // Intake-only target: latest weight × g/kg. Never netted against calories (CLAUDE.md).
+  const p = a?.protein ?? null;
+  return (
+    <MetricCard title="Protein" icon={Drumstick}>
+      {p == null || p.targetG == null ? (
+        <EmptyState>Log a weight to set a protein target.</EmptyState>
+      ) : (
+        <div className="space-y-2">
+          <div className="flex items-baseline justify-between">
+            <span className="text-2xl font-semibold tabular-nums">
+              {formatNumber(p.actualG, 1)}
+              <span className="text-muted-foreground text-base font-normal">
+                {" "}
+                / {formatNumber(p.targetG)} g
+              </span>
+            </span>
+            <span className="text-muted-foreground text-xs">
+              {formatNumber(p.remainingG ?? 0)} g to go
+            </span>
+          </div>
+          <Progress percent={clampPercent(p.actualG, p.targetG)} />
+          <p className="text-muted-foreground text-xs">
+            Target {formatNumber(p.gPerKg, 1)} g/kg
+            {p.latestWeightKg != null ? ` · ${formatKg(p.latestWeightKg)}` : ""}
+          </p>
+        </div>
+      )}
+    </MetricCard>
+  );
+}
+
+function StreakStat({ label, days }: { label: string; days: number }) {
+  return (
+    <div>
+      <div className="text-2xl font-semibold tabular-nums">
+        {days > 0 ? days : "—"}
+        {days > 0 && (
+          <span className="text-muted-foreground text-base font-normal">
+            {" "}
+            day{days === 1 ? "" : "s"}
+          </span>
+        )}
+      </div>
+      <div className="text-muted-foreground text-xs">{label}</div>
+    </div>
+  );
+}
+
+export function StreaksCard({ a }: AdherenceProps) {
+  const food = a?.foodStreak.length ?? 0;
+  const supplements = a?.supplementStreak.length ?? 0;
+  return (
+    <MetricCard title="Streaks" icon={Flame}>
+      {food === 0 && supplements === 0 ? (
+        <EmptyState>
+          No streak yet — log food or check your supplements.
+        </EmptyState>
+      ) : (
+        <div className="grid grid-cols-2 gap-2">
+          <StreakStat label="Food logging" days={food} />
+          <StreakStat label="Supplements" days={supplements} />
         </div>
       )}
     </MetricCard>

@@ -4,7 +4,10 @@ import { z } from "zod";
 
 import { dayOf } from "@/lib/dates";
 import { daySchema } from "@/lib/schemas/common";
-import { tdeeWindowSchema } from "@/lib/schemas/insights";
+import {
+  observationsWindowSchema,
+  tdeeWindowSchema,
+} from "@/lib/schemas/insights";
 import type { MealItemInput } from "@/lib/schemas/meals";
 import { trendMetricSchema } from "@/lib/schemas/summary";
 import { supplementTimeGroupSchema } from "@/lib/schemas/supplement";
@@ -43,6 +46,8 @@ import {
   getChecklist,
   resolveByName,
 } from "@/server/services/supplements";
+import { getAdherence } from "@/server/services/adherence";
+import { getObservations } from "@/server/services/observations";
 import { getDailySummary, getTrends } from "@/server/services/summary";
 import { getTdeeEstimate } from "@/server/services/tdee";
 import { VisionError } from "@/server/services/vision";
@@ -135,6 +140,49 @@ export function buildServer(): McpServer {
       },
     },
     ({ metric, days }) => run(() => getTrends(metric, days)),
+  );
+
+  server.registerTool(
+    "get_observations",
+    {
+      description:
+        "Cross-domain OBSERVATIONS over a rolling window: late caffeine vs that night's " +
+        "sleep, sleep vs next-day readiness, readiness vs same-day lifting volume, and the " +
+        "7-day weight average vs sleep. Returns { windowDays, observations: [{ id, title, " +
+        "finding, direction, strength (signed correlation, point-biserial for the caffeine " +
+        "one), n, windowDays }] } ranked by |strength|. Each observation is a CORRELATIONAL " +
+        "HYPOTHESIS with its sample size n stated — NOT established fact and NOT causal. " +
+        "Treat them as hypotheses to investigate, always cite the n, avoid causal language " +
+        "('tends to', not 'because'/'causes'), and NEVER use them to change a target. " +
+        "Detectors with fewer than the minimum paired days are omitted entirely.",
+      inputSchema: {
+        window: observationsWindowSchema
+          .optional()
+          .describe("Rolling window in days, 14–180. Omit for the default (30)."),
+      },
+    },
+    ({ window }) => run(() => getObservations(window)),
+  );
+
+  server.registerTool(
+    "get_adherence",
+    {
+      description:
+        "Adherence for a day: { day, protein, foodStreak, supplementStreak }. protein = " +
+        "{ gPerKg, latestWeightKg, targetG, actualG, remainingG, pct } where targetG is the " +
+        "INTAKE-ONLY protein goal (most recent Withings weight × the configured g/kg) and " +
+        "actualG is the day's logged protein. This target is never netted against calories or " +
+        "expenditure and never changes any other target (CLAUDE.md). Each streak = { length, " +
+        "startDay, milestonesReached } over civil days: foodStreak counts a day with any logged " +
+        "food; supplementStreak counts a day where every currently-active supplement was checked. " +
+        "A still-unlogged today does not break a live streak. Read-only.",
+      inputSchema: {
+        day: daySchema
+          .optional()
+          .describe("Civil date YYYY-MM-DD (Europe/Amsterdam). Defaults to today."),
+      },
+    },
+    ({ day }) => run(() => getAdherence(day)),
   );
 
   server.registerTool(

@@ -519,6 +519,35 @@ model PushSubscription {
   @@map("push_subscriptions")
 }
 
+// One row per observation we've pushed. observationId is unique so a given observation
+// never re-fires (dedupe); `day` records when it fired so the digest can hold to ~1
+// push/day (throttle). Append-only bookkeeping — nothing else reads it.
+model NotifiedObservation {
+  id            String   @id @default(cuid())
+  observationId String   @unique @map("observation_id")
+  day           DateTime @db.Date
+  notifiedAt    DateTime @default(now()) @map("notified_at") @db.Timestamptz(6)
+
+  @@index([day])
+  @@map("notified_observations")
+}
+
+// One row per streak milestone we've celebrated. The dedupe key is
+// (streakType, milestone, startDay): a given milestone fires once per streak RUN, but a
+// fresh streak (new startDay) celebrates again. startDay also lets a missed/no-subscriber
+// day re-fire on a later day (we push on length ≥ milestone, not only the exact day).
+// Append-only bookkeeping — nothing else reads it.
+model NotifiedStreakMilestone {
+  id         String   @id @default(cuid())
+  streakType String   @map("streak_type")
+  milestone  Int
+  startDay   DateTime @map("start_day") @db.Date
+  notifiedAt DateTime @default(now()) @map("notified_at") @db.Timestamptz(6)
+
+  @@unique([streakType, milestone, startDay])
+  @@map("notified_streak_milestones")
+}
+
 model OauthToken {
   provider        OauthProvider @id
   accessTokenEnc  String        @map("access_token_enc")

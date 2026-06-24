@@ -73,3 +73,22 @@ export function weeklySummaryMessage(input: {
     url: "/",
   };
 }
+
+/** Which adherence streak a milestone celebration is for. */
+export type StreakKind = "food" | "supplements";
+
+/**
+ * A celebratory milestone push for a logging streak. Motivating, never nagging — fired only
+ * when a streak REACHES a milestone (7/30/100), never when one breaks (CLAUDE.md).
+ */
+export function streakMilestoneMessage(
+  kind: StreakKind,
+  milestone: number,
+): NotificationMessage {
+  const what = kind === "food" ? "food logging" : "supplements";
+  return {
+    title: `${milestone}-day streak 🔥`,
+    body: `${milestone} days of ${what} in a row — keep it going!`,
+    url: "/",
+  };
+}
