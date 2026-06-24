@@ -6,6 +6,7 @@ import { dayOf } from "@/lib/dates";
 import { daySchema } from "@/lib/schemas/common";
 import {
   observationsWindowSchema,
+  recoveryWindowSchema,
   tdeeWindowSchema,
 } from "@/lib/schemas/insights";
 import type { MealItemInput } from "@/lib/schemas/meals";
@@ -47,6 +48,7 @@ import {
   resolveByName,
 } from "@/server/services/supplements";
 import { getAdherence } from "@/server/services/adherence";
+import { getRecovery } from "@/server/services/recovery";
 import { getObservations } from "@/server/services/observations";
 import { getDailySummary, getTrends } from "@/server/services/summary";
 import { getTdeeEstimate } from "@/server/services/tdee";
@@ -183,6 +185,32 @@ export function buildServer(): McpServer {
       },
     },
     ({ day }) => run(() => getAdherence(day)),
+  );
+
+  server.registerTool(
+    "get_recovery_status",
+    {
+      description:
+        "Recovery trend from Oura for a day: resting HR (night's lowest, bpm), HRV (main " +
+        "sleep's average, ms) and body-temperature deviation (°C), each scored against a " +
+        "rolling baseline (default 30 days). Returns { day, window, metrics: { restingHr, hrv, " +
+        "tempDeviation } each { label, unit, direction, series, baseline (mean±sd) | null, " +
+        "today, z, flag }, status, episodeStart, caveat }. flag ∈ none|elevated|high|" +
+        "insufficient (elevated/high only in the BAD direction: HR↑, HRV↓, temp↑). status ∈ " +
+        "normal|elevated|high|insufficient — 'high' when one metric is strongly off OR ≥2 " +
+        "deviate together. This is a TREND SIGNAL and an early heads-up for possible " +
+        "under-recovery or oncoming illness — NOT a diagnosis or medical advice. An " +
+        "insufficient baseline yields no flag (never guess). Read-only.",
+      inputSchema: {
+        day: daySchema
+          .optional()
+          .describe("Civil date YYYY-MM-DD (Europe/Amsterdam). Defaults to today."),
+        window: recoveryWindowSchema
+          .optional()
+          .describe("Baseline window in days, 14–90. Omit for the default (30)."),
+      },
+    },
+    ({ day, window }) => run(() => getRecovery(day, window)),
   );
 
   server.registerTool(
