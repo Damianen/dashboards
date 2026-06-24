@@ -90,11 +90,16 @@ export function FoodEntryRow({
       >
         <div className="min-w-0">
           <div className="truncate font-medium">{entry.displayName}</div>
-          {!entry.isCustom && (
+          {entry.portions != null ? (
+            <div className="text-muted-foreground text-xs tabular-nums">
+              {formatNumber(entry.portions, 2)}{" "}
+              {entry.portions === 1 ? "portion" : "portions"}
+            </div>
+          ) : !entry.isCustom && entry.quantityG != null ? (
             <div className="text-muted-foreground text-xs tabular-nums">
               {formatNumber(entry.quantityG, 1)} g
             </div>
-          )}
+          ) : null}
         </div>
         <div className="shrink-0 text-right tabular-nums">
           <span className="font-semibold">{formatNumber(entry.kcal)}</span>

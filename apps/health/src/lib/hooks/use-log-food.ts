@@ -68,6 +68,8 @@ export function useLogFood(day: string) {
         eatenAt: eatenAtForDay(day) ?? new Date().toISOString(),
         productBarcode: input.barcode ?? null,
         customName: input.customName ?? null,
+        mealId: null,
+        portions: null,
         quantityG: String(preview.quantityG),
         kcal: String(preview.macros.kcal),
         proteinG: String(preview.macros.proteinG),

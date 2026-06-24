@@ -6,8 +6,10 @@ import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { AddFoodSheet } from "@/components/food/add-food-sheet";
 import { DayTotalBar } from "@/components/food/day-total-bar";
 import { MealSection } from "@/components/food/meal-section";
+import { MealsTab } from "@/components/food/meals/meals-tab";
 import { EmptyState } from "@/components/today/metric-card";
 import { Button } from "@/components/ui/button";
+import { Segmented } from "@/components/ui/segmented";
 import { Skeleton } from "@/components/ui/skeleton";
 import { shiftDay, todayLocal } from "@/lib/dates";
 import { dayTotal, groupByMeal, toView } from "@/lib/food";
@@ -37,6 +39,7 @@ function PageSkeleton() {
 export function FoodPage() {
   const [day, setDay] = useState(todayLocal());
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [tab, setTab] = useState<"diary" | "meals">("diary");
 
   const { data, isLoading, isError, isFetching, refetch } = useFoodEntries(day);
   const views = useMemo(() => (data ?? []).map(toView), [data]);
@@ -73,41 +76,60 @@ export function FoodPage() {
         </div>
       </header>
 
-      <DayTotalBar total={total} />
+      <Segmented
+        ariaLabel="Food view"
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: "diary", label: "Diary" },
+          { value: "meals", label: "Meals" },
+        ]}
+      />
 
-      <Button className="h-12 w-full text-base" onClick={() => setSheetOpen(true)}>
-        <Plus className="size-5" aria-hidden />
-        Add food
-      </Button>
-
-      {isLoading ? (
-        <PageSkeleton />
-      ) : isError ? (
-        <div className="space-y-3 py-8 text-center">
-          <p className="text-muted-foreground text-sm">
-            Couldn&apos;t load your food log.
-          </p>
-          <Button
-            variant="outline"
-            onClick={() => void refetch()}
-            disabled={isFetching}
-          >
-            Retry
-          </Button>
-        </div>
-      ) : groups.length === 0 ? (
-        <div className="py-10 text-center">
-          <EmptyState>No food logged for this day yet.</EmptyState>
-        </div>
+      {tab === "meals" ? (
+        <MealsTab day={day} />
       ) : (
-        <div className="space-y-5">
-          {groups.map((group) => (
-            <MealSection key={group.label} group={group} day={day} />
-          ))}
-        </div>
-      )}
+        <>
+          <DayTotalBar total={total} />
 
-      <AddFoodSheet open={sheetOpen} onOpenChange={setSheetOpen} day={day} />
+          <Button
+            className="h-12 w-full text-base"
+            onClick={() => setSheetOpen(true)}
+          >
+            <Plus className="size-5" aria-hidden />
+            Add food
+          </Button>
+
+          {isLoading ? (
+            <PageSkeleton />
+          ) : isError ? (
+            <div className="space-y-3 py-8 text-center">
+              <p className="text-muted-foreground text-sm">
+                Couldn&apos;t load your food log.
+              </p>
+              <Button
+                variant="outline"
+                onClick={() => void refetch()}
+                disabled={isFetching}
+              >
+                Retry
+              </Button>
+            </div>
+          ) : groups.length === 0 ? (
+            <div className="py-10 text-center">
+              <EmptyState>No food logged for this day yet.</EmptyState>
+            </div>
+          ) : (
+            <div className="space-y-5">
+              {groups.map((group) => (
+                <MealSection key={group.label} group={group} day={day} />
+              ))}
+            </div>
+          )}
+
+          <AddFoodSheet open={sheetOpen} onOpenChange={setSheetOpen} day={day} />
+        </>
+      )}
     </div>
   );
 }

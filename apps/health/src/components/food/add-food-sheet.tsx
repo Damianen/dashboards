@@ -7,6 +7,7 @@ import { Drawer } from "vaul";
 
 import { CustomTab } from "@/components/food/custom-tab";
 import { EstimatePhotoTab } from "@/components/food/estimate-photo-tab";
+import { MealsAddTab } from "@/components/food/meals/meals-add-tab";
 import { QuantityStep } from "@/components/food/quantity-step";
 import { ScanLabelTab } from "@/components/food/scan-label-tab";
 import { ScanTab } from "@/components/food/scan-tab";
@@ -19,7 +20,7 @@ import {
 } from "@/lib/food";
 import { cn } from "@/lib/utils";
 
-type Tab = "scan" | "scanLabel" | "estimate" | "search" | "custom";
+type Tab = "scan" | "scanLabel" | "estimate" | "search" | "custom" | "meals";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "scan", label: "Scan" },
@@ -27,6 +28,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "estimate", label: "Estimate" },
   { id: "search", label: "Search" },
   { id: "custom", label: "Custom" },
+  { id: "meals", label: "Meals" },
 ];
 
 /**
@@ -98,7 +100,7 @@ export function AddFoodSheet({
             </Drawer.Description>
 
             {showTabs && (
-              <div className="bg-muted grid grid-cols-5 gap-1 rounded-lg p-1">
+              <div className="bg-muted grid grid-cols-6 gap-1 rounded-lg p-1">
                 {TABS.map((t) => (
                   <button
                     key={t.id}
@@ -145,12 +147,14 @@ export function AddFoodSheet({
               />
             ) : tab === "search" ? (
               <SearchTab onBarcode={handleBarcode} />
-            ) : (
+            ) : tab === "custom" ? (
               <CustomTab
                 day={day}
                 prefillName={prefillName}
                 onLogged={() => handleOpenChange(false)}
               />
+            ) : (
+              <MealsAddTab day={day} onLogged={() => handleOpenChange(false)} />
             )}
           </div>
         </Drawer.Content>

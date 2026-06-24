@@ -30,6 +30,21 @@ export interface LoggableItem {
   ref: { kind: "barcode"; barcode: string } | { kind: "customFood"; customFoodId: string };
 }
 
+/** Coerce a per-100g JSON object (camelCase keys, missing detail macros absent) into a
+ *  full Macros with nulls for anything absent. Client-safe — used by the meal builder to
+ *  scale a saved custom food, whose per100g optionals arrive as undefined. */
+export function coerceMacros(p: Partial<Macros> | null | undefined): Macros {
+  return {
+    kcal: p?.kcal ?? null,
+    proteinG: p?.proteinG ?? null,
+    carbG: p?.carbG ?? null,
+    fatG: p?.fatG ?? null,
+    fiberG: p?.fiberG ?? null,
+    sugarG: p?.sugarG ?? null,
+    saltG: p?.saltG ?? null,
+  };
+}
+
 /** Adapt a fetched product (Decimal servingG → number) into a LoggableItem. */
 export function productToLoggable(product: FoodProductDTO): LoggableItem {
   return {
@@ -79,7 +94,11 @@ export interface FoodEntryDTO {
   eatenAt: string;
   productBarcode: string | null;
   customName: string | null;
-  quantityG: string;
+  /** Set when the entry was logged from a saved meal; `portions` is how many. */
+  mealId: string | null;
+  portions: string | null;
+  /** Null for meal-logged entries (measured in portions, not grams). */
+  quantityG: string | null;
   kcal: string;
   proteinG: string;
   carbG: string;
@@ -96,10 +115,14 @@ export interface FoodEntryView {
   eatenAt: string;
   meal: MealSlot | null;
   displayName: string;
-  quantityG: number;
+  /** Null for meal-logged entries (measured in portions, not grams). */
+  quantityG: number | null;
   /** A free-form (manually-typed) entry: macros are absolute, not per-100g, so the
    *  diary hides its gram count. Barcode and saved-custom-food entries are false. */
   isCustom: boolean;
+  /** Portions logged when this entry came from a saved meal (else null); the row
+   *  shows "<n> portions" in place of a gram count. */
+  portions: number | null;
   kcal: number;
   proteinG: number;
   carbG: number;
@@ -126,8 +149,9 @@ export function toView(dto: FoodEntryDTO): FoodEntryView {
       dto.customName ??
       dto.productBarcode ??
       "Food",
-    quantityG: Number(dto.quantityG),
+    quantityG: dto.quantityG != null ? Number(dto.quantityG) : null,
     isCustom: dto.customName != null,
+    portions: dto.portions != null ? Number(dto.portions) : null,
     kcal: Number(dto.kcal),
     proteinG: Number(dto.proteinG),
     carbG: Number(dto.carbG),
