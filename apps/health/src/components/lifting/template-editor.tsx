@@ -56,10 +56,13 @@ function newRow(ex: Exercise): EditorExercise {
     targetVolumeKg: 1000,
     restSec: null,
     notes: "",
+    warmups: [],
   };
 }
 
-/** Seed an editor row from a saved template exercise. Its stored id is a stable key. */
+/** Seed an editor row from a saved template exercise. Its stored id is a stable key;
+ *  each warmup keeps both weight values populated (defaulting the inactive one) so
+ *  toggling kg↔% never loses data. */
 function rowFromView(v: TemplateExerciseDTO): EditorExercise {
   return {
     rowId: v.id,
@@ -75,6 +78,13 @@ function rowFromView(v: TemplateExerciseDTO): EditorExercise {
     targetVolumeKg: v.targetVolumeKg ?? 1000,
     restSec: v.restSec,
     notes: v.notes ?? "",
+    warmups: v.warmups.map((w) => ({
+      rowId: crypto.randomUUID(),
+      reps: w.reps,
+      weightMode: w.weightMode,
+      weightKg: w.weightKg ?? 20,
+      percentOfWorking: w.percentOfWorking ?? 50,
+    })),
   };
 }
 
@@ -93,7 +103,15 @@ function toInput(e: EditorExercise): CreateTemplateInput["exercises"][number] {
       weightIncrementKg: e.weightIncrementKg,
       restSec,
       notes,
-      warmups: [],
+      warmups: e.warmups.map((w) =>
+        w.weightMode === "ABSOLUTE"
+          ? { weightMode: "ABSOLUTE" as const, reps: w.reps, weightKg: w.weightKg }
+          : {
+              weightMode: "PERCENT" as const,
+              reps: w.reps,
+              percentOfWorking: w.percentOfWorking,
+            },
+      ),
     };
   }
   // VOLUME exercises never carry warmups (no working weight to anchor a %).
