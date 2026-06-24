@@ -7,12 +7,14 @@ const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
 });
 
-// Deterministic config the daily_summary view reads (water target formula).
+// Deterministic config the daily_summary view reads (water target formula), plus
+// the empirical-TDEE rolling-window default (read by the TDEE service / MCP tool).
 const settings: { key: string; value: number }[] = [
   { key: "water.baseTargetMl", value: 2500 },
   { key: "water.mlPerMgStimulant", value: 1.0 },
   // Protein target factor: grams per kg bodyweight (adherence layer).
   { key: "protein.gPerKg", value: 2.0 },
+  { key: "tdee.windowDays", value: 14 },
 ];
 
 // Default lifting catalogue. `name` is unique, so re-seeding just refreshes

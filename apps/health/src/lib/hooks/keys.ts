@@ -40,4 +40,5 @@ export const queryKeys = {
   trends: (metric: string, days: number) => ["trends", metric, days] as const,
   observations: (window: number) => ["observations", window] as const,
   adherence: (day: string) => ["adherence", day] as const,
+  tdee: (window: number) => ["tdee", window] as const,
 };
