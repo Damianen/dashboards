@@ -68,7 +68,14 @@ export function TemplateExerciseRow({
   return (
     <div className="space-y-3 rounded-lg border p-3">
       <div className="flex items-center gap-1">
-        <span className="flex-1 truncate font-medium">{e.exerciseName}</span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-medium">{e.exerciseName}</p>
+          {e.muscleGroup && (
+            <p className="text-muted-foreground truncate text-xs">
+              {e.muscleGroup}
+            </p>
+          )}
+        </div>
         <button
           type="button"
           aria-label={`Move ${e.exerciseName} up`}
