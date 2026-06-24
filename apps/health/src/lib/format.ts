@@ -29,6 +29,29 @@ export function clampPercent(value: number, target: number): number {
 }
 
 /**
+ * "Last performed" label for a civil day relative to `today` (both "YYYY-MM-DD"):
+ * null → "Never", same/future day → "Today", one day → "Yesterday", up to 6 days
+ * → "N days ago", otherwise an absolute "24 Feb 2026". Pure: both strings are
+ * parsed as UTC midnight (civil days carry no time/zone) and the display is forced
+ * to UTC so the printed date can't drift across a zone boundary.
+ */
+export function formatLastPerformed(day: string | null, today: string): string {
+  if (!day) return "Never";
+  const dayMs = Date.parse(`${day}T00:00:00Z`);
+  const todayMs = Date.parse(`${today}T00:00:00Z`);
+  const diffDays = Math.round((todayMs - dayMs) / 86_400_000);
+  if (diffDays <= 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays <= 6) return `${diffDays} days ago`;
+  return new Date(dayMs).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+/**
  * Coarse "time ago" label ("just now" / "5 min ago" / "3 h ago" / "2 d ago") relative to
  * `now` (defaults to the current time). Dates arrive over JSON as strings; both are
  * accepted. A future instant clamps to "just now". Pure when `now` is supplied.

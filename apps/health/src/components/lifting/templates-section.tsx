@@ -12,26 +12,27 @@ import { useTemplates } from "@/lib/hooks/use-templates";
 
 type Tab = "active" | "archived";
 
-export function TemplatesSection() {
+export function TemplatesSection({ query = "" }: { query?: string }) {
   const [tab, setTab] = useState<Tab>("active");
   const includeArchived = tab === "archived";
   const { data, isLoading, isError, refetch, isFetching } =
     useTemplates(includeArchived);
 
+  const q = query.trim().toLowerCase();
   // The server already filters by archived; filtering again keeps the optimistic
-  // archive flip instant (the flipped row leaves/enters the current tab at once).
-  const shown = (data ?? []).filter((t) =>
-    tab === "archived" ? t.archived : !t.archived,
-  );
+  // archive flip instant. The name filter powers the header search.
+  const shown = (data ?? [])
+    .filter((t) => (tab === "archived" ? t.archived : !t.archived))
+    .filter((t) => q === "" || t.name.toLowerCase().includes(q));
 
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-lg font-semibold">Templates</h2>
-        <Button asChild size="sm" variant="outline">
+        <Button asChild size="sm">
           <Link href="/lifting/templates/new">
             <Plus className="size-4" aria-hidden />
-            New template
+            Template
           </Link>
         </Button>
       </div>
@@ -46,10 +47,14 @@ export function TemplatesSection() {
         ]}
       />
 
+      <p className="text-muted-foreground text-sm font-medium">
+        My Templates ({shown.length})
+      </p>
+
       {isLoading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 2 }).map((_, i) => (
-            <Skeleton key={i} className="h-16 w-full rounded-xl" />
+        <div className="grid grid-cols-2 gap-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-28 w-full rounded-xl" />
           ))}
         </div>
       ) : isError ? (
@@ -67,12 +72,14 @@ export function TemplatesSection() {
         </div>
       ) : shown.length === 0 ? (
         <p className="text-muted-foreground py-2 text-sm">
-          {tab === "archived"
-            ? "No archived templates."
-            : "No templates yet — create one to start a workout in a tap."}
+          {q !== ""
+            ? "No templates match your search."
+            : tab === "archived"
+              ? "No archived templates."
+              : "No templates yet — create one to start a workout in a tap."}
         </p>
       ) : (
-        <div className="space-y-2">
+        <div className="grid grid-cols-2 gap-3">
           {shown.map((t) => (
             <TemplateCard key={t.id} template={t} />
           ))}

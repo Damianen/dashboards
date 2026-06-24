@@ -52,12 +52,18 @@ export interface TemplateView {
   archived: boolean;
   createdAt: Date;
   updatedAt: Date;
+  /** Civil day of the most recent session started from this template, or null if
+   *  it's never been performed. Drives the "Last Performed" labels in the UI. */
+  lastPerformedDay: string | null;
   exercises: TemplateExerciseView[];
 }
 
 /** Map a Prisma row → plain view, coercing Decimal targets to numbers (the client
  *  must never see Decimal strings — same rule listSessions follows for weights). */
-function serializeTemplate(t: TemplateRow): TemplateView {
+function serializeTemplate(
+  t: TemplateRow,
+  lastPerformedDay: string | null = null,
+): TemplateView {
   return {
     id: t.id,
     name: t.name,
@@ -65,6 +71,7 @@ function serializeTemplate(t: TemplateRow): TemplateView {
     archived: t.archived,
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
+    lastPerformedDay,
     exercises: t.exercises.map((e) => ({
       id: e.id,
       exerciseId: e.exerciseId,
@@ -187,6 +194,18 @@ export async function updateTemplate(
   }
 }
 
+/** Civil day of the most recent session started from this template, or null. */
+export async function getLastPerformed(
+  templateId: string,
+): Promise<string | null> {
+  const session = await prisma.liftingSession.findFirst({
+    where: { templateId },
+    orderBy: { startedAt: "desc" },
+    select: { day: true },
+  });
+  return session ? dayOf(session.day) : null;
+}
+
 export async function listTemplates({
   includeArchived = false,
 }: { includeArchived?: boolean } = {}): Promise<TemplateView[]> {
@@ -195,7 +214,21 @@ export async function listTemplates({
     orderBy: { name: "asc" },
     include: templateInclude,
   });
-  return templates.map(serializeTemplate);
+  // One grouped query for every template's latest session day (avoids N+1).
+  const grouped = await prisma.liftingSession.groupBy({
+    by: ["templateId"],
+    where: { templateId: { in: templates.map((t) => t.id) } },
+    _max: { day: true },
+  });
+  const lastDayByTemplate = new Map<string, string>();
+  for (const g of grouped) {
+    if (g.templateId && g._max.day) {
+      lastDayByTemplate.set(g.templateId, dayOf(g._max.day));
+    }
+  }
+  return templates.map((t) =>
+    serializeTemplate(t, lastDayByTemplate.get(t.id) ?? null),
+  );
 }
 
 export async function getTemplate(id: string): Promise<TemplateView> {
@@ -204,7 +237,7 @@ export async function getTemplate(id: string): Promise<TemplateView> {
     include: templateInclude,
   });
   if (!template) throw new NotFoundError("template", id);
-  return serializeTemplate(template);
+  return serializeTemplate(template, await getLastPerformed(id));
 }
 
 export async function duplicateTemplate(id: string): Promise<TemplateView> {

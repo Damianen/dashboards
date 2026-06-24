@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   Archive,
   ArchiveRestore,
+  Clock,
   Copy,
   MoreVertical,
   Pencil,
@@ -12,14 +13,16 @@ import {
 } from "lucide-react";
 import { Drawer } from "vaul";
 
-import { Card, CardContent } from "@/components/ui/card";
+import { TemplatePreviewSheet } from "@/components/lifting/template-preview-sheet";
+import { Card } from "@/components/ui/card";
+import { todayLocal } from "@/lib/dates";
+import { formatLastPerformed } from "@/lib/format";
 import {
   type TemplateDTO,
   useArchiveTemplate,
   useDuplicateTemplate,
   useStartFromTemplate,
 } from "@/lib/hooks/use-templates";
-import { templateSummary } from "@/lib/template-summary";
 
 function ActionItem({
   icon,
@@ -46,116 +49,133 @@ function ActionItem({
   );
 }
 
+/**
+ * A template card in the 2-column grid: name, a greyed comma-separated exercise
+ * list, and a clock + "last performed" label. Tapping the card body opens the
+ * preview sheet; the "…" button opens the action menu (start / edit / duplicate /
+ * archive).
+ */
 export function TemplateCard({ template }: { template: TemplateDTO }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const start = useStartFromTemplate();
   const duplicate = useDuplicateTemplate();
   const archive = useArchiveTemplate();
 
-  const count = template.exercises.length;
-  const summary = templateSummary(template.exercises);
+  const exerciseList = template.exercises
+    .map((e) => e.exerciseName)
+    .join(", ");
 
   function startWorkout() {
-    setOpen(false);
+    setMenuOpen(false);
     start.mutate(template.id, {
       onSuccess: (session) =>
         router.push(`/lifting/sessions/${session.sessionId}`),
     });
   }
   function edit() {
-    setOpen(false);
+    setMenuOpen(false);
+    setPreviewOpen(false);
     router.push(`/lifting/templates/${template.id}/edit`);
   }
   function dup() {
-    setOpen(false);
+    setMenuOpen(false);
     duplicate.mutate(template.id, {
       onSuccess: (created) =>
         router.push(`/lifting/templates/${created.id}/edit`),
     });
   }
   function toggleArchive() {
-    setOpen(false);
+    setMenuOpen(false);
     archive.mutate({ id: template.id, archived: !template.archived });
   }
 
   return (
-    <Card className="gap-0 py-0">
-      <CardContent className="flex items-start justify-between gap-2 px-4 py-3">
-        <div className="min-w-0 flex-1">
-          <p className="truncate font-medium">{template.name}</p>
-          <p className="text-muted-foreground text-sm">
-            {count} {count === 1 ? "exercise" : "exercises"}
-          </p>
-          {summary && (
-            <p className="text-muted-foreground mt-0.5 truncate text-sm">
-              {summary}
-            </p>
-          )}
-        </div>
+    <Card className="relative gap-0 overflow-hidden p-0">
+      <button
+        type="button"
+        onClick={() => setPreviewOpen(true)}
+        className="flex h-full w-full flex-col gap-1 p-3 text-left"
+      >
+        <p className="truncate pr-7 font-medium">{template.name}</p>
+        <p className="text-muted-foreground line-clamp-2 min-h-[2.5rem] text-xs leading-relaxed">
+          {exerciseList || "No exercises"}
+        </p>
+        <p className="text-muted-foreground mt-auto flex items-center gap-1 pt-1 text-xs tabular-nums">
+          <Clock className="size-3.5 shrink-0" aria-hidden />
+          {formatLastPerformed(template.lastPerformedDay, todayLocal())}
+        </p>
+      </button>
 
-        <Drawer.Root open={open} onOpenChange={setOpen}>
-          <Drawer.Trigger asChild>
-            <button
-              type="button"
-              aria-label={`Actions for ${template.name}`}
-              className="hover:bg-accent -mr-1 flex size-11 shrink-0 items-center justify-center rounded-md transition-colors"
-            >
-              <MoreVertical className="size-5" aria-hidden />
-            </button>
-          </Drawer.Trigger>
-          <Drawer.Portal>
-            <Drawer.Overlay className="fixed inset-0 z-50 bg-black/60" />
-            <Drawer.Content
-              className="bg-card fixed inset-x-0 bottom-0 z-50 flex flex-col rounded-t-2xl border-t outline-none"
-              style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
-            >
-              <div className="bg-muted mx-auto mt-3 h-1.5 w-10 shrink-0 rounded-full" />
-              <div className="mx-auto w-full max-w-md space-y-1 p-4">
-                <Drawer.Title className="px-3 pb-1 font-semibold">
-                  {template.name}
-                </Drawer.Title>
-                <Drawer.Description className="sr-only">
-                  Choose an action for this template.
-                </Drawer.Description>
+      <Drawer.Root open={menuOpen} onOpenChange={setMenuOpen}>
+        <Drawer.Trigger asChild>
+          <button
+            type="button"
+            aria-label={`Actions for ${template.name}`}
+            className="hover:bg-accent absolute top-1 right-1 flex size-9 items-center justify-center rounded-md transition-colors"
+          >
+            <MoreVertical className="size-5" aria-hidden />
+          </button>
+        </Drawer.Trigger>
+        <Drawer.Portal>
+          <Drawer.Overlay className="fixed inset-0 z-50 bg-black/60" />
+          <Drawer.Content
+            className="bg-card fixed inset-x-0 bottom-0 z-50 flex flex-col rounded-t-2xl border-t outline-none"
+            style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+          >
+            <div className="bg-muted mx-auto mt-3 h-1.5 w-10 shrink-0 rounded-full" />
+            <div className="mx-auto w-full max-w-md space-y-1 p-4">
+              <Drawer.Title className="px-3 pb-1 font-semibold">
+                {template.name}
+              </Drawer.Title>
+              <Drawer.Description className="sr-only">
+                Choose an action for this template.
+              </Drawer.Description>
 
-                {!template.archived && (
-                  <ActionItem
-                    icon={<Play className="size-5" aria-hidden />}
-                    label="Start workout"
-                    onClick={startWorkout}
-                  />
-                )}
+              {!template.archived && (
                 <ActionItem
-                  icon={<Pencil className="size-5" aria-hidden />}
-                  label="Edit"
-                  onClick={edit}
+                  icon={<Play className="size-5" aria-hidden />}
+                  label="Start workout"
+                  onClick={startWorkout}
                 />
+              )}
+              <ActionItem
+                icon={<Pencil className="size-5" aria-hidden />}
+                label="Edit"
+                onClick={edit}
+              />
+              <ActionItem
+                icon={<Copy className="size-5" aria-hidden />}
+                label="Duplicate"
+                onClick={dup}
+              />
+              {template.archived ? (
                 <ActionItem
-                  icon={<Copy className="size-5" aria-hidden />}
-                  label="Duplicate"
-                  onClick={dup}
+                  icon={<ArchiveRestore className="size-5" aria-hidden />}
+                  label="Unarchive"
+                  onClick={toggleArchive}
                 />
-                {template.archived ? (
-                  <ActionItem
-                    icon={<ArchiveRestore className="size-5" aria-hidden />}
-                    label="Unarchive"
-                    onClick={toggleArchive}
-                  />
-                ) : (
-                  <ActionItem
-                    icon={<Archive className="size-5" aria-hidden />}
-                    label="Archive"
-                    onClick={toggleArchive}
-                    destructive
-                  />
-                )}
-              </div>
-            </Drawer.Content>
-          </Drawer.Portal>
-        </Drawer.Root>
-      </CardContent>
+              ) : (
+                <ActionItem
+                  icon={<Archive className="size-5" aria-hidden />}
+                  label="Archive"
+                  onClick={toggleArchive}
+                  destructive
+                />
+              )}
+            </div>
+          </Drawer.Content>
+        </Drawer.Portal>
+      </Drawer.Root>
+
+      <TemplatePreviewSheet
+        template={template}
+        open={previewOpen}
+        onOpenChange={setPreviewOpen}
+        onEdit={edit}
+      />
     </Card>
   );
 }
