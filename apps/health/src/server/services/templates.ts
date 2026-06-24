@@ -9,6 +9,7 @@ import {
   type TemplateExerciseInput,
   type UpdateTemplateInput,
   updateTemplateSchema,
+  type WarmupSetInput,
 } from "@/lib/schemas/template";
 import { prisma } from "@/server/db";
 import { DomainError, NotFoundError } from "./errors";
@@ -20,6 +21,7 @@ const templateInclude = {
     orderBy: { position: "asc" },
     include: {
       exercise: { select: { id: true, name: true, muscleGroup: true } },
+      warmups: { orderBy: { position: "asc" } },
     },
   },
 } satisfies Prisma.WorkoutTemplateInclude;
@@ -27,6 +29,16 @@ const templateInclude = {
 type TemplateRow = Prisma.WorkoutTemplateGetPayload<{
   include: typeof templateInclude;
 }>;
+
+/** A pre-defined warmup set as the client receives it (Decimals coerced to numbers).
+ *  Exactly one of weightKg (ABSOLUTE) / percentOfWorking (PERCENT) is set. */
+export interface WarmupSetView {
+  position: number;
+  reps: number;
+  weightMode: "ABSOLUTE" | "PERCENT";
+  weightKg: number | null;
+  percentOfWorking: number | null;
+}
 
 export interface TemplateExerciseView {
   id: string;
@@ -43,6 +55,8 @@ export interface TemplateExerciseView {
   targetVolumeKg: number | null;
   restSec: number | null;
   notes: string | null;
+  /** Ordered warmup definitions (empty for exercises with none). */
+  warmups: WarmupSetView[];
 }
 
 export interface TemplateView {
@@ -56,6 +70,27 @@ export interface TemplateView {
    *  it's never been performed. Drives the "Last Performed" labels in the UI. */
   lastPerformedDay: string | null;
   exercises: TemplateExerciseView[];
+}
+
+/** Map loaded warmup rows → plain views, coercing Decimal weights to numbers. The
+ *  rows arrive position-ordered (templateInclude orders them). */
+function serializeWarmups(
+  warmups: {
+    position: number;
+    reps: number;
+    weightMode: "ABSOLUTE" | "PERCENT";
+    weightKg: Prisma.Decimal | null;
+    percentOfWorking: Prisma.Decimal | null;
+  }[],
+): WarmupSetView[] {
+  return warmups.map((w) => ({
+    position: w.position,
+    reps: w.reps,
+    weightMode: w.weightMode,
+    weightKg: w.weightKg == null ? null : Number(w.weightKg),
+    percentOfWorking:
+      w.percentOfWorking == null ? null : Number(w.percentOfWorking),
+  }));
 }
 
 /** Map a Prisma row → plain view, coercing Decimal targets to numbers (the client
@@ -88,6 +123,7 @@ function serializeTemplate(
       targetVolumeKg: e.targetVolumeKg == null ? null : Number(e.targetVolumeKg),
       restSec: e.restSec,
       notes: e.notes,
+      warmups: serializeWarmups(e.warmups),
     })),
   };
 }
@@ -117,7 +153,21 @@ function targetColumns(e: TemplateExerciseInput) {
   };
 }
 
-/** Nested TemplateExercise create rows from the input list — array index is position. */
+/** One warmup input → its DB columns, array index as position, the inactive mode's
+ *  weight column nulled out. Shared shape between TemplateWarmupSet and the
+ *  SessionPlanWarmup snapshot. */
+function warmupColumns(w: WarmupSetInput, position: number) {
+  return {
+    position,
+    reps: w.reps,
+    weightMode: w.weightMode,
+    weightKg: w.weightMode === "ABSOLUTE" ? w.weightKg : null,
+    percentOfWorking: w.weightMode === "PERCENT" ? w.percentOfWorking : null,
+  };
+}
+
+/** Nested TemplateExercise create rows from the input list — array index is position.
+ *  Each carries its ordered warmup definitions as a nested create. */
 function exerciseCreateRows(
   exercises: TemplateExerciseInput[],
 ): Prisma.TemplateExerciseCreateWithoutTemplateInput[] {
@@ -127,6 +177,7 @@ function exerciseCreateRows(
     ...targetColumns(e),
     restSec: e.restSec ?? null,
     notes: e.notes ?? null,
+    warmups: { create: e.warmups.map(warmupColumns) },
   }));
 }
 
@@ -276,6 +327,15 @@ export async function duplicateTemplate(id: string): Promise<TemplateView> {
           targetVolumeKg: e.targetVolumeKg,
           restSec: e.restSec,
           notes: e.notes,
+          warmups: {
+            create: e.warmups.map((w) => ({
+              position: w.position,
+              reps: w.reps,
+              weightMode: w.weightMode,
+              weightKg: w.weightKg,
+              percentOfWorking: w.percentOfWorking,
+            })),
+          },
         })),
       },
     },
@@ -368,6 +428,17 @@ export async function startSessionFromTemplate(
           targetWeightKg: e.targetWeightKg,
           weightIncrementKg: e.weightIncrementKg,
           targetVolumeKg: e.targetVolumeKg,
+          // Snapshot the warmup definitions so template edits never rewrite this
+          // session. Decimals copy straight across (Decimal → Decimal).
+          warmups: {
+            create: e.warmups.map((w) => ({
+              position: w.position,
+              reps: w.reps,
+              weightMode: w.weightMode,
+              weightKg: w.weightKg,
+              percentOfWorking: w.percentOfWorking,
+            })),
+          },
         })),
       },
     },
