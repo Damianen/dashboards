@@ -46,19 +46,57 @@ function roundOrNull(value: number | null): number | null {
   return value == null ? null : Math.round(value);
 }
 
+const KJ_PER_KCAL = 4.184;
+
 /**
- * Parse a HAE datetime into a Date. HAE emits non-ISO strings such as
- * "2026-06-20 07:05:00 +0000" — a space (not 'T') before the time and a space before
- * a colon-less UTC offset — which `new Date()` parses inconsistently. Normalize the
- * separators explicitly first; native ISO ("2025-01-21T10:30:00Z") passes straight
- * through unchanged. Returns null when the value is missing or unparseable, so the
- * caller can skip that workout rather than store an Invalid Date.
+ * Active-energy → kcal. HAE reports energy in the user's locale unit: kJ (metric) or
+ * kcal (imperial), carried in the measurement's `units`. The DB column is kcal, so a kJ
+ * value is converted; kcal (or an unknown/missing unit) is taken as-is. Wrist EE is only
+ * ever a relative trend estimate (per the domain guardrails) — this just keeps the unit honest.
+ */
+function energyKcalOf(value: unknown): number | null {
+  const qty = qtyOf(value);
+  if (qty == null) return null;
+  const units =
+    isRecord(value) && typeof value.units === "string"
+      ? value.units.toLowerCase()
+      : null;
+  return units === "kj" ? qty / KJ_PER_KCAL : qty;
+}
+
+/**
+ * Parse a HAE datetime into a Date. HAE's actual export format is locale-dependent and
+ * `new Date()` parses none of them reliably, so we normalize explicitly:
+ *
+ *  - 12-hour clock: "2026-06-24 5:53:24 PM +0200" — 1–2 digit hour + AM/PM + a
+ *    space-separated, colon-less offset (what HAE emits here). Converted to 24-hour ISO.
+ *  - 24-hour: "2026-06-20 07:05:00 +0000" — space (not 'T') before the time, colon-less
+ *    offset. Separators normalized.
+ *  - native ISO ("2025-01-21T10:30:00Z") passes straight through.
+ *
+ * Returns null when the value is missing or unparseable, so the caller skips that workout
+ * rather than storing an Invalid Date.
  */
 export function parseHaeDate(value: unknown): Date | null {
   if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
   if (typeof value !== "string") return null;
-  const normalized = value
-    .trim()
+  const trimmed = value.trim();
+
+  // 12-hour AM/PM form. new Date() can't parse it, so rebuild an ISO string: convert the
+  // hour to 24h (12 AM → 0, 12 PM → 12) and give the offset a colon.
+  const ampm = trimmed.match(
+    /^(\d{4}-\d{2}-\d{2}) (\d{1,2}):(\d{2}):(\d{2}) (AM|PM) ([+-]\d{2}):?(\d{2})$/i,
+  );
+  if (ampm) {
+    const [, date, hh, mm, ss, meridiem, offHour, offMin] = ampm;
+    const hour = (Number(hh) % 12) + (meridiem?.toUpperCase() === "PM" ? 12 : 0);
+    const iso = `${date}T${String(hour).padStart(2, "0")}:${mm}:${ss}${offHour}:${offMin}`;
+    const parsed = new Date(iso);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  // 24-hour HAE form / native ISO.
+  const normalized = trimmed
     .replace(/^(\d{4}-\d{2}-\d{2}) /, "$1T") // "YYYY-MM-DD " → "YYYY-MM-DDT"
     .replace(/ ([+-]\d{2})(\d{2})$/, "$1:$2") // " +0000" → "+00:00"
     .replace(/ ([+-]\d{2}:\d{2})$/, "$1"); // " +00:00" → "+00:00"
@@ -103,7 +141,8 @@ export function parseWorkouts(payload: unknown): NormalizedWorkout[] {
       durationSeconds: roundOrNull(qtyOf(item.duration)),
       day: dayToDbDate(dayOf(startedAt)),
       distance: qtyOf(item.distance),
-      activeEnergyKcal: qtyOf(item.activeEnergyBurned) ?? qtyOf(item.activeEnergy),
+      activeEnergyKcal:
+        energyKcalOf(item.activeEnergyBurned) ?? energyKcalOf(item.activeEnergy),
       avgHeartRate: roundOrNull(avgHeartRate),
       maxHeartRate: roundOrNull(maxHeartRate),
       raw: item as unknown as Prisma.InputJsonValue,
