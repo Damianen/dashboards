@@ -69,7 +69,7 @@ export async function getOrFetchProduct(
 
 /** Read our normalized per-100g macros back off a per100g JSON column (a cached
  *  product or a saved custom food). Missing keys → null, never 0. */
-function macrosFromJson(json: Prisma.JsonValue): Macros {
+export function macrosFromJson(json: Prisma.JsonValue): Macros {
   const m: Record<string, unknown> =
     typeof json === "object" && json !== null && !Array.isArray(json)
       ? (json as Record<string, unknown>)
@@ -88,7 +88,7 @@ function macrosFromJson(json: Prisma.JsonValue): Macros {
 }
 
 /** Read our normalized per-100g macros back off a cached product's JSON column. */
-function macrosFromProduct(product: FoodProduct): Macros {
+export function macrosFromProduct(product: FoodProduct): Macros {
   return macrosFromJson(product.per100g);
 }
 
