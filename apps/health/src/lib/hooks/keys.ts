@@ -4,7 +4,14 @@ export const queryKeys = {
   summary: (day: string) => ["summary", day] as const,
   water: (day: string) => ["water", day] as const,
   food: (day: string) => ["food", day] as const,
-  supplementNames: () => ["supplement-names"] as const,
+  // Supplements nest under one ["supplements"] prefix so a single invalidate after
+  // any list mutation refreshes the manage list (both filters); the per-day
+  // checklist is keyed on its own day.
+  supplements: () => ["supplements"] as const,
+  supplementChecklist: (day: string) =>
+    ["supplements", "checklist", day] as const,
+  supplementList: (includeArchived: boolean) =>
+    ["supplements", "list", includeArchived] as const,
   // Lifting reads nest under one ["lifting"] prefix so a single invalidate after
   // logging a set refreshes both the sessions list and any exercise history.
   lifting: () => ["lifting"] as const,

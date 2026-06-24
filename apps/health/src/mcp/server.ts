@@ -5,6 +5,7 @@ import { z } from "zod";
 import { dayOf } from "@/lib/dates";
 import { daySchema } from "@/lib/schemas/common";
 import { trendMetricSchema } from "@/lib/schemas/summary";
+import { supplementTimeGroupSchema } from "@/lib/schemas/supplement";
 import { DomainError, NotFoundError } from "@/server/services/errors";
 import {
   createCustomFood,
@@ -28,7 +29,12 @@ import {
   startSessionFromTemplate,
 } from "@/server/services/templates";
 import { logStimulant } from "@/server/services/stimulants";
-import { logSupplement } from "@/server/services/supplements";
+import {
+  check,
+  checkGroup,
+  getChecklist,
+  resolveByName,
+} from "@/server/services/supplements";
 import { getDailySummary, getTrends } from "@/server/services/summary";
 import { VisionError } from "@/server/services/vision";
 import { syncOura } from "@/server/services/sync/oura";
@@ -132,6 +138,23 @@ export function buildServer(): McpServer {
       },
     },
     ({ day }) => run(() => getWaterStatus(day)),
+  );
+
+  server.registerTool(
+    "get_supplement_checklist",
+    {
+      description:
+        "The day's supplement checklist: the three time-groups (MORNING, EVENING, " +
+        "PRE_WORKOUT), each active supplement with its dose/unit and whether it's been " +
+        "taken (complete) that day, plus per-group done/total counts. Tracking only — " +
+        "supplements never enter intake/expenditure or calorie math.",
+      inputSchema: {
+        day: daySchema
+          .optional()
+          .describe("Civil date YYYY-MM-DD (Europe/Amsterdam). Defaults to today."),
+      },
+    },
+    ({ day }) => run(() => getChecklist(day)),
   );
 
   server.registerTool(
@@ -305,16 +328,64 @@ export function buildServer(): McpServer {
   );
 
   server.registerTool(
-    "log_supplement",
+    "check_supplement",
     {
-      description: "Log a supplement taken (e.g. creatine, dose 5, unit g).",
+      description:
+        "Tick a supplement as taken for a day, resolving an ACTIVE supplement by " +
+        "case-insensitive name (dose/unit are snapshotted from the list at check time). " +
+        "Idempotent — checking again never double-logs. If the name matches several " +
+        "active supplements, returns { ambiguous: true, candidates } WITHOUT logging. " +
+        "Returns the day's refreshed checklist.",
       inputSchema: {
-        name: z.string().describe("Supplement name."),
-        dose: z.number().describe("Dose amount (positive)."),
-        unit: z.string().describe("Dose unit, e.g. g, mg, IU, capsule."),
+        name: z
+          .string()
+          .min(1)
+          .describe("Active supplement name (case-insensitive exact match)."),
+        day: daySchema
+          .optional()
+          .describe("Civil date YYYY-MM-DD. Defaults to today."),
       },
     },
-    ({ name, dose, unit }) => run(() => logSupplement({ name, dose, unit }, "MCP")),
+    ({ name, day }) =>
+      run(async () => {
+        const matches = await resolveByName(name);
+        const [only] = matches;
+        if (!only) {
+          throw new DomainError(`no active supplement named "${name}"`);
+        }
+        if (matches.length > 1) {
+          return {
+            ambiguous: true,
+            candidates: matches.map((m) => ({
+              id: m.id,
+              name: m.name,
+              dose: m.dose,
+              unit: m.unit,
+              timeGroup: m.timeGroup,
+            })),
+          };
+        }
+        return check({ supplementId: only.id, day }, "MCP");
+      }),
+  );
+
+  server.registerTool(
+    "check_supplement_group",
+    {
+      description:
+        "Tick every not-yet-taken active supplement in a time-group as taken for a day. " +
+        "Idempotent — re-running never double-logs. Returns { newlyChecked, checklist }.",
+      inputSchema: {
+        time_group: supplementTimeGroupSchema.describe(
+          "Which group: MORNING, EVENING, or PRE_WORKOUT.",
+        ),
+        day: daySchema
+          .optional()
+          .describe("Civil date YYYY-MM-DD. Defaults to today."),
+      },
+    },
+    ({ time_group, day }) =>
+      run(() => checkGroup({ timeGroup: time_group, day }, "MCP")),
   );
 
   server.registerTool(
