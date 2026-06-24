@@ -4,6 +4,7 @@ import {
   clampPercent,
   formatHm,
   formatKg,
+  formatLastPerformed,
   formatNumber,
   relativeTimeFromNow,
 } from "./format";
@@ -72,5 +73,38 @@ describe("relativeTimeFromNow", () => {
   it("labels days beyond 24 hours and accepts ISO strings", () => {
     expect(relativeTimeFromNow(ago(24 * 60 * 60_000), now)).toBe("1 d ago");
     expect(relativeTimeFromNow("2026-06-14T12:00:00.000Z", now)).toBe("2 d ago");
+  });
+});
+
+describe("formatLastPerformed", () => {
+  const today = "2026-06-24";
+
+  it("returns Never for a null day", () => {
+    expect(formatLastPerformed(null, today)).toBe("Never");
+  });
+
+  it("returns Today for the same (or a future) civil day", () => {
+    expect(formatLastPerformed("2026-06-24", today)).toBe("Today");
+    expect(formatLastPerformed("2026-06-25", today)).toBe("Today");
+  });
+
+  it("returns Yesterday for one day ago", () => {
+    expect(formatLastPerformed("2026-06-23", today)).toBe("Yesterday");
+  });
+
+  it("returns 'N days ago' from 2 through 6 days", () => {
+    expect(formatLastPerformed("2026-06-22", today)).toBe("2 days ago");
+    expect(formatLastPerformed("2026-06-19", today)).toBe("5 days ago");
+    expect(formatLastPerformed("2026-06-18", today)).toBe("6 days ago");
+  });
+
+  it("returns an absolute 'D Mon YYYY' beyond 6 days", () => {
+    expect(formatLastPerformed("2026-06-17", today)).toBe("17 Jun 2026");
+    expect(formatLastPerformed("2026-02-24", today)).toBe("24 Feb 2026");
+  });
+
+  it("handles month/year boundaries without drift", () => {
+    expect(formatLastPerformed("2025-12-31", "2026-01-01")).toBe("Yesterday");
+    expect(formatLastPerformed("2025-12-25", "2026-01-01")).toBe("25 Dec 2025");
   });
 });
