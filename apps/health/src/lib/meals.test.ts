@@ -18,6 +18,7 @@ function macros(p: Partial<Macros>): Macros {
     fiberG: null,
     sugarG: null,
     saltG: null,
+    caffeineMg: null,
     ...p,
   };
 }
@@ -88,6 +89,16 @@ describe("computeMealMacros", () => {
     expect(perPortion.fiberG).toBe(1.5);
     expect(total.saltG).toBeNull();
     expect(perPortion.saltG).toBeNull();
+  });
+
+  it("carries caffeine (mg) into the total and per-portion snapshot", () => {
+    // A 2-portion pre-workout shake: only one item is caffeinated.
+    const { total, perPortion } = computeMealMacros(
+      [macros({ kcal: 100, caffeineMg: 200 }), macros({ kcal: 100 })],
+      2,
+    );
+    expect(total.caffeineMg).toBe(200);
+    expect(perPortion.caffeineMg).toBe(100); // 200 / 2 portions
   });
 
   it("rounds per-portion macros to 1 dp", () => {

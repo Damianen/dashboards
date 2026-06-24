@@ -40,6 +40,12 @@ function numOrNull(v: unknown): number | null {
   return typeof n === "number" && Number.isFinite(n) ? n : null;
 }
 
+/** Convert grams to milligrams (OFF reports caffeine in g per 100 g; we store mg),
+ *  rounding to 1 dp. Nulls stay null — a missing nutrient is never fabricated. */
+function gramsToMg(g: number | null): number | null {
+  return g == null ? null : Math.round(g * 1000 * 10) / 10;
+}
+
 /** First brand from OFF's comma-joined `brands` string. */
 function firstBrand(brands: unknown): string | null {
   if (typeof brands !== "string") return null;
@@ -93,6 +99,10 @@ export async function fetchProduct(barcode: string): Promise<OffProduct | null> 
       fiberG: numOrNull(n["fiber_100g"]),
       sugarG: numOrNull(n["sugars_100g"]),
       saltG: numOrNull(n["salt_100g"]),
+      // OFF normalizes caffeine_100g to GRAMS per 100 g (e.g. Red Bull 0.032 g =
+      // 32 mg/100 ml); we store caffeine in mg, so ×1000. OFF caffeine coverage is
+      // sparse, so this is usually null — the UI always allows manual entry/override.
+      caffeineMg: gramsToMg(numOrNull(n["caffeine_100g"])),
     },
     servingG: numOrNull(p.serving_quantity),
     raw: p,

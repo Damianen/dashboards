@@ -230,7 +230,7 @@ function WaterCard({ days }: { days: number }) {
     <TrendCard
       innerRef={ref}
       title="Water"
-      subtitle="Daily intake · per-day target (varies with stimulant load)"
+      subtitle="Daily intake · per-day target (varies with caffeine load)"
       loading={loading}
       empty={!loading && (water.data ?? []).length === 0}
     >
@@ -272,7 +272,7 @@ function CaffeineCard({ days }: { days: number }) {
     <TrendCard
       innerRef={ref}
       title="Caffeine"
-      subtitle="Daily (mg)"
+      subtitle="Daily total — all sources (mg)"
       loading={loading}
       empty={!loading && data.length === 0}
     >

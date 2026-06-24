@@ -26,6 +26,8 @@ export function useLogStimulant(day: string) {
       const previous = await applyOptimisticSummary(qc, day, (s) => ({
         ...s,
         stimulantMg: (s.stimulantMg ?? 0) + input.amountMg,
+        // Stimulants are one source of the unified caffeine total too.
+        caffeineMg: (s.caffeineMg ?? 0) + input.amountMg,
       }));
       return { previous };
     },

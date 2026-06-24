@@ -172,6 +172,10 @@ model FoodEntry {
   fiberG         Decimal?     @map("fiber_g") @db.Decimal(6, 1)
   sugarG         Decimal?     @map("sugar_g") @db.Decimal(6, 1)
   saltG          Decimal?     @map("salt_g") @db.Decimal(6, 2)
+  // Snapshot of this entry's caffeine (mg), already scaled to quantity/portions.
+  // Null when unknown (never 0). Feeds only the unified daily caffeine total /
+  // water target — never any calorie column.
+  caffeineMg     Decimal?     @map("caffeine_mg") @db.Decimal(7, 1)
   micros         Json?
   meal           MealSlot?
   origin         EntryOrigin
@@ -205,7 +209,9 @@ model Meal {
   name          String
   notes         String?
   yieldPortions Decimal     @map("yield_portions") @db.Decimal(6, 2)
-  // {kcal,proteinG,carbG,fatG,fiberG?,sugarG?,saltG?} — same shape as Macros (nulls kept).
+  // {kcal,proteinG,carbG,fatG,fiberG?,sugarG?,saltG?,caffeineMg?} — same shape as
+  // Macros (nulls kept). caffeineMg (mg) rides along so a caffeinated meal feeds the
+  // unified daily caffeine total / water target when logged.
   perPortion    Json        @map("per_portion")
   archived      Boolean     @default(false)
   createdAt     DateTime    @default(now()) @map("created_at")
@@ -243,6 +249,7 @@ model MealItem {
   fiberG         Decimal?     @map("fiber_g") @db.Decimal(6, 1)
   sugarG         Decimal?     @map("sugar_g") @db.Decimal(6, 1)
   saltG          Decimal?     @map("salt_g") @db.Decimal(6, 2)
+  caffeineMg     Decimal?     @map("caffeine_mg") @db.Decimal(7, 1)
 
   @@index([mealId])
   @@index([childMealId])
@@ -455,33 +462,39 @@ model SupplementEntry {
 // ordered within its group by `position`. Archived (not deleted) to retire one
 // without losing its logged history.
 model Supplement {
-  id        String              @id @default(cuid())
-  name      String
-  dose      Decimal             @db.Decimal(8, 2)
-  unit      String
-  timeGroup SupplementTimeGroup @map("time_group")
-  position  Int
-  archived  Boolean             @default(false)
-  createdAt DateTime            @default(now()) @map("created_at")
-  updatedAt DateTime            @updatedAt @map("updated_at")
-  logs      SupplementLog[]
+  id         String              @id @default(cuid())
+  name       String
+  dose       Decimal             @db.Decimal(8, 2)
+  unit       String
+  // Caffeine per dose (mg), e.g. a pre-workout. Null when not caffeinated. Snapshotted
+  // onto each SupplementLog at check time; editing it never rewrites past days.
+  caffeineMg Decimal?            @map("caffeine_mg") @db.Decimal(7, 1)
+  timeGroup  SupplementTimeGroup @map("time_group")
+  position   Int
+  archived   Boolean             @default(false)
+  createdAt  DateTime            @default(now()) @map("created_at")
+  updatedAt  DateTime            @updatedAt @map("updated_at")
+  logs       SupplementLog[]
 
   @@index([timeGroup, position])
   @@map("supplements")
 }
 
 // One "taken today" tick. Exactly one row per supplement per civil day (the
-// unique key makes checking idempotent); dose/unit are snapshotted at check time
-// so later edits to the supplement never rewrite past days.
+// unique key makes checking idempotent); dose/unit/caffeine are snapshotted at check
+// time so later edits to the supplement never rewrite past days.
 model SupplementLog {
-  id           String      @id @default(cuid())
-  supplementId String      @map("supplement_id")
-  supplement   Supplement  @relation(fields: [supplementId], references: [id])
-  day          DateTime    @db.Date
-  takenAt      DateTime    @map("taken_at") @db.Timestamptz(6)
-  doseSnapshot Decimal     @map("dose_snapshot") @db.Decimal(8, 2)
-  unitSnapshot String      @map("unit_snapshot")
-  origin       EntryOrigin
+  id               String      @id @default(cuid())
+  supplementId     String      @map("supplement_id")
+  supplement       Supplement  @relation(fields: [supplementId], references: [id])
+  day              DateTime    @db.Date
+  takenAt          DateTime    @map("taken_at") @db.Timestamptz(6)
+  doseSnapshot     Decimal     @map("dose_snapshot") @db.Decimal(8, 2)
+  unitSnapshot     String      @map("unit_snapshot")
+  // Snapshot of the supplement's caffeineMg at check time (mg). Null when the
+  // supplement carries no caffeine. Summed into the day's unified caffeine total.
+  caffeineSnapshot Decimal?    @map("caffeine_snapshot") @db.Decimal(7, 1)
+  origin           EntryOrigin
 
   @@unique([supplementId, day])
   @@index([day])

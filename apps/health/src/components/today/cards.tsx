@@ -1,5 +1,6 @@
 import {
   Apple,
+  Coffee,
   Droplets,
   Dumbbell,
   Footprints,
@@ -41,6 +42,31 @@ export function WaterCard({ s }: Props) {
             </span>
           </div>
           <Progress percent={clampPercent(water, target)} />
+        </div>
+      )}
+    </MetricCard>
+  );
+}
+
+export function CaffeineCard({ s }: Props) {
+  // Unified daily total: stimulants + food (incl. meals) + checked supplements.
+  const caffeine = s?.caffeineMg ?? null;
+  return (
+    <MetricCard title="Caffeine" icon={Coffee}>
+      {caffeine == null ? (
+        <EmptyState>No caffeine logged yet.</EmptyState>
+      ) : (
+        <div className="space-y-1">
+          <span className="text-2xl font-semibold tabular-nums">
+            {formatNumber(caffeine)}
+            <span className="text-muted-foreground text-base font-normal">
+              {" "}
+              mg
+            </span>
+          </span>
+          <p className="text-muted-foreground text-xs">
+            All sources today · raises your water target.
+          </p>
         </div>
       )}
     </MetricCard>

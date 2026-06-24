@@ -84,6 +84,7 @@ export function macrosFromJson(json: Prisma.JsonValue): Macros {
     fiberG: num("fiberG"),
     sugarG: num("sugarG"),
     saltG: num("saltG"),
+    caffeineMg: num("caffeineMg"),
   };
 }
 
@@ -294,6 +295,7 @@ export async function logFood(
       fiberG: null,
       sugarG: null,
       saltG: null,
+      caffeineMg: null,
     };
   }
 
@@ -309,6 +311,7 @@ export async function logFood(
     fiberG: pick(data.fiberG, base.fiberG),
     sugarG: pick(data.sugarG, base.sugarG),
     saltG: pick(data.saltG, base.saltG),
+    caffeineMg: pick(data.caffeineMg, base.caffeineMg),
   };
 
   return prisma.foodEntry.create({
@@ -326,6 +329,10 @@ export async function logFood(
       fiberG: snap.fiberG,
       sugarG: snap.sugarG,
       saltG: snap.saltG,
+      // Caffeine is snapshotted but kept null when unknown — never coerced to 0
+      // (the daily_summary view COALESCEs it in the unified caffeine SUM). It feeds
+      // only the water-target rule, never any calorie column.
+      caffeineMg: snap.caffeineMg,
       meal: data.meal,
       origin,
       notes: data.notes,

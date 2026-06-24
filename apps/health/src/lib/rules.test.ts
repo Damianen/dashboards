@@ -17,16 +17,23 @@ import {
 } from "./rules";
 
 describe("computeWaterTarget", () => {
-  it("returns the base when there are no stimulants", () => {
+  // The third argument is the day's UNIFIED caffeine total (stimulants + food +
+  // supplements), summed in the SQL view; the math is unchanged.
+  it("returns the base when there is no caffeine", () => {
     expect(computeWaterTarget(2500, 1, 0)).toBe(2500);
   });
 
-  it("adds mlPerMg for each stimulant mg", () => {
+  it("adds mlPerMg for each mg of total caffeine", () => {
     expect(computeWaterTarget(2500, 1, 200)).toBe(2700);
   });
 
   it("scales the bump by mlPerMg", () => {
     expect(computeWaterTarget(2500, 0.5, 200)).toBe(2600);
+  });
+
+  it("treats caffeine from any source identically (it's already summed)", () => {
+    // 100 stimulant + 40 food + 200 supplement = 340 total → 2500 + 340×2.
+    expect(computeWaterTarget(2500, 2, 100 + 40 + 200)).toBe(3180);
   });
 });
 
@@ -49,7 +56,7 @@ describe("shouldReuseSession", () => {
 });
 
 describe("scaleMacros", () => {
-  // Per-100g macros roughly modelled on Nutella (no fiber reported → null).
+  // Per-100g macros roughly modelled on Nutella (no fiber/caffeine reported → null).
   const per100g: Macros = {
     kcal: 539,
     proteinG: 6.3,
@@ -58,6 +65,7 @@ describe("scaleMacros", () => {
     fiberG: null,
     sugarG: 56.3,
     saltG: 0.1,
+    caffeineMg: null,
   };
 
   it("returns the per-100g values unchanged for a 100 g portion", () => {
@@ -77,6 +85,14 @@ describe("scaleMacros", () => {
   it("keeps unreported nutrients null instead of computing 0", () => {
     expect(scaleMacros(per100g, 30).fiberG).toBe(null);
     expect(scaleMacros(per100g, 250).fiberG).toBe(null);
+    expect(scaleMacros(per100g, 250).caffeineMg).toBe(null);
+  });
+
+  it("scales caffeine (mg per 100 g) like any other nutrient", () => {
+    // An energy drink: 32 mg caffeine / 100 ml → a 250 ml can = 80 mg.
+    const drink: Macros = { ...per100g, caffeineMg: 32 };
+    expect(scaleMacros(drink, 250).caffeineMg).toBe(80);
+    expect(scaleMacros(drink, 100).caffeineMg).toBe(32);
   });
 
   it("handles fractional gram quantities", () => {
@@ -92,6 +108,7 @@ describe("scaleMacros", () => {
       fiberG: null,
       sugarG: null,
       saltG: null,
+      caffeineMg: null,
     };
     expect(scaleMacros(empty, 250)).toEqual(empty);
   });

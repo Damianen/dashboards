@@ -83,6 +83,9 @@ function SupplementFields({
   const [name, setName] = useState(supplement?.name ?? "");
   const [dose, setDose] = useState(supplement ? String(supplement.dose) : "");
   const [unit, setUnit] = useState<string>(supplement?.unit ?? "mg");
+  const [caffeine, setCaffeine] = useState(
+    supplement?.caffeineMg != null ? String(supplement.caffeineMg) : "",
+  );
   const [timeGroup, setTimeGroup] = useState<SupplementTimeGroup>(
     supplement?.timeGroup ?? "MORNING",
   );
@@ -96,6 +99,7 @@ function SupplementFields({
       name,
       dose: Number(dose),
       unit,
+      ...(caffeine.trim() !== "" ? { caffeineMg: Number(caffeine) } : {}),
       timeGroup,
     });
     if (!parsed.success) {
@@ -154,6 +158,23 @@ function SupplementFields({
             </SelectContent>
           </Select>
         </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor={`${baseId}-caffeine`}>Caffeine (mg)</Label>
+        <Input
+          id={`${baseId}-caffeine`}
+          type="number"
+          inputMode="decimal"
+          min={0}
+          step="any"
+          placeholder="opt. — e.g. pre-workout"
+          value={caffeine}
+          onChange={(e) => setCaffeine(e.target.value)}
+        />
+        <p className="text-muted-foreground text-[10px]">
+          Counts toward the day&apos;s caffeine total and water target when checked.
+        </p>
       </div>
 
       <div className="space-y-1.5">

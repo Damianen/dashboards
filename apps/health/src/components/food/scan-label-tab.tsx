@@ -73,6 +73,7 @@ export function ScanLabelTab({
   const [fiber, setFiber] = useState("");
   const [sugar, setSugar] = useState("");
   const [salt, setSalt] = useState("");
+  const [caffeine, setCaffeine] = useState("");
   const [confidence, setConfidence] = useState<Confidence>("medium");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
@@ -90,6 +91,7 @@ export function ScanLabelTab({
     setFiber(p?.fiberG != null ? String(p.fiberG) : "");
     setSugar(p?.sugarG != null ? String(p.sugarG) : "");
     setSalt(p?.saltG != null ? String(p.saltG) : "");
+    setCaffeine(p?.caffeineMg != null ? String(p.caffeineMg) : "");
     setConfidence(res.confidence);
     setNotes(res.notes);
   }
@@ -129,6 +131,7 @@ export function ScanLabelTab({
         ...(fiber.trim() !== "" ? { fiberG: Number(fiber) } : {}),
         ...(sugar.trim() !== "" ? { sugarG: Number(sugar) } : {}),
         ...(salt.trim() !== "" ? { saltG: Number(salt) } : {}),
+        ...(caffeine.trim() !== "" ? { caffeineMg: Number(caffeine) } : {}),
       },
       ...(serving.trim() !== "" ? { servingG: Number(serving) } : {}),
       source: "LABEL_SCAN" as const,
@@ -155,6 +158,7 @@ export function ScanLabelTab({
         fiberG: p.fiberG ?? null,
         sugarG: p.sugarG ?? null,
         saltG: p.saltG ?? null,
+        caffeineMg: p.caffeineMg ?? null,
       },
       servingG: input.servingG ?? null,
       ref: { kind: "customFood", customFoodId: id },
@@ -378,6 +382,19 @@ export function ScanLabelTab({
             placeholder="opt."
           />
         </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="label-caffeine">Caffeine per 100 g (mg)</Label>
+        <Input
+          id="label-caffeine"
+          type="number"
+          inputMode="decimal"
+          min={0}
+          value={caffeine}
+          onChange={(e) => setCaffeine(e.target.value)}
+          placeholder="opt."
+        />
       </div>
 
       <div className="text-muted-foreground text-[10px] uppercase">

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ActivityCard,
+  CaffeineCard,
   IntakeCard,
   LiftingCard,
   SleepCard,
@@ -24,7 +25,7 @@ function dateLabel(day: string): string {
 function DashboardSkeleton() {
   return (
     <div className="space-y-4">
-      {Array.from({ length: 6 }).map((_, i) => (
+      {Array.from({ length: 7 }).map((_, i) => (
         <Skeleton key={i} className="h-24 w-full rounded-xl" />
       ))}
     </div>
@@ -60,6 +61,7 @@ export function TodayDashboard() {
       ) : (
         <div className="space-y-4">
           <WaterCard s={data ?? null} />
+          <CaffeineCard s={data ?? null} />
           <SleepCard s={data ?? null} />
           <WeightCard s={data ?? null} />
           <IntakeCard s={data ?? null} />

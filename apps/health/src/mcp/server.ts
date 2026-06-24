@@ -102,6 +102,9 @@ export function buildServer(): McpServer {
       description:
         "The health summary for a day: weight, sleep, readiness, steps, intake " +
         "(kcal/protein/carb/fat), water vs target, caffeine, lifting volume, supplements. " +
+        "caffeineMg is the UNIFIED daily total — stimulant entries + food entries (incl. " +
+        "logged meals) + checked supplements — and is what the water target scales with; " +
+        "stimulantMg is the stimulant-only subset. Caffeine never enters any calorie figure. " +
         `Returns null if no source data exists yet. ${ACTIVE_KCAL_CAVEAT}`,
       inputSchema: {
         day: daySchema
@@ -434,6 +437,13 @@ export function buildServer(): McpServer {
             fiber_g: z.number().optional().describe("Fiber grams per 100 g."),
             sugar_g: z.number().optional().describe("Sugar grams per 100 g."),
             salt_g: z.number().optional().describe("Salt grams per 100 g."),
+            caffeine_mg: z
+              .number()
+              .optional()
+              .describe(
+                "Caffeine MILLIGRAMS per 100 g (not grams). Feeds the day's " +
+                  "caffeine total / water target when logged; never calories.",
+              ),
           })
           .describe("Macros per 100 g."),
         serving_g: z
@@ -455,6 +465,7 @@ export function buildServer(): McpServer {
             fiberG: per100g.fiber_g,
             sugarG: per100g.sugar_g,
             saltG: per100g.salt_g,
+            caffeineMg: per100g.caffeine_mg,
           },
           servingG: serving_g,
           source: "MANUAL",
@@ -517,7 +528,9 @@ export function buildServer(): McpServer {
         "candidates { name, brand, barcode } — pick one and re-call with its barcode. " +
         "(4) name + kcal → logs a one-off custom entry with the provided macros. " +
         "Provide exactly one of barcode / custom_food_name / name. quantity_g is grams; " +
-        "meal is optional; protein_g/carb_g/fat_g override the resolved macros.",
+        "meal is optional; protein_g/carb_g/fat_g override the resolved macros. " +
+        "caffeine_mg (for this quantity) overrides the resolved caffeine and raises the " +
+        "day's caffeine total + water target; it never affects calories.",
       inputSchema: {
         barcode: z
           .string()
@@ -541,6 +554,13 @@ export function buildServer(): McpServer {
         protein_g: z.number().optional().describe("Protein grams (override)."),
         carb_g: z.number().optional().describe("Carbohydrate grams (override)."),
         fat_g: z.number().optional().describe("Fat grams (override)."),
+        caffeine_mg: z
+          .number()
+          .optional()
+          .describe(
+            "Caffeine mg for this quantity (override). Raises the day's caffeine " +
+              "total + water target; never affects calories.",
+          ),
         meal: z
           .enum(["BREAKFAST", "LUNCH", "DINNER", "SNACK"])
           .optional()
@@ -556,6 +576,7 @@ export function buildServer(): McpServer {
       protein_g,
       carb_g,
       fat_g,
+      caffeine_mg,
       meal,
     }) =>
       run(async () => {
@@ -565,6 +586,7 @@ export function buildServer(): McpServer {
           proteinG: protein_g,
           carbG: carb_g,
           fatG: fat_g,
+          caffeineMg: caffeine_mg,
           meal,
         };
         if (barcode != null) {
@@ -732,6 +754,13 @@ export function buildServer(): McpServer {
               fiber_g: z.number().optional().describe("Fiber grams."),
               sugar_g: z.number().optional().describe("Sugar grams."),
               salt_g: z.number().optional().describe("Salt grams."),
+              caffeine_mg: z
+                .number()
+                .optional()
+                .describe(
+                  "Caffeine mg for a free-typed item; barcode/custom-food/child-meal " +
+                    "items inherit caffeine from their source.",
+                ),
             }),
           )
           .describe("Ingredients — exactly one source per item."),
@@ -800,6 +829,7 @@ export function buildServer(): McpServer {
               fiberG: it.fiber_g,
               sugarG: it.sugar_g,
               saltG: it.salt_g,
+              caffeineMg: it.caffeine_mg,
             });
           } else {
             throw new DomainError(
