@@ -1,25 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { ClipboardList, Plus } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 
 import { AddSetSheet } from "@/components/lifting/add-set-sheet";
 import { RecentSessions } from "@/components/lifting/recent-sessions";
-import { TemplateChooserSheet } from "@/components/lifting/template-chooser-sheet";
 import { TemplatesSection } from "@/components/lifting/templates-section";
 import { TodaySessions } from "@/components/lifting/today-sessions";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { todayLocal } from "@/lib/dates";
 import { useLiftingSessions } from "@/lib/hooks/use-lifting-sessions";
-
-function dateLabel(day: string): string {
-  return new Date(`${day}T00:00:00`).toLocaleDateString("en-GB", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  });
-}
 
 function PageSkeleton() {
   return (
@@ -34,7 +26,8 @@ function PageSkeleton() {
 export function LiftingPage() {
   const day = todayLocal();
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [chooserOpen, setChooserOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [query, setQuery] = useState("");
 
   const today = useLiftingSessions(day);
   const recent = useLiftingSessions();
@@ -44,60 +37,77 @@ export function LiftingPage() {
   // The recent list includes today's sessions — keep only older ones here.
   const recentOlder = (recent.data ?? []).filter((s) => s.day !== day);
 
+  function toggleSearch() {
+    setSearchOpen((open) => {
+      if (open) setQuery("");
+      return !open;
+    });
+  }
+
   return (
-    <div className="space-y-4">
-      <header>
-        <h1 className="text-xl font-semibold">Lifting</h1>
-        <p className="text-muted-foreground text-sm">{dateLabel(day)}</p>
+    <div className="space-y-6">
+      <header className="space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <h1 className="text-2xl font-bold">Start Workout</h1>
+          <button
+            type="button"
+            aria-label={searchOpen ? "Hide search" : "Search templates"}
+            aria-pressed={searchOpen}
+            onClick={toggleSearch}
+            className="hover:bg-accent flex size-10 items-center justify-center rounded-full transition-colors"
+          >
+            <Search className="size-5" aria-hidden />
+          </button>
+        </div>
+        {searchOpen && (
+          <Input
+            autoFocus
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search templates"
+            aria-label="Search templates"
+          />
+        )}
       </header>
 
-      <div className="space-y-2">
-        <Button
-          className="h-12 w-full text-base"
-          onClick={() => setSheetOpen(true)}
-        >
-          <Plus className="size-5" aria-hidden />
-          Add set
-        </Button>
-        <Button
-          variant="outline"
-          className="h-12 w-full text-base"
-          onClick={() => setChooserOpen(true)}
-        >
-          <ClipboardList className="size-5" aria-hidden />
-          Start from template
-        </Button>
-      </div>
+      <TemplatesSection query={query} />
 
-      <TemplatesSection />
-
-      {isLoading ? (
-        <PageSkeleton />
-      ) : isError ? (
-        <div className="space-y-3 py-8 text-center">
-          <p className="text-muted-foreground text-sm">
-            Couldn&apos;t load your sessions.
-          </p>
-          <Button
-            variant="outline"
-            onClick={() => {
-              void today.refetch();
-              void recent.refetch();
-            }}
-            disabled={today.isFetching || recent.isFetching}
-          >
-            Retry
+      <section className="space-y-4">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold">Workouts</h2>
+          <Button size="sm" variant="outline" onClick={() => setSheetOpen(true)}>
+            <Plus className="size-4" aria-hidden />
+            Add set
           </Button>
         </div>
-      ) : (
-        <div className="space-y-6">
-          <TodaySessions sessions={today.data ?? []} />
-          <RecentSessions sessions={recentOlder} />
-        </div>
-      )}
+
+        {isLoading ? (
+          <PageSkeleton />
+        ) : isError ? (
+          <div className="space-y-3 py-8 text-center">
+            <p className="text-muted-foreground text-sm">
+              Couldn&apos;t load your sessions.
+            </p>
+            <Button
+              variant="outline"
+              onClick={() => {
+                void today.refetch();
+                void recent.refetch();
+              }}
+              disabled={today.isFetching || recent.isFetching}
+            >
+              Retry
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            <TodaySessions sessions={today.data ?? []} />
+            <RecentSessions sessions={recentOlder} />
+          </div>
+        )}
+      </section>
 
       <AddSetSheet open={sheetOpen} onOpenChange={setSheetOpen} day={day} />
-      <TemplateChooserSheet open={chooserOpen} onOpenChange={setChooserOpen} />
     </div>
   );
 }

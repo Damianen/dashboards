@@ -16,6 +16,9 @@
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-accent-blue: var(--accent-blue);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
@@ -47,6 +50,11 @@
   --popover-foreground: oklch(0.985 0 0);
   --primary: oklch(0.922 0 0);
   --primary-foreground: oklch(0.205 0 0);
+  /* Lifting accents: a vivid green Finish button + a blue exercise-name link,
+   * the only two chromatic surfaces in the otherwise-grayscale dark theme. */
+  --success: oklch(0.62 0.16 150);
+  --success-foreground: oklch(0.985 0 0);
+  --accent-blue: oklch(0.7 0.15 245);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
