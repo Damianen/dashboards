@@ -2,6 +2,7 @@ import { SyncSource } from "@/generated/prisma/client";
 import { dayToDbDate, shiftDay, todayLocal } from "@/lib/dates";
 import {
   isOkToErrorTransition,
+  recoveryHeadsUpMessage,
   type StreakKind,
   streakMilestoneMessage,
   waterNudgeMessage,
@@ -10,6 +11,7 @@ import {
 import { prisma } from "@/server/db";
 import { getAdherence } from "@/server/services/adherence";
 import { getObservations } from "@/server/services/observations";
+import { getRecovery } from "@/server/services/recovery";
 import { sendToAll } from "@/server/services/push";
 import { getDailySummary, getTrends } from "@/server/services/summary";
 import { getWaterStatus } from "@/server/services/water";
@@ -131,6 +133,47 @@ export async function observationDigest(): Promise<void> {
   if (sent === 0) return;
   await prisma.notifiedObservation.create({
     data: { observationId: fresh.id, day: dayToDbDate(today) },
+  });
+}
+
+// Friendly phrases for the heads-up copy, keyed by recovery metric.
+const RECOVERY_METRIC_PHRASES = {
+  restingHr: "resting heart rate",
+  hrv: "HRV",
+  tempDeviation: "body temperature",
+} as const;
+
+/**
+ * After the morning Oura sync: when today's recovery read is "high" (one strong signal, or
+ * several deviating together), push a gentle under-recovery heads-up ONCE per episode. Deduped
+ * by the episode's start day — once recovery returns to baseline a later episode (a new start
+ * day) can fire again. A trend signal, never a diagnosis (CLAUDE.md). Insufficient baseline ⇒
+ * no flag ⇒ no push. Records only after a device actually received it, so a high day before any
+ * subscription exists isn't silently used up.
+ */
+export async function recoveryHeadsUp(): Promise<void> {
+  const recovery = await getRecovery();
+  if (recovery.status !== "high" || recovery.episodeStart == null) return;
+
+  const episodeStart = dayToDbDate(recovery.episodeStart);
+  const already = await prisma.notifiedRecoveryEpisode.findUnique({
+    where: { episodeStart },
+  });
+  if (already) return;
+
+  const offMetrics = (["restingHr", "hrv", "tempDeviation"] as const)
+    .filter((key) => {
+      const flag = recovery.metrics[key].flag;
+      return flag === "elevated" || flag === "high";
+    })
+    .map((key) => RECOVERY_METRIC_PHRASES[key]);
+  const message = recoveryHeadsUpMessage(offMetrics);
+  if (!message) return;
+
+  const { sent } = await sendToAll(message);
+  if (sent === 0) return;
+  await prisma.notifiedRecoveryEpisode.create({
+    data: { episodeStart, status: recovery.status },
   });
 }
 

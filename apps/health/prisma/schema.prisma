@@ -548,6 +548,19 @@ model NotifiedStreakMilestone {
   @@map("notified_streak_milestones")
 }
 
+// One row per under-recovery episode we've pushed a heads-up for. The dedupe key is the
+// episode's start day (the first off-baseline day of the run): a high episode pushes once,
+// and once recovery returns to baseline a later episode has a new start day → it fires again.
+// Append-only bookkeeping — nothing else reads it.
+model NotifiedRecoveryEpisode {
+  id           String   @id @default(cuid())
+  episodeStart DateTime @unique @map("episode_start") @db.Date
+  status       String
+  notifiedAt   DateTime @default(now()) @map("notified_at") @db.Timestamptz(6)
+
+  @@map("notified_recovery_episodes")
+}
+
 model OauthToken {
   provider        OauthProvider @id
   accessTokenEnc  String        @map("access_token_enc")

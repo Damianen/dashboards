@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { daySchema } from "@/lib/schemas/common";
+
 /**
  * The observations rolling window, in days. 14–180 — long enough for a pattern to form,
  * capped so a query can't scan unbounded history. Single source of truth reused by the
@@ -37,3 +39,18 @@ export const setTdeeWindowSchema = z.strictObject({
   windowDays: tdeeWindowSchema,
 });
 export type SetTdeeWindowInput = z.infer<typeof setTdeeWindowSchema>;
+
+/**
+ * The recovery rolling-baseline window, in days. 14–90 — long enough for a stable per-metric
+ * mean/stddev, capped so the query stays a cheap bounded scan. Single source of truth reused
+ * by the route query and the MCP tool input.
+ */
+export const recoveryWindowSchema = z.coerce.number().int().min(14).max(90);
+export type RecoveryWindow = z.infer<typeof recoveryWindowSchema>;
+
+/** GET /api/insights/recovery query: optional day + window (window defaults to 30). */
+export const recoveryQuerySchema = z.strictObject({
+  day: daySchema.optional(),
+  window: recoveryWindowSchema.default(30),
+});
+export type RecoveryQuery = z.infer<typeof recoveryQuerySchema>;

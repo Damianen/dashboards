@@ -13,8 +13,10 @@ import {
   WaterCard,
   WeightCard,
 } from "@/components/today/cards";
+import { RecoveryCard } from "@/components/today/recovery-card";
 import { todayLocal } from "@/lib/dates";
 import { useAdherence } from "@/lib/hooks/use-adherence";
+import { useRecovery } from "@/lib/hooks/use-recovery";
 import { useSummary } from "@/lib/hooks/use-summary";
 
 function dateLabel(day: string): string {
@@ -39,6 +41,7 @@ export function TodayDashboard() {
   const day = todayLocal();
   const { data, isLoading, isError, refetch, isFetching } = useSummary(day);
   const { data: adherence } = useAdherence(day);
+  const { data: recovery } = useRecovery(day);
 
   return (
     <div className="space-y-4">
@@ -67,6 +70,7 @@ export function TodayDashboard() {
           <WaterCard s={data ?? null} />
           <CaffeineCard s={data ?? null} />
           <SleepCard s={data ?? null} />
+          <RecoveryCard r={recovery ?? null} />
           <WeightCard s={data ?? null} />
           <IntakeCard s={data ?? null} />
           <ProteinCard a={adherence ?? null} />

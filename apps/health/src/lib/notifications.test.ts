@@ -4,6 +4,7 @@ import { SyncStatus } from "@/generated/prisma/client";
 import {
   formatLiters,
   isOkToErrorTransition,
+  recoveryHeadsUpMessage,
   streakMilestoneMessage,
   waterNudgeMessage,
   weeklySummaryMessage,
@@ -105,5 +106,26 @@ describe("streakMilestoneMessage", () => {
     expect(streakMilestoneMessage("supplements", 30).body).toBe(
       "30 days of supplements in a row — keep it going!",
     );
+  });
+});
+
+describe("recoveryHeadsUpMessage", () => {
+  it("names a single off-baseline signal with the medical-advice caveat", () => {
+    const msg = recoveryHeadsUpMessage(["body temperature"]);
+    expect(msg?.title).toBe("Heads up — possible under-recovery");
+    expect(msg?.body).toBe(
+      "Body temperature is off your recent baseline. Might be a good day to take it easy. Trend signal, not medical advice.",
+    );
+    expect(msg?.url).toBe("/insights");
+  });
+
+  it("lists several signals and keeps acronyms intact", () => {
+    expect(recoveryHeadsUpMessage(["resting heart rate", "HRV", "body temperature"])?.body).toBe(
+      "Resting heart rate, HRV and body temperature are off your recent baseline. Might be a good day to take it easy. Trend signal, not medical advice.",
+    );
+  });
+
+  it("returns null when nothing is off baseline", () => {
+    expect(recoveryHeadsUpMessage([])).toBeNull();
   });
 });
