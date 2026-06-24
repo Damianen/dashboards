@@ -9,7 +9,9 @@ export default function AppLayout({
   return (
     <div className="min-h-dvh">
       {/* Bottom padding clears the fixed nav + floating FAB. */}
-      <main className="mx-auto w-full max-w-md px-4 pt-6 pb-28">{children}</main>
+      <main className="mx-auto w-full max-w-md px-4 pt-[max(env(safe-area-inset-top),1.5rem)] pb-28">
+        {children}
+      </main>
       <QuickLogFab />
       <BottomNav />
     </div>

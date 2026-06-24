@@ -44,7 +44,7 @@ export function FilterBarView({
 
   return (
     <div className="flex flex-col animate-in fade-in slide-in-from-bottom-1">
-      <div className="sticky top-0 z-10 -mx-4 border-b bg-background/85 px-4 py-2 backdrop-blur">
+      <div className="sticky top-0 z-10 -mx-4 -mt-[max(env(safe-area-inset-top),1rem)] border-b bg-background/85 px-4 pb-2 pt-[calc(max(env(safe-area-inset-top),1rem)+0.5rem)] backdrop-blur">
         <div className="flex items-center gap-1">
           <Link
             href="/browse"
