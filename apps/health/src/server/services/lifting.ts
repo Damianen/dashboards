@@ -22,7 +22,12 @@ import {
   type CreateExerciseInput,
   createExerciseSchema,
 } from "@/lib/schemas/exercise";
-import { logSetSchema, type LogSetInput } from "@/lib/schemas/lifting";
+import {
+  logSetSchema,
+  type LogSetInput,
+  updateSetSchema,
+  type UpdateSetInput,
+} from "@/lib/schemas/lifting";
 import { suggestNextSet } from "@/lib/progression";
 import { prisma } from "@/server/db";
 import { DomainError, NotFoundError } from "./errors";
@@ -83,6 +88,70 @@ export async function logSet(
   });
 }
 
+/** Edit an already-logged set in place. Only the provided fields change; the
+ *  set's session, exercise and setNumber are immutable here. NotFound → 404. */
+export async function updateSet(
+  id: string,
+  input: UpdateSetInput,
+): Promise<LiftingSet> {
+  const data = updateSetSchema.parse(input);
+  try {
+    return await prisma.liftingSet.update({
+      where: { id },
+      data: {
+        reps: data.reps,
+        weightKg: data.weightKg,
+        rpe: data.rpe,
+        isWarmup: data.isWarmup,
+      },
+    });
+  } catch (err) {
+    if (
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      err.code === "P2025"
+    ) {
+      throw new NotFoundError("set", id);
+    }
+    throw err;
+  }
+}
+
+/** Delete a logged set. setNumber is display-order only (the logger renumbers
+ *  rows by position), so a resulting gap is harmless. NotFound → 404. */
+export async function deleteSet(id: string): Promise<void> {
+  try {
+    await prisma.liftingSet.delete({ where: { id } });
+  } catch (err) {
+    if (
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      err.code === "P2025"
+    ) {
+      throw new NotFoundError("set", id);
+    }
+    throw err;
+  }
+}
+
+/** Mark a session finished (stamp endedAt) and return its full detail. Idempotent
+ *  re-stamping is fine — finishing twice just updates the timestamp. */
+export async function finishSession(id: string): Promise<SessionDetail> {
+  try {
+    await prisma.liftingSession.update({
+      where: { id },
+      data: { endedAt: new Date() },
+    });
+  } catch (err) {
+    if (
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      err.code === "P2025"
+    ) {
+      throw new NotFoundError("session", id);
+    }
+    throw err;
+  }
+  return getSession(id);
+}
+
 export interface SessionHistory {
   sessionId: string;
   day: string;
@@ -120,18 +189,25 @@ export async function getHistory(
   }));
 }
 
+/** One actual set from a prior session (Decimal weight coerced). */
+export interface PreviousSet {
+  reps: number;
+  weightKg: number;
+  isWarmup: boolean;
+}
+
 /**
- * The `position`-th working set (isWarmup = false, ordered by set number) of an
- * exercise in the most recent session strictly before `beforeDay`. Falls back to
- * the highest available position when that session logged fewer working sets than
- * `position`; null when there's no prior history. `beforeDay` (today's civil day)
+ * The full set list (warmups and working, ordered by set number) of the most
+ * recent session strictly before `beforeDay` in which this exercise had at least
+ * one *working* set. It backs both the logger's "Previous" column and the
+ * progression suggestions, so the two always agree on which session "last time"
+ * was. `[]` when there's no such prior session. `beforeDay` (today's civil day)
  * keeps an in-progress session from ever referencing itself.
  */
-export async function getLastWorkingSet(
+export async function getLastPerformedSets(
   exerciseId: string,
-  position: number,
   beforeDay: string,
-): Promise<{ reps: number; weightKg: number } | null> {
+): Promise<PreviousSet[]> {
   const session = await prisma.liftingSession.findFirst({
     where: {
       day: { lt: dayToDbDate(beforeDay) },
@@ -139,16 +215,41 @@ export async function getLastWorkingSet(
     },
     orderBy: { startedAt: "desc" },
     include: {
-      sets: {
-        where: { exerciseId, isWarmup: false },
-        orderBy: { setNumber: "asc" },
-      },
+      sets: { where: { exerciseId }, orderBy: { setNumber: "asc" } },
     },
   });
-  if (!session) return null;
-  const set = session.sets[Math.min(position, session.sets.length) - 1];
-  if (!set) return null;
-  return { reps: set.reps, weightKg: Number(set.weightKg) };
+  if (!session) return [];
+  return session.sets.map((s) => ({
+    reps: s.reps,
+    weightKg: Number(s.weightKg),
+    isWarmup: s.isWarmup,
+  }));
+}
+
+/** The `position`-th working set (ordered by set number, warmups excluded) of an
+ *  exercise in the most recent prior session, falling back to the highest
+ *  available position when fewer working sets existed; null when there's no prior
+ *  history. Derived from getLastPerformedSets so the Previous column and the
+ *  suggestions read from the same session. */
+export function lastWorkingSetAt(
+  previous: PreviousSet[],
+  position: number,
+): { reps: number; weightKg: number } | null {
+  const working = previous.filter((s) => !s.isWarmup);
+  if (working.length === 0) return null;
+  const set = working[Math.min(position, working.length) - 1];
+  return set ? { reps: set.reps, weightKg: set.weightKg } : null;
+}
+
+export async function getLastWorkingSet(
+  exerciseId: string,
+  position: number,
+  beforeDay: string,
+): Promise<{ reps: number; weightKg: number } | null> {
+  return lastWorkingSetAt(
+    await getLastPerformedSets(exerciseId, beforeDay),
+    position,
+  );
 }
 
 export interface SessionView {
@@ -239,6 +340,9 @@ export interface SessionExerciseView {
   sets: ExerciseGroup | null;
   progress: PlanProgress | null;
   suggestions: SetSuggestion[];
+  /** The most recent prior session's actual sets for this exercise (warmups +
+   *  working, ordered), powering the logger's "Previous" column. Empty if none. */
+  previousSets: PreviousSet[];
 }
 
 export interface SessionDetail {
@@ -247,6 +351,9 @@ export interface SessionDetail {
   startedAt: Date;
   endedAt: Date | null;
   templateId: string | null;
+  /** 1-based count of this template's sessions up to and including this one (for
+   *  the "Push #3" title); null for ad-hoc sessions with no template. */
+  templateOrdinal: number | null;
   volumeKg: number;
   workingSets: number;
   exercises: SessionExerciseView[];
@@ -299,41 +406,59 @@ export async function getSession(id: string): Promise<SessionDetail> {
   // progress[i] lines up with planItems[i] (summarizePlanProgress preserves order).
   const progress = summarizePlanProgress(planTargets, plain);
 
-  // Progressive-overload prefills, one per target set position, from the same
-  // exercise + position in the most recent prior session. beforeDay = today, so
-  // this in-progress session never feeds its own suggestions. Not persisted.
+  // One prior-session lookup per exercise (planned and logged), reused for both
+  // the "Previous" column and the progression suggestions so they never disagree.
+  // beforeDay = today, so this in-progress session never feeds its own data.
   const beforeDay = todayLocal();
-  const planSuggestions: SetSuggestion[][] = await Promise.all(
-    session.planItems.map((p) => {
-      if (
-        p.targetType !== "REPS" ||
-        p.targetSets == null ||
-        p.repMin == null ||
-        p.repMax == null
-      ) {
-        return Promise.resolve<SetSuggestion[]>([]);
-      }
-      const plan = {
-        repMin: p.repMin,
-        repMax: p.repMax,
-        incrementKg:
-          p.weightIncrementKg == null ? 2.5 : Number(p.weightIncrementKg),
-        startWeightKg:
-          p.targetWeightKg == null ? null : Number(p.targetWeightKg),
-      };
-      return Promise.all(
-        Array.from({ length: p.targetSets }, (_, i) => i + 1).map(
-          async (position) => ({
-            position,
-            ...suggestNextSet(
-              await getLastWorkingSet(p.exerciseId, position, beforeDay),
-              plan,
-            ),
-          }),
-        ),
+  const exerciseIds = new Set<string>([
+    ...session.planItems.map((p) => p.exerciseId),
+    ...groups.map((g) => g.exerciseId),
+  ]);
+  const previousByExercise = new Map<string, PreviousSet[]>();
+  await Promise.all(
+    [...exerciseIds].map(async (exerciseId) => {
+      previousByExercise.set(
+        exerciseId,
+        await getLastPerformedSets(exerciseId, beforeDay),
       );
     }),
   );
+
+  // Progressive-overload prefills, one per target set position, derived from the
+  // cached prior working sets. Not persisted — editable defaults only.
+  const planSuggestions: SetSuggestion[][] = session.planItems.map((p) => {
+    if (
+      p.targetType !== "REPS" ||
+      p.targetSets == null ||
+      p.repMin == null ||
+      p.repMax == null
+    ) {
+      return [];
+    }
+    const plan = {
+      repMin: p.repMin,
+      repMax: p.repMax,
+      incrementKg:
+        p.weightIncrementKg == null ? 2.5 : Number(p.weightIncrementKg),
+      startWeightKg: p.targetWeightKg == null ? null : Number(p.targetWeightKg),
+    };
+    const previous = previousByExercise.get(p.exerciseId) ?? [];
+    return Array.from({ length: p.targetSets }, (_, i) => i + 1).map(
+      (position) => ({
+        position,
+        ...suggestNextSet(lastWorkingSetAt(previous, position), plan),
+      }),
+    );
+  });
+
+  const templateOrdinal = session.templateId
+    ? await prisma.liftingSession.count({
+        where: {
+          templateId: session.templateId,
+          startedAt: { lte: session.startedAt },
+        },
+      })
+    : null;
 
   const exercises: SessionExerciseView[] = [];
   const plannedExerciseIds = new Set<string>();
@@ -358,6 +483,7 @@ export async function getSession(id: string): Promise<SessionDetail> {
       sets: groupByExerciseId.get(p.exerciseId) ?? null,
       progress: progress[i] ?? null,
       suggestions: planSuggestions[i] ?? [],
+      previousSets: previousByExercise.get(p.exerciseId) ?? [],
     });
   });
   for (const g of groups) {
@@ -369,6 +495,7 @@ export async function getSession(id: string): Promise<SessionDetail> {
       sets: g,
       progress: null,
       suggestions: [],
+      previousSets: previousByExercise.get(g.exerciseId) ?? [],
     });
   }
 
@@ -378,6 +505,7 @@ export async function getSession(id: string): Promise<SessionDetail> {
     startedAt: session.startedAt,
     endedAt: session.endedAt,
     templateId: session.templateId,
+    templateOrdinal,
     volumeKg: sessionVolumeKg(groups),
     workingSets: sessionWorkingSets(groups),
     exercises,
