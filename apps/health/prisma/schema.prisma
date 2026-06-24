@@ -55,6 +55,11 @@ enum TemplateTargetType {
   VOLUME
 }
 
+enum WarmupWeightMode {
+  ABSOLUTE
+  PERCENT
+}
+
 model WeightMeasurement {
   id           String   @id @default(cuid())
   measuredAt   DateTime @map("measured_at") @db.Timestamptz(6)
@@ -327,45 +332,84 @@ model WorkoutTemplate {
 }
 
 model TemplateExercise {
-  id                String             @id @default(cuid())
-  templateId        String             @map("template_id")
-  template          WorkoutTemplate    @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  exerciseId        String             @map("exercise_id")
-  exercise          Exercise           @relation(fields: [exerciseId], references: [id])
+  id                String              @id @default(cuid())
+  templateId        String              @map("template_id")
+  template          WorkoutTemplate     @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  exerciseId        String              @map("exercise_id")
+  exercise          Exercise            @relation(fields: [exerciseId], references: [id])
   position          Int
-  targetType        TemplateTargetType @default(REPS) @map("target_type")
-  targetSets        Int?               @map("target_sets")
-  repMin            Int?               @map("rep_min")
-  repMax            Int?               @map("rep_max")
-  targetWeightKg    Decimal?           @map("target_weight_kg") @db.Decimal(5, 2)
-  weightIncrementKg Decimal?           @map("weight_increment_kg") @db.Decimal(5, 2)
-  targetVolumeKg    Decimal?           @map("target_volume_kg") @db.Decimal(7, 1)
-  restSec           Int?               @map("rest_sec")
+  targetType        TemplateTargetType  @default(REPS) @map("target_type")
+  targetSets        Int?                @map("target_sets")
+  repMin            Int?                @map("rep_min")
+  repMax            Int?                @map("rep_max")
+  targetWeightKg    Decimal?            @map("target_weight_kg") @db.Decimal(5, 2)
+  weightIncrementKg Decimal?            @map("weight_increment_kg") @db.Decimal(5, 2)
+  targetVolumeKg    Decimal?            @map("target_volume_kg") @db.Decimal(7, 1)
+  restSec           Int?                @map("rest_sec")
   notes             String?
+  warmups           TemplateWarmupSet[]
 
   @@unique([templateId, position])
   @@index([templateId])
   @@map("template_exercises")
 }
 
+/// An ordered warmup set pre-defined on a template exercise. Its weight is either
+/// an absolute kg (weightKg, ABSOLUTE mode) or a percentage of the exercise's
+/// working weight (percentOfWorking, PERCENT mode) — exactly one is set per mode.
+/// Warmups never count toward volume or progression; they only seed the logger.
+model TemplateWarmupSet {
+  id                 String           @id @default(cuid())
+  templateExerciseId String           @map("template_exercise_id")
+  templateExercise   TemplateExercise @relation(fields: [templateExerciseId], references: [id], onDelete: Cascade)
+  position           Int
+  reps               Int
+  weightMode         WarmupWeightMode @map("weight_mode")
+  weightKg           Decimal?         @map("weight_kg") @db.Decimal(5, 2)
+  percentOfWorking   Decimal?         @map("percent_of_working") @db.Decimal(5, 2)
+
+  @@unique([templateExerciseId, position])
+  @@index([templateExerciseId])
+  @@map("template_warmup_sets")
+}
+
 model SessionPlanItem {
-  id                String             @id @default(cuid())
-  sessionId         String             @map("session_id")
-  session           LiftingSession     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  exerciseId        String             @map("exercise_id")
-  exercise          Exercise           @relation(fields: [exerciseId], references: [id])
+  id                String              @id @default(cuid())
+  sessionId         String              @map("session_id")
+  session           LiftingSession      @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  exerciseId        String              @map("exercise_id")
+  exercise          Exercise            @relation(fields: [exerciseId], references: [id])
   position          Int
-  targetType        TemplateTargetType @default(REPS) @map("target_type")
-  targetSets        Int?               @map("target_sets")
-  repMin            Int?               @map("rep_min")
-  repMax            Int?               @map("rep_max")
-  targetWeightKg    Decimal?           @map("target_weight_kg") @db.Decimal(5, 2)
-  weightIncrementKg Decimal?           @map("weight_increment_kg") @db.Decimal(5, 2)
-  targetVolumeKg    Decimal?           @map("target_volume_kg") @db.Decimal(7, 1)
+  targetType        TemplateTargetType  @default(REPS) @map("target_type")
+  targetSets        Int?                @map("target_sets")
+  repMin            Int?                @map("rep_min")
+  repMax            Int?                @map("rep_max")
+  targetWeightKg    Decimal?            @map("target_weight_kg") @db.Decimal(5, 2)
+  weightIncrementKg Decimal?            @map("weight_increment_kg") @db.Decimal(5, 2)
+  targetVolumeKg    Decimal?            @map("target_volume_kg") @db.Decimal(7, 1)
+  warmups           SessionPlanWarmup[]
 
   @@unique([sessionId, position])
   @@index([sessionId])
   @@map("session_plan_items")
+}
+
+/// Per-session snapshot of a template exercise's warmup definitions, copied when a
+/// workout starts so later template edits never rewrite an in-progress/past
+/// session. Same shape as TemplateWarmupSet (additive snapshot, like SessionPlanItem).
+model SessionPlanWarmup {
+  id               String           @id @default(cuid())
+  planItemId       String           @map("plan_item_id")
+  planItem         SessionPlanItem  @relation(fields: [planItemId], references: [id], onDelete: Cascade)
+  position         Int
+  reps             Int
+  weightMode       WarmupWeightMode @map("weight_mode")
+  weightKg         Decimal?         @map("weight_kg") @db.Decimal(5, 2)
+  percentOfWorking Decimal?         @map("percent_of_working") @db.Decimal(5, 2)
+
+  @@unique([planItemId, position])
+  @@index([planItemId])
+  @@map("session_plan_warmups")
 }
 
 model WaterEntry {

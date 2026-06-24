@@ -35,13 +35,37 @@ export const templateTargetSchema = z
   });
 export type TemplateTargetInput = z.infer<typeof templateTargetSchema>;
 
-/** One exercise within a template: a target plus which exercise, rest, and notes.
- *  Array position in the parent template IS the exercise's stored position. */
+/**
+ * One pre-defined warmup set, discriminated on `weightMode`:
+ *  - ABSOLUTE: a fixed weightKg;
+ *  - PERCENT:  a percentOfWorking (1–100) of the exercise's working weight.
+ * Like templateTargetSchema the branches are z.object (non-strict) so this composes
+ * inside the exercise schema's intersection. The discriminator enforces exactly-one
+ * of weightKg / percentOfWorking. Array position IS the warmup's stored position.
+ */
+export const warmupSetInputSchema = z.discriminatedUnion("weightMode", [
+  z.object({
+    weightMode: z.literal("ABSOLUTE"),
+    reps: z.number().int().min(1).max(100),
+    weightKg: z.number().gt(0).max(500),
+  }),
+  z.object({
+    weightMode: z.literal("PERCENT"),
+    reps: z.number().int().min(1).max(100),
+    percentOfWorking: z.number().min(1).max(100),
+  }),
+]);
+export type WarmupSetInput = z.infer<typeof warmupSetInputSchema>;
+
+/** One exercise within a template: a target plus which exercise, rest, notes, and an
+ *  ordered list of warmup sets. Array position in the parent template IS the
+ *  exercise's stored position; warmups[].position is likewise the array index. */
 export const templateExerciseInputSchema = templateTargetSchema.and(
   z.object({
     exerciseId: z.cuid(),
     restSec: z.number().int().min(0).max(3600).optional(),
     notes: z.string().optional(),
+    warmups: z.array(warmupSetInputSchema).max(10).default([]),
   }),
 );
 export type TemplateExerciseInput = z.infer<typeof templateExerciseInputSchema>;

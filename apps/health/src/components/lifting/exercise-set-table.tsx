@@ -419,10 +419,11 @@ function progressChip(exercise: SessionExercise): {
 
 /**
  * One exercise in the active logger: a blue title + graph + "…" menu, then the
- * Set | Previous | kg | Reps | ✓ table. Logged sets (editable + deletable) come
- * first, then planned working-position placeholders seeded from the progression
- * suggestion, then user-added extra rows. "+ Add set" appends a working row;
- * the "…" menu adds a warmup row.
+ * Set | Previous | kg | Reps | ✓ table. Warmup rows render FIRST (the template's
+ * snapshotted warmups, prefilled from last session / the definition), then the
+ * working sets. Within each section: logged (editable + deletable) → planned
+ * placeholders → user-added extras. "+ Add set" appends a working row; the "…"
+ * menu adds a warmup row.
  */
 export function ExerciseSetTable({
   exercise,
@@ -481,23 +482,85 @@ export function ExerciseSetTable({
     return p ? `${num(p.weightKg)} × ${p.reps}` : null;
   };
 
-  const rows: React.ReactNode[] = [];
+  // Two sections, warmups FIRST then working sets. Each section has its own
+  // ordinal counter so the "Previous" mapping stays k-th ↔ k-th within its kind.
+  const loggedWarmups = loggedSets.filter((s) => s.isWarmup);
+  const loggedWorking = loggedSets.filter((s) => !s.isWarmup);
+  const warmupSuggestions = exercise.warmupSuggestions;
+  const warmupDone = loggedWarmups.length;
+  const extraWarmups = extraRows.filter((x) => x.warmup);
+  const extraWorking = extraRows.filter((x) => !x.warmup);
 
-  for (const set of loggedSets) {
-    if (set.isWarmup) warm++;
-    else working++;
-    rows.push(
+  const warmupRows: React.ReactNode[] = [];
+  const workingRows: React.ReactNode[] = [];
+
+  // --- Warmups: logged → planned (from the template's warmup defs) → extras ---
+  for (const set of loggedWarmups) {
+    warm++;
+    warmupRows.push(
       <LoggedRow
         key={`logged-${set.id}-${set.reps}-${set.weightKg}-${set.isWarmup}`}
         set={set}
-        badge={set.isWarmup ? "W" : String(working)}
-        previous={prevFor(set.isWarmup)}
+        badge="W"
+        previous={prevFor(true)}
         day={day}
         sessionId={sessionId}
       />,
     );
   }
+  for (let pos = warmupDone + 1; pos <= warmupSuggestions.length; pos++) {
+    warm++;
+    const s = warmupSuggestions[pos - 1];
+    warmupRows.push(
+      <EditableRow
+        key={`warmup-plan-${pos}`}
+        exerciseId={exercise.exerciseId}
+        day={day}
+        sessionId={sessionId}
+        seedKey={`${exercise.exerciseId}:warmup:${pos}`}
+        initialReps={s?.reps ?? prevWarmup[pos - 1]?.reps ?? 8}
+        initialWeight={s?.weightKg ?? prevWarmup[pos - 1]?.weightKg ?? null}
+        warmup
+        badge="W"
+        previous={prevFor(true)}
+      />,
+    );
+  }
+  for (const ex of extraWarmups) {
+    warm++;
+    const p = prevWarmup[warm - 1];
+    warmupRows.push(
+      <EditableRow
+        key={`extra-${ex.uid}`}
+        exerciseId={exercise.exerciseId}
+        day={day}
+        sessionId={sessionId}
+        seedKey={`${exercise.exerciseId}:extra:${ex.uid}`}
+        initialReps={p?.reps ?? 8}
+        initialWeight={p?.weightKg ?? null}
+        warmup
+        badge="W"
+        previous={prevFor(true)}
+        onLogged={() => removeExtra(ex.uid)}
+        onRemove={() => removeExtra(ex.uid)}
+      />,
+    );
+  }
 
+  // --- Working sets: logged → planned placeholders → extras (unchanged logic) ---
+  for (const set of loggedWorking) {
+    working++;
+    workingRows.push(
+      <LoggedRow
+        key={`logged-${set.id}-${set.reps}-${set.weightKg}-${set.isWarmup}`}
+        set={set}
+        badge={String(working)}
+        previous={prevFor(false)}
+        day={day}
+        sessionId={sessionId}
+      />,
+    );
+  }
   for (let pos = workingDone + 1; pos <= targetSets; pos++) {
     working++;
     const s = suggestions[pos - 1];
@@ -507,7 +570,7 @@ export function ExerciseSetTable({
       prevWorking[pos - 1]?.weightKg ??
       prevWorking[prevWorking.length - 1]?.weightKg ??
       null;
-    rows.push(
+    workingRows.push(
       <EditableRow
         key={`plan-${pos}`}
         exerciseId={exercise.exerciseId}
@@ -523,55 +586,35 @@ export function ExerciseSetTable({
       />,
     );
   }
-
-  for (const ex of extraRows) {
-    if (ex.warmup) {
-      warm++;
-      const p = prevWarmup[warm - 1];
-      rows.push(
-        <EditableRow
-          key={`extra-${ex.uid}`}
-          exerciseId={exercise.exerciseId}
-          day={day}
-          sessionId={sessionId}
-          seedKey={`${exercise.exerciseId}:extra:${ex.uid}`}
-          initialReps={p?.reps ?? 8}
-          initialWeight={p?.weightKg ?? null}
-          warmup
-          badge="W"
-          previous={prevFor(true)}
-          onLogged={() => removeExtra(ex.uid)}
-          onRemove={() => removeExtra(ex.uid)}
-        />,
-      );
-    } else {
-      working++;
-      const s = suggestions[working - 1];
-      const initialWeight =
-        s?.weightKg ??
-        lastLoggedWorking?.weightKg ??
-        plan?.targetWeightKg ??
-        prevWorking[prevWorking.length - 1]?.weightKg ??
-        null;
-      rows.push(
-        <EditableRow
-          key={`extra-${ex.uid}`}
-          exerciseId={exercise.exerciseId}
-          day={day}
-          sessionId={sessionId}
-          seedKey={`${exercise.exerciseId}:extra:${ex.uid}`}
-          initialReps={s?.reps ?? lastLoggedWorking?.reps ?? plan?.repMin ?? 8}
-          initialWeight={initialWeight}
-          warmup={false}
-          badge={String(working)}
-          previous={prevFor(false)}
-          suggestion={s}
-          onLogged={() => removeExtra(ex.uid)}
-          onRemove={() => removeExtra(ex.uid)}
-        />,
-      );
-    }
+  for (const ex of extraWorking) {
+    working++;
+    const s = suggestions[working - 1];
+    const initialWeight =
+      s?.weightKg ??
+      lastLoggedWorking?.weightKg ??
+      plan?.targetWeightKg ??
+      prevWorking[prevWorking.length - 1]?.weightKg ??
+      null;
+    workingRows.push(
+      <EditableRow
+        key={`extra-${ex.uid}`}
+        exerciseId={exercise.exerciseId}
+        day={day}
+        sessionId={sessionId}
+        seedKey={`${exercise.exerciseId}:extra:${ex.uid}`}
+        initialReps={s?.reps ?? lastLoggedWorking?.reps ?? plan?.repMin ?? 8}
+        initialWeight={initialWeight}
+        warmup={false}
+        badge={String(working)}
+        previous={prevFor(false)}
+        suggestion={s}
+        onLogged={() => removeExtra(ex.uid)}
+        onRemove={() => removeExtra(ex.uid)}
+      />,
+    );
   }
+
+  const rows = [...warmupRows, ...workingRows];
 
   const chip = progressChip(exercise);
 

@@ -13,6 +13,7 @@ import {
   type TemplateExerciseDTO,
   useStartFromTemplate,
 } from "@/lib/hooks/use-templates";
+import { formatWarmupDef } from "@/lib/warmup";
 
 /** "{targetSets} × {name}" for a REPS exercise (the set count is the headline),
  *  else just the name (VOLUME items have no set count). */
@@ -23,6 +24,12 @@ function exerciseTitle(e: TemplateExerciseDTO): string {
   return e.exerciseName;
 }
 
+/** "Warmups: 8 × 50%, 8 × 40 kg" for an exercise that defines warmups, else null. */
+function warmupRecap(e: TemplateExerciseDTO): string | null {
+  if (e.warmups.length === 0) return null;
+  return `Warmups: ${e.warmups.map(formatWarmupDef).join(", ")}`;
+}
+
 /** A one-line target recap surfaced by the "?" button. */
 function exerciseInfo(e: TemplateExerciseDTO): string {
   if (e.targetType === "REPS") {
@@ -31,6 +38,7 @@ function exerciseInfo(e: TemplateExerciseDTO): string {
       e.repMin != null && e.repMax != null ? `${e.repMin}–${e.repMax} reps` : "",
       e.targetWeightKg != null ? `${e.targetWeightKg} kg` : "",
       e.weightIncrementKg != null ? `+${e.weightIncrementKg} kg/session` : "",
+      warmupRecap(e) ?? "",
     ].filter(Boolean);
     return parts.length > 0 ? parts.join(" · ") : "No target set";
   }
@@ -117,6 +125,11 @@ export function TemplatePreviewSheet({
                     {e.muscleGroup && (
                       <p className="text-muted-foreground truncate text-sm">
                         {e.muscleGroup}
+                      </p>
+                    )}
+                    {warmupRecap(e) && (
+                      <p className="text-muted-foreground truncate text-xs">
+                        {warmupRecap(e)}
                       </p>
                     )}
                   </div>
