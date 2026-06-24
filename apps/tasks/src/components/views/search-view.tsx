@@ -30,7 +30,7 @@ export function SearchView({ initialTree }: { initialTree: ProjectTreeNode[] }) 
 
   return (
     <div className="flex flex-col animate-in fade-in slide-in-from-bottom-1">
-      <div className="sticky top-0 z-10 -mx-4 border-b bg-background/85 px-4 py-3 backdrop-blur">
+      <div className="sticky top-0 z-10 -mx-4 -mt-[max(env(safe-area-inset-top),1rem)] border-b bg-background/85 px-4 pb-3 pt-[calc(max(env(safe-area-inset-top),1rem)+0.75rem)] backdrop-blur">
         <div className="flex items-center gap-2 rounded-xl bg-muted px-3">
           <Search className="size-4 shrink-0 text-muted-foreground" aria-hidden />
           <input
