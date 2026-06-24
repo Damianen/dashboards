@@ -134,6 +134,7 @@ model FoodProduct {
   raw       Json?
   fetchedAt DateTime    @map("fetched_at")
   entries   FoodEntry[]
+  mealItems MealItem[]
 
   @@map("food_products")
 }
@@ -147,7 +148,12 @@ model FoodEntry {
   customName     String?      @map("custom_name")
   customFoodId   String?      @map("custom_food_id")
   customFood     CustomFood?  @relation(fields: [customFoodId], references: [id])
-  quantityG      Decimal      @map("quantity_g") @db.Decimal(7, 1)
+  // A meal-logged entry: the recipe it came from and the portion count chosen.
+  // quantityG is null for these (they're measured in portions, not grams).
+  mealId         String?      @map("meal_id")
+  recipe         Meal?        @relation(fields: [mealId], references: [id])
+  portions       Decimal?     @db.Decimal(6, 2)
+  quantityG      Decimal?     @map("quantity_g") @db.Decimal(7, 1)
   kcal           Decimal      @db.Decimal(7, 1)
   proteinG       Decimal      @map("protein_g") @db.Decimal(6, 1)
   carbG          Decimal      @map("carb_g") @db.Decimal(6, 1)
@@ -174,9 +180,62 @@ model CustomFood {
   source    String // "LABEL_SCAN" | "MANUAL" (enforced by Zod at the boundary)
   createdAt DateTime    @default(now()) @map("created_at")
   entries   FoodEntry[]
+  mealItems MealItem[]
 
   @@index([name])
   @@map("custom_foods")
+}
+
+/// A saved recipe: a list of ingredient items plus a yield (how many portions it
+/// makes). `perPortion` is the macro snapshot PER portion, computed and stored at
+/// save time so logging it and editing it stay decoupled (CLAUDE.md snapshot rule).
+model Meal {
+  id            String      @id @default(cuid())
+  name          String
+  notes         String?
+  yieldPortions Decimal     @map("yield_portions") @db.Decimal(6, 2)
+  // {kcal,proteinG,carbG,fatG,fiberG?,sugarG?,saltG?} — same shape as Macros (nulls kept).
+  perPortion    Json        @map("per_portion")
+  archived      Boolean     @default(false)
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+  items         MealItem[]  @relation("MealItems")
+  usedIn        MealItem[]  @relation("MealChild")
+  entries       FoodEntry[]
+
+  @@index([archived])
+  @@map("meals")
+}
+
+/// One ingredient of a Meal. Exactly one source is set (enforced in Zod + the
+/// service), mirroring FoodEntry's resolution and adding a nested-meal source.
+/// The macro columns hold this item's computed contribution to the meal total
+/// (a snapshot); for a free-typed item they ARE its entered macros.
+model MealItem {
+  id             String       @id @default(cuid())
+  mealId         String       @map("meal_id")
+  meal           Meal         @relation("MealItems", fields: [mealId], references: [id], onDelete: Cascade)
+  position       Int
+  productBarcode String?      @map("product_barcode")
+  product        FoodProduct? @relation(fields: [productBarcode], references: [barcode])
+  customFoodId   String?      @map("custom_food_id")
+  customFood     CustomFood?  @relation(fields: [customFoodId], references: [id])
+  customName     String?      @map("custom_name")
+  childMealId    String?      @map("child_meal_id")
+  childMeal      Meal?        @relation("MealChild", fields: [childMealId], references: [id])
+  quantityG      Decimal?     @map("quantity_g") @db.Decimal(7, 1)
+  childPortions  Decimal?     @map("child_portions") @db.Decimal(6, 2)
+  kcal           Decimal?     @db.Decimal(7, 1)
+  proteinG       Decimal?     @map("protein_g") @db.Decimal(6, 1)
+  carbG          Decimal?     @map("carb_g") @db.Decimal(6, 1)
+  fatG           Decimal?     @map("fat_g") @db.Decimal(6, 1)
+  fiberG         Decimal?     @map("fiber_g") @db.Decimal(6, 1)
+  sugarG         Decimal?     @map("sugar_g") @db.Decimal(6, 1)
+  saltG          Decimal?     @map("salt_g") @db.Decimal(6, 2)
+
+  @@index([mealId])
+  @@index([childMealId])
+  @@map("meal_items")
 }
 
 model Exercise {
