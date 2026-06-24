@@ -36,6 +36,26 @@ describe("parseHaeDate", () => {
     );
   });
 
+  it("parses HAE's 12-hour AM/PM format with a single-digit hour", () => {
+    // The real shape HAE emits in a metric/12-hour locale; 5:53 PM +02:00 = 15:53 UTC.
+    expect(parseHaeDate("2026-06-24 5:53:24 PM +0200")?.toISOString()).toBe(
+      "2026-06-24T15:53:24.000Z",
+    );
+    expect(parseHaeDate("2026-06-24 5:53:24 AM +0200")?.toISOString()).toBe(
+      "2026-06-24T03:53:24.000Z",
+    );
+  });
+
+  it("handles the 12 AM/PM hour boundaries", () => {
+    // 12 PM = noon, 12 AM = midnight (rolls to the previous UTC day at +02:00).
+    expect(parseHaeDate("2026-06-24 12:30:00 PM +0200")?.toISOString()).toBe(
+      "2026-06-24T10:30:00.000Z",
+    );
+    expect(parseHaeDate("2026-06-24 12:30:00 AM +0200")?.toISOString()).toBe(
+      "2026-06-23T22:30:00.000Z",
+    );
+  });
+
   it("returns null for missing or unparseable values", () => {
     expect(parseHaeDate(undefined)).toBeNull();
     expect(parseHaeDate(123)).toBeNull();
@@ -70,6 +90,37 @@ describe("parseWorkouts", () => {
     expect(w.activeEnergyKcal).toBe(250);
     expect(w.avgHeartRate).toBe(130); // rounded from 130.4
     expect(w.maxHeartRate).toBe(165);
+  });
+
+  it("imports a real HAE 12-hour-clock workout (regression: was skipped → imported 0)", () => {
+    const w = parseOne({
+      id: "B6EE4FF3",
+      name: "Binnen Wandelen",
+      start: "2026-06-24 5:53:24 PM +0200",
+      end: "2026-06-24 6:05:10 PM +0200",
+      duration: 706.45,
+      distance: { qty: 0.857, units: "km" },
+      activeEnergyBurned: { qty: 723.2, units: "kJ" },
+    });
+    expect((w.startedAt as Date).toISOString()).toBe("2026-06-24T15:53:24.000Z");
+    expect(w.durationSeconds).toBe(706);
+    expect((w.day as Date).toISOString()).toBe("2026-06-24T00:00:00.000Z");
+  });
+
+  it("converts kJ active-energy to kcal, and passes kcal through unchanged", () => {
+    const kj = parseOne({
+      name: "Walk",
+      start: "2026-06-20 07:05:00 +0000",
+      activeEnergyBurned: { qty: 723.2, units: "kJ" },
+    });
+    expect(kj.activeEnergyKcal).toBeCloseTo(172.85, 1); // 723.2 / 4.184
+
+    const kcal = parseOne({
+      name: "Walk",
+      start: "2026-06-20 07:05:00 +0000",
+      activeEnergyBurned: { qty: 250, units: "kcal" },
+    });
+    expect(kcal.activeEnergyKcal).toBe(250);
   });
 
   it("buckets the civil day in Europe/Amsterdam, not UTC", () => {
