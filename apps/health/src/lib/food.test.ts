@@ -38,6 +38,8 @@ const dto = (over: Partial<FoodEntryDTO>): FoodEntryDTO => ({
   eatenAt: "2026-06-16T08:00:00.000Z",
   productBarcode: null,
   customName: null,
+  mealId: null,
+  portions: null,
   quantityG: "100",
   kcal: "0",
   proteinG: "0",
@@ -92,6 +94,22 @@ describe("toView", () => {
     expect(v.displayName).toBe("12345678");
     expect(v.isCustom).toBe(false);
   });
+
+  it("surfaces portions for a meal-logged entry (custom name = meal name)", () => {
+    const v = toView(
+      dto({
+        mealId: "m1",
+        portions: "1.5",
+        customName: "Chicken & Rice",
+        quantityG: null,
+        kcal: "780",
+      }),
+    );
+    expect(v.displayName).toBe("Chicken & Rice");
+    expect(v.portions).toBe(1.5);
+    expect(v.quantityG).toBeNull();
+    expect(v.isCustom).toBe(true); // grams hidden; the row shows portions instead
+  });
 });
 
 const view = (over: Partial<FoodEntryView>): FoodEntryView => ({
@@ -101,6 +119,7 @@ const view = (over: Partial<FoodEntryView>): FoodEntryView => ({
   displayName: "x",
   quantityG: 100,
   isCustom: false,
+  portions: null,
   kcal: 0,
   proteinG: 0,
   carbG: 0,

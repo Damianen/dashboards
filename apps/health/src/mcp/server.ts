@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { dayOf } from "@/lib/dates";
 import { daySchema } from "@/lib/schemas/common";
+import type { MealItemInput } from "@/lib/schemas/meals";
 import { trendMetricSchema } from "@/lib/schemas/summary";
 import { DomainError, NotFoundError } from "@/server/services/errors";
 import {
@@ -14,6 +15,12 @@ import {
   searchCustomFoods,
   searchFoodLog,
 } from "@/server/services/food";
+import {
+  createMeal,
+  listMeals,
+  logMeal,
+  resolveMealByName,
+} from "@/server/services/meals";
 import {
   createExercise,
   getHistory,
@@ -244,6 +251,24 @@ export function buildServer(): McpServer {
       },
     },
     ({ day, query }) => run(() => searchFoodLog({ day, query })),
+  );
+
+  server.registerTool(
+    "list_meals",
+    {
+      description:
+        "Saved meals (recipes), alphabetical. Each has a yield (the number of portions " +
+        "the recipe makes) and snapshotted per-portion macros (perPortion + perPortionKcal). " +
+        "Use log_meal to log one to the diary by name.",
+      inputSchema: {
+        include_archived: z
+          .boolean()
+          .optional()
+          .describe("Include archived meals (default false)."),
+      },
+    },
+    ({ include_archived }) =>
+      run(() => listMeals({ includeArchived: include_archived })),
   );
 
   server.registerTool(
@@ -528,6 +553,195 @@ export function buildServer(): McpServer {
         throw new DomainError(
           "provide a barcode, a custom_food_name, or a name (optionally with kcal for a custom entry)",
         );
+      }),
+  );
+
+  server.registerTool(
+    "log_meal",
+    {
+      description:
+        "Log a SAVED meal (recipe) to the diary as ONE combined entry. Resolves the meal " +
+        "by case-insensitive name: an exact single match logs it, scaling the recipe's " +
+        "per-portion macros by `portions` (fractional allowed, e.g. 1.5); multiple or no " +
+        "matches do NOT log and return { logged: false, candidates: [{ id, name }] } — " +
+        "re-call with an exact name. Macros are snapshotted at log time, so later recipe " +
+        "edits never change this entry. Use list_meals to see what's available.",
+      inputSchema: {
+        meal: z.string().describe("Name of the saved meal to log."),
+        portions: z
+          .number()
+          .describe("Portions to log (positive; fractional allowed, e.g. 1.5)."),
+        meal_slot: z
+          .enum(["BREAKFAST", "LUNCH", "DINNER", "SNACK"])
+          .optional()
+          .describe("Which meal slot this belongs to."),
+        eaten_at: z
+          .string()
+          .optional()
+          .describe("ISO 8601 timestamp with offset; defaults to now."),
+      },
+    },
+    ({ meal, portions, meal_slot, eaten_at }) =>
+      run(async () => {
+        const resolved = await resolveMealByName(meal);
+        if (!("meal" in resolved)) {
+          return {
+            logged: false,
+            message:
+              resolved.candidates.length === 0
+                ? `no meal matches "${meal}"`
+                : "Multiple meals match. Re-call log_meal with an exact name.",
+            candidates: resolved.candidates,
+          };
+        }
+        return await logMeal(
+          {
+            mealId: resolved.meal.id,
+            portions,
+            meal: meal_slot,
+            eatenAt: eaten_at,
+          },
+          "MCP",
+        );
+      }),
+  );
+
+  server.registerTool(
+    "create_meal",
+    {
+      description:
+        "Create a SAVED meal (recipe) from a yield (portions it makes) and a list of " +
+        "items. Each item has exactly one source: barcode (OFF product, with quantity_g), " +
+        "custom_food_name (a saved custom food, with quantity_g), name (a free-typed item " +
+        "with kcal + macros), or child_meal_name (another saved meal nested in, with " +
+        "child_portions). custom_food_name and child_meal_name are resolved by name — an " +
+        "ambiguous/unknown name returns { created: false, candidates } and saves NOTHING. " +
+        "Nested-meal macros are folded in at save time (a snapshot). Does NOT log anything " +
+        "— call log_meal to log it.",
+      inputSchema: {
+        name: z.string().describe("Name of the meal (recipe)."),
+        yield_portions: z
+          .number()
+          .describe("How many portions this recipe makes (positive)."),
+        notes: z.string().optional().describe("Optional notes."),
+        items: z
+          .array(
+            z.object({
+              barcode: z
+                .string()
+                .optional()
+                .describe("Numeric barcode of an OFF product."),
+              custom_food_name: z
+                .string()
+                .optional()
+                .describe("Name of a saved custom food."),
+              name: z
+                .string()
+                .optional()
+                .describe("Free-typed item name (provide kcal + macros)."),
+              child_meal_name: z
+                .string()
+                .optional()
+                .describe("Name of another saved meal to nest."),
+              quantity_g: z
+                .number()
+                .optional()
+                .describe("Grams (for barcode / custom_food_name / free-typed name)."),
+              child_portions: z
+                .number()
+                .optional()
+                .describe("Sub-meal portions (for child_meal_name)."),
+              kcal: z
+                .number()
+                .optional()
+                .describe("Calories (required for a free-typed name item)."),
+              protein_g: z.number().optional().describe("Protein grams."),
+              carb_g: z.number().optional().describe("Carbohydrate grams."),
+              fat_g: z.number().optional().describe("Fat grams."),
+              fiber_g: z.number().optional().describe("Fiber grams."),
+              sugar_g: z.number().optional().describe("Sugar grams."),
+              salt_g: z.number().optional().describe("Salt grams."),
+            }),
+          )
+          .describe("Ingredients — exactly one source per item."),
+      },
+    },
+    ({ name, yield_portions, notes, items }) =>
+      run(async () => {
+        const resolvedItems: MealItemInput[] = [];
+        for (const it of items) {
+          if (it.barcode != null) {
+            resolvedItems.push({ barcode: it.barcode, quantityG: it.quantity_g });
+          } else if (it.custom_food_name != null) {
+            const cfn = it.custom_food_name;
+            const matches = await searchCustomFoods(cfn);
+            const exact = matches.filter(
+              (f) => f.name.toLowerCase() === cfn.trim().toLowerCase(),
+            );
+            const chosen =
+              exact.length === 1
+                ? exact[0]
+                : matches.length === 1
+                  ? matches[0]
+                  : null;
+            if (!chosen) {
+              return {
+                created: false,
+                message:
+                  matches.length === 0
+                    ? `no custom food matches "${cfn}"`
+                    : `multiple custom foods match "${cfn}"; use an exact name`,
+                candidates: matches.map((c) => ({
+                  id: c.id,
+                  name: c.name,
+                  brand: c.brand,
+                })),
+              };
+            }
+            resolvedItems.push({
+              customFoodId: chosen.id,
+              quantityG: it.quantity_g,
+            });
+          } else if (it.child_meal_name != null) {
+            const resolved = await resolveMealByName(it.child_meal_name);
+            if (!("meal" in resolved)) {
+              return {
+                created: false,
+                message:
+                  resolved.candidates.length === 0
+                    ? `no meal matches "${it.child_meal_name}"`
+                    : `multiple meals match "${it.child_meal_name}"; use an exact name`,
+                candidates: resolved.candidates,
+              };
+            }
+            resolvedItems.push({
+              childMealId: resolved.meal.id,
+              childPortions: it.child_portions,
+            });
+          } else if (it.name != null) {
+            resolvedItems.push({
+              customName: it.name,
+              quantityG: it.quantity_g,
+              kcal: it.kcal,
+              proteinG: it.protein_g,
+              carbG: it.carb_g,
+              fatG: it.fat_g,
+              fiberG: it.fiber_g,
+              sugarG: it.sugar_g,
+              saltG: it.salt_g,
+            });
+          } else {
+            throw new DomainError(
+              "each item needs a barcode, custom_food_name, name, or child_meal_name",
+            );
+          }
+        }
+        return await createMeal({
+          name,
+          yieldPortions: yield_portions,
+          notes,
+          items: resolvedItems,
+        });
       }),
   );
 

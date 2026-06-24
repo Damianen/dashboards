@@ -22,6 +22,12 @@ export const queryKeys = {
     ["templates", "list", includeArchived] as const,
   template: (id: string) => ["templates", "detail", id] as const,
   exercises: () => ["exercises"] as const,
+  // Meals (recipes) nest under one ["meals"] prefix so a single invalidate after any
+  // mutation refreshes the list (both filters) and any open builder detail.
+  meals: () => ["meals"] as const,
+  mealList: (includeArchived: boolean) =>
+    ["meals", "list", includeArchived] as const,
+  meal: (id: string) => ["meals", "detail", id] as const,
   connections: () => ["connections"] as const,
   syncStatus: () => ["sync-status"] as const,
   trends: (metric: string, days: number) => ["trends", metric, days] as const,

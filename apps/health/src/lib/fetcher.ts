@@ -27,6 +27,13 @@ export async function postJSON<T>(url: string, body: unknown): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export async function putJSON<T>(url: string, body: unknown): Promise<T> {
+  const res = await fetch(url, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new HttpError(res.status, `PUT ${url} failed`);
 export async function patchJSON<T>(url: string, body: unknown): Promise<T> {
   const res = await fetch(url, {
     method: "PATCH",
