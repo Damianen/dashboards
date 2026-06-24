@@ -3,6 +3,7 @@ import { Cron } from "croner";
 import {
   alertSyncFailure,
   observationDigest,
+  streakMilestones,
   waterNudge,
   weeklySummary,
 } from "@/server/services/notifications";
@@ -85,8 +86,12 @@ export function startScheduler(): void {
   new Cron("0 19 * * *", { timezone: TIMEZONE, name: "observations" }, () =>
     runNotificationJob("observations", observationDigest),
   );
+  // 09:00 daily — celebrate any streak that has hit a milestone (gentle, fires once per run).
+  new Cron("0 9 * * *", { timezone: TIMEZONE, name: "streak-milestones" }, () =>
+    runNotificationJob("streak-milestones", streakMilestones),
+  );
 
   console.log(
-    `[scheduler] started ${SYNC_SOURCES.length + 3} job(s) (${TIMEZONE})`,
+    `[scheduler] started ${SYNC_SOURCES.length + 4} job(s) (${TIMEZONE})`,
   );
 }

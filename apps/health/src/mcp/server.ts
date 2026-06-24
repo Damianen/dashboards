@@ -43,6 +43,7 @@ import {
   getChecklist,
   resolveByName,
 } from "@/server/services/supplements";
+import { getAdherence } from "@/server/services/adherence";
 import { getObservations } from "@/server/services/observations";
 import { getDailySummary, getTrends } from "@/server/services/summary";
 import { VisionError } from "@/server/services/vision";
@@ -157,6 +158,27 @@ export function buildServer(): McpServer {
       },
     },
     ({ window }) => run(() => getObservations(window)),
+  );
+
+  server.registerTool(
+    "get_adherence",
+    {
+      description:
+        "Adherence for a day: { day, protein, foodStreak, supplementStreak }. protein = " +
+        "{ gPerKg, latestWeightKg, targetG, actualG, remainingG, pct } where targetG is the " +
+        "INTAKE-ONLY protein goal (most recent Withings weight × the configured g/kg) and " +
+        "actualG is the day's logged protein. This target is never netted against calories or " +
+        "expenditure and never changes any other target (CLAUDE.md). Each streak = { length, " +
+        "startDay, milestonesReached } over civil days: foodStreak counts a day with any logged " +
+        "food; supplementStreak counts a day where every currently-active supplement was checked. " +
+        "A still-unlogged today does not break a live streak. Read-only.",
+      inputSchema: {
+        day: daySchema
+          .optional()
+          .describe("Civil date YYYY-MM-DD (Europe/Amsterdam). Defaults to today."),
+      },
+    },
+    ({ day }) => run(() => getAdherence(day)),
   );
 
   server.registerTool(

@@ -4,6 +4,7 @@ import { SyncStatus } from "@/generated/prisma/client";
 import {
   formatLiters,
   isOkToErrorTransition,
+  streakMilestoneMessage,
   waterNudgeMessage,
   weeklySummaryMessage,
 } from "./notifications";
@@ -89,5 +90,20 @@ describe("weeklySummaryMessage", () => {
       avgSleepScore: null,
     });
     expect(msg.body).toBe("Weight — vs last week · Lifting — · Sleep — avg");
+  });
+});
+
+describe("streakMilestoneMessage", () => {
+  it("celebrates a food-logging milestone", () => {
+    const msg = streakMilestoneMessage("food", 7);
+    expect(msg.title).toBe("7-day streak 🔥");
+    expect(msg.body).toBe("7 days of food logging in a row — keep it going!");
+    expect(msg.url).toBe("/");
+  });
+
+  it("labels the supplement streak distinctly", () => {
+    expect(streakMilestoneMessage("supplements", 30).body).toBe(
+      "30 days of supplements in a row — keep it going!",
+    );
   });
 });

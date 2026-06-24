@@ -11,6 +11,8 @@ const prisma = new PrismaClient({
 const settings: { key: string; value: number }[] = [
   { key: "water.baseTargetMl", value: 2500 },
   { key: "water.mlPerMgStimulant", value: 1.0 },
+  // Protein target factor: grams per kg bodyweight (adherence layer).
+  { key: "protein.gPerKg", value: 2.0 },
 ];
 
 // Default lifting catalogue. `name` is unique, so re-seeding just refreshes

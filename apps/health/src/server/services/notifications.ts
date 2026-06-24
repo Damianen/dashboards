@@ -2,10 +2,13 @@ import { SyncSource } from "@/generated/prisma/client";
 import { dayToDbDate, shiftDay, todayLocal } from "@/lib/dates";
 import {
   isOkToErrorTransition,
+  type StreakKind,
+  streakMilestoneMessage,
   waterNudgeMessage,
   weeklySummaryMessage,
 } from "@/lib/notifications";
 import { prisma } from "@/server/db";
+import { getAdherence } from "@/server/services/adherence";
 import { getObservations } from "@/server/services/observations";
 import { sendToAll } from "@/server/services/push";
 import { getDailySummary, getTrends } from "@/server/services/summary";
@@ -129,4 +132,58 @@ export async function observationDigest(): Promise<void> {
   await prisma.notifiedObservation.create({
     data: { observationId: fresh.id, day: dayToDbDate(today) },
   });
+}
+
+/**
+ * Celebrate logging streaks that have reached a milestone (7/30/100). For each streak we push
+ * the highest not-yet-celebrated milestone once, deduped by (streakType, milestone, startDay):
+ * a given milestone fires once per streak RUN, and a fresh streak (new start day) celebrates
+ * again. We fire on length ≥ milestone (not only the exact day), so a missed or
+ * no-subscriber day re-fires later. A broken streak is silent — there is simply nothing to
+ * celebrate (no guilt pings, CLAUDE.md). Records only after a device actually received it.
+ */
+export async function streakMilestones(): Promise<void> {
+  const today = todayLocal();
+  const adherence = await getAdherence(today);
+
+  const streaks: { type: StreakKind; reached: number[]; startDay: string | null }[] = [
+    {
+      type: "food",
+      reached: adherence.foodStreak.milestonesReached,
+      startDay: adherence.foodStreak.startDay,
+    },
+    {
+      type: "supplements",
+      reached: adherence.supplementStreak.milestonesReached,
+      startDay: adherence.supplementStreak.startDay,
+    },
+  ];
+
+  for (const { type, reached, startDay } of streaks) {
+    if (reached.length === 0 || startDay == null) continue;
+    const dbStartDay = dayToDbDate(startDay);
+
+    // Milestones already celebrated for THIS run (same start day) — never re-fire those.
+    const recorded = await prisma.notifiedStreakMilestone.findMany({
+      where: { streakType: type, startDay: dbStartDay, milestone: { in: reached } },
+      select: { milestone: true },
+    });
+    const recordedSet = new Set(recorded.map((r) => r.milestone));
+    const fresh = reached.filter((m) => !recordedSet.has(m));
+    if (fresh.length === 0) continue;
+
+    // Celebrate the most impressive new milestone once; a backfill that jumps past several
+    // shouldn't spam every lower one.
+    const top = Math.max(...fresh);
+    const { sent } = await sendToAll(streakMilestoneMessage(type, top));
+    // Only record once it reached a device — otherwise a milestone hit before any subscription
+    // exists would be silently used up and never celebrated.
+    if (sent === 0) continue;
+    // Record every newly-passed milestone (incl. the lower ones the jump surpassed) so none
+    // re-fires later in this run.
+    await prisma.notifiedStreakMilestone.createMany({
+      data: fresh.map((milestone) => ({ streakType: type, milestone, startDay: dbStartDay })),
+      skipDuplicates: true,
+    });
+  }
 }
