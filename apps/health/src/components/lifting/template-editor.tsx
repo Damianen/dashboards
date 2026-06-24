@@ -93,14 +93,17 @@ function toInput(e: EditorExercise): CreateTemplateInput["exercises"][number] {
       weightIncrementKg: e.weightIncrementKg,
       restSec,
       notes,
+      warmups: [],
     };
   }
+  // VOLUME exercises never carry warmups (no working weight to anchor a %).
   return {
     exerciseId: e.exerciseId,
     targetType: "VOLUME",
     targetVolumeKg: e.targetVolumeKg,
     restSec,
     notes,
+    warmups: [],
   };
 }
 
