@@ -28,6 +28,7 @@ import {
   xAxisProps,
   yAxisProps,
 } from "@/components/trends/trend-card";
+import { TdeeCard } from "@/components/trends/tdee-card";
 import { bucketWeekly, mergeByDay } from "@/lib/aggregate";
 import { useInView } from "@/lib/hooks/use-in-view";
 import { useTrend } from "@/lib/hooks/use-trend";
@@ -63,6 +64,8 @@ export function TrendsPage() {
           nor sharing an axis/card with, intake kcal. */}
       <div className="space-y-4">
         <WeightCard days={days} />
+        {/* Self-contained: its own 14/21/28 window, independent of the page range. */}
+        <TdeeCard />
         <SleepReadinessCard days={days} />
         <ActivityCard days={days} />
         <WaterCard days={days} />
