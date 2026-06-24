@@ -29,6 +29,7 @@ import {
   type UpdateSetInput,
 } from "@/lib/schemas/lifting";
 import { suggestNextSet } from "@/lib/progression";
+import { suggestWarmupSet } from "@/lib/warmup";
 import { prisma } from "@/server/db";
 import { DomainError, NotFoundError } from "./errors";
 
@@ -252,6 +253,31 @@ export async function getLastWorkingSet(
   );
 }
 
+/** The `position`-th warmup set (1-based, ordered by set number, working sets
+ *  excluded) of an exercise in the most recent prior session; null when there was
+ *  no warmup at that position. Mirrors lastWorkingSetAt and reads the same
+ *  getLastPerformedSets list, so the warmup "Previous" column and the warmup
+ *  prefills always agree on which session "last time" was. */
+export function lastWarmupSetAt(
+  previous: PreviousSet[],
+  position: number,
+): { reps: number; weightKg: number } | null {
+  const warmups = previous.filter((s) => s.isWarmup);
+  const set = warmups[position - 1];
+  return set ? { reps: set.reps, weightKg: set.weightKg } : null;
+}
+
+export async function getLastWarmupSet(
+  exerciseId: string,
+  position: number,
+  beforeDay: string,
+): Promise<{ reps: number; weightKg: number } | null> {
+  return lastWarmupSetAt(
+    await getLastPerformedSets(exerciseId, beforeDay),
+    position,
+  );
+}
+
 export interface SessionView {
   sessionId: string;
   day: string;
@@ -329,6 +355,15 @@ export interface SetSuggestion {
   weightIncreased: boolean;
 }
 
+/** A prefill for one defined warmup set (never persisted). reps/weight come from
+ *  last session's warmup at this position, else from the template definition (% of
+ *  working weight resolved to kg, or null when there's no working weight). */
+export interface WarmupSuggestion {
+  position: number;
+  reps: number;
+  weightKg: number | null;
+}
+
 /** One exercise in a session: its plan snapshot (null if unplanned), the sets
  *  logged for it (null if planned but nothing logged yet), progress vs target
  *  (null when there's no plan to measure against), and per-position prefill
@@ -340,6 +375,9 @@ export interface SessionExerciseView {
   sets: ExerciseGroup | null;
   progress: PlanProgress | null;
   suggestions: SetSuggestion[];
+  /** Per-position prefills for this exercise's snapshotted warmup sets, rendered
+   *  before the working sets. Empty when the plan defines no warmups. */
+  warmupSuggestions: WarmupSuggestion[];
   /** The most recent prior session's actual sets for this exercise (warmups +
    *  working, ordered), powering the logger's "Previous" column. Empty if none. */
   previousSets: PreviousSet[];
@@ -372,6 +410,7 @@ export async function getSession(id: string): Promise<SessionDetail> {
         orderBy: { position: "asc" },
         include: {
           exercise: { select: { id: true, name: true, muscleGroup: true } },
+          warmups: { orderBy: { position: "asc" } },
         },
       },
       sets: {
@@ -451,6 +490,34 @@ export async function getSession(id: string): Promise<SessionDetail> {
     );
   });
 
+  // Warmup prefills, one per snapshotted warmup definition (rendered before the
+  // working sets). Each reuses last session's warmup at that position, else resolves
+  // the definition against the WORKING WEIGHT — the set-1 progression suggestion (it
+  // already folds in the snapshotted targetWeightKg), null when there's neither.
+  const planWarmupSuggestions: WarmupSuggestion[][] = session.planItems.map(
+    (p, i) => {
+      if (p.warmups.length === 0) return [];
+      const workingWeight =
+        planSuggestions[i]?.[0]?.weightKg ??
+        (p.targetWeightKg == null ? null : Number(p.targetWeightKg));
+      const previous = previousByExercise.get(p.exerciseId) ?? [];
+      return p.warmups.map((w, idx) => {
+        const position = idx + 1;
+        const def = {
+          reps: w.reps,
+          weightMode: w.weightMode,
+          weightKg: w.weightKg == null ? null : Number(w.weightKg),
+          percentOfWorking:
+            w.percentOfWorking == null ? null : Number(w.percentOfWorking),
+        };
+        return {
+          position,
+          ...suggestWarmupSet(lastWarmupSetAt(previous, position), def, workingWeight),
+        };
+      });
+    },
+  );
+
   const templateOrdinal = session.templateId
     ? await prisma.liftingSession.count({
         where: {
@@ -483,6 +550,7 @@ export async function getSession(id: string): Promise<SessionDetail> {
       sets: groupByExerciseId.get(p.exerciseId) ?? null,
       progress: progress[i] ?? null,
       suggestions: planSuggestions[i] ?? [],
+      warmupSuggestions: planWarmupSuggestions[i] ?? [],
       previousSets: previousByExercise.get(p.exerciseId) ?? [],
     });
   });
@@ -495,6 +563,7 @@ export async function getSession(id: string): Promise<SessionDetail> {
       sets: g,
       progress: null,
       suggestions: [],
+      warmupSuggestions: [],
       previousSets: previousByExercise.get(g.exerciseId) ?? [],
     });
   }
