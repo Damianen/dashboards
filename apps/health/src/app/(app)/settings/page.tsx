@@ -1,7 +1,9 @@
+import { CalorieTargetCard } from "@/components/settings/calorie-target-card";
 import { ConnectionsSection } from "@/components/settings/connections-section";
 import { NotificationsCard } from "@/components/settings/notifications-card";
 import { ProteinTargetCard } from "@/components/settings/protein-card";
 import { SyncStatusCard } from "@/components/settings/sync-status-card";
+import { WeightGoalCard } from "@/components/settings/weight-goal-card";
 
 export default function SettingsPage() {
   return (
@@ -10,7 +12,12 @@ export default function SettingsPage() {
         <h1 className="text-xl font-semibold">Settings</h1>
         <p className="text-muted-foreground text-sm">Targets, connections &amp; sync</p>
       </header>
-      <ProteinTargetCard />
+      <section className="space-y-3">
+        <h2 className="text-muted-foreground text-sm font-medium">Targets</h2>
+        <ProteinTargetCard />
+        <CalorieTargetCard />
+        <WeightGoalCard />
+      </section>
       <SyncStatusCard />
       <NotificationsCard />
       <ConnectionsSection />

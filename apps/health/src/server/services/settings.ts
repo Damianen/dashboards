@@ -1,5 +1,9 @@
 import { tdeeWindowSchema, type TdeeWindow } from "@/lib/schemas/insights";
-import { proteinSettingSchema } from "@/lib/schemas/settings";
+import {
+  intakeTargetSchema,
+  proteinSettingSchema,
+  weightGoalSchema,
+} from "@/lib/schemas/settings";
 import { prisma } from "@/server/db";
 
 /** The default protein factor (g/kg) when the setting has never been written. */
@@ -48,4 +52,50 @@ export async function setTdeeWindowDays(windowDays: TdeeWindow): Promise<void> {
     update: { value: windowDays },
     create: { key: TDEE_WINDOW_KEY, value: windowDays },
   });
+}
+
+// Goal body weight (kg). Optional — null until the user sets one. Same additive
+// settings-row pattern; no migration.
+const WEIGHT_GOAL_KEY = "weight.goalKg";
+
+/** The stored goal weight (kg), or null when never set. */
+export async function getWeightGoalKg(): Promise<number | null> {
+  const setting = await prisma.setting.findUnique({
+    where: { key: WEIGHT_GOAL_KEY },
+  });
+  return setting ? Number(setting.value) : null;
+}
+
+/** Persist the goal weight (kg). Validates against the canonical schema. */
+export async function setWeightGoalKg(goalKg: number): Promise<number> {
+  const { goalKg: value } = weightGoalSchema.parse({ goalKg });
+  await prisma.setting.upsert({
+    where: { key: WEIGHT_GOAL_KEY },
+    create: { key: WEIGHT_GOAL_KEY, value },
+    update: { value },
+  });
+  return value;
+}
+
+// Daily intake calorie target (kcal). An intake-ONLY goal — never netted against
+// expenditure (CLAUDE.md). Optional; null until set.
+const INTAKE_TARGET_KEY = "intake.kcalTarget";
+
+/** The stored daily intake calorie target (kcal), or null when never set. */
+export async function getIntakeKcalTarget(): Promise<number | null> {
+  const setting = await prisma.setting.findUnique({
+    where: { key: INTAKE_TARGET_KEY },
+  });
+  return setting ? Number(setting.value) : null;
+}
+
+/** Persist the daily intake calorie target (kcal). Validates against the schema. */
+export async function setIntakeKcalTarget(kcal: number): Promise<number> {
+  const { kcal: value } = intakeTargetSchema.parse({ kcal });
+  await prisma.setting.upsert({
+    where: { key: INTAKE_TARGET_KEY },
+    create: { key: INTAKE_TARGET_KEY, value },
+    update: { value },
+  });
+  return value;
 }

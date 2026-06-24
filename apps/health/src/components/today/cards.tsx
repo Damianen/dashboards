@@ -130,8 +130,11 @@ export function WeightCard({ s }: Props) {
   );
 }
 
-export function IntakeCard({ s }: Props) {
+export function IntakeCard({ s, a }: Props & AdherenceProps) {
   const has = s != null && (s.intakeKcal != null || s.proteinG != null);
+  // Intake-only target: progress vs a daily calorie goal. Never a deficit / energy
+  // balance — `remaining` is target − intake, never intake − expenditure (CLAUDE.md).
+  const cal = a?.calories ?? null;
   return (
     <MetricCard title="Intake" icon={Apple}>
       {!has ? (
@@ -156,6 +159,20 @@ export function IntakeCard({ s }: Props) {
             carbs {s?.carbG != null ? `${formatNumber(s.carbG, 1)} g` : "—"} ·
             fat {s?.fatG != null ? `${formatNumber(s.fatG, 1)} g` : "—"}
           </div>
+          {cal?.targetKcal != null && (
+            <div className="space-y-1 pt-1">
+              <div className="flex items-baseline justify-between">
+                <span className="text-muted-foreground text-xs tabular-nums">
+                  {formatNumber(cal.actualKcal)} / {formatNumber(cal.targetKcal)}{" "}
+                  kcal
+                </span>
+                <span className="text-muted-foreground text-xs">
+                  {formatNumber(cal.remainingKcal ?? 0)} to go
+                </span>
+              </div>
+              <Progress percent={clampPercent(cal.actualKcal, cal.targetKcal)} />
+            </div>
+          )}
         </div>
       )}
     </MetricCard>

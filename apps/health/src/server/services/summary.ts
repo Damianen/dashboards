@@ -30,6 +30,17 @@ export interface DailySummary {
   liftingVolumeKg: number | null;
   workingSets: number | null;
   supplementsTaken: number | null;
+  /** Body composition (latest Withings measurement of the day). */
+  bodyFatPct: number | null;
+  muscleMassKg: number | null;
+  /** Sleep depth (summed across the day's sessions). */
+  deepMin: number | null;
+  remMin: number | null;
+  /** Recovery signals from sleep: HRV averaged, resting HR as the night's lowest. */
+  hrvMs: number | null;
+  restingHrBpm: number | null;
+  /** Logged dietary fiber (g). */
+  fiberG: number | null;
 }
 
 type RawSummaryRow = Record<keyof DailySummary, unknown>;
@@ -59,6 +70,13 @@ function mapRow(r: RawSummaryRow): DailySummary {
     liftingVolumeKg: num(r.liftingVolumeKg),
     workingSets: num(r.workingSets),
     supplementsTaken: num(r.supplementsTaken),
+    bodyFatPct: num(r.bodyFatPct),
+    muscleMassKg: num(r.muscleMassKg),
+    deepMin: num(r.deepMin),
+    remMin: num(r.remMin),
+    hrvMs: num(r.hrvMs),
+    restingHrBpm: num(r.restingHrBpm),
+    fiberG: num(r.fiberG),
   };
 }
 
@@ -86,7 +104,14 @@ export async function getDailySummary(
       caffeine_mg       AS "caffeineMg",
       lifting_volume_kg AS "liftingVolumeKg",
       working_sets      AS "workingSets",
-      supplements_taken AS "supplementsTaken"
+      supplements_taken AS "supplementsTaken",
+      body_fat_pct      AS "bodyFatPct",
+      muscle_mass_kg    AS "muscleMassKg",
+      deep_min          AS "deepMin",
+      rem_min           AS "remMin",
+      hrv_ms            AS "hrvMs",
+      resting_hr_bpm    AS "restingHrBpm",
+      fiber_g           AS "fiberG"
     FROM daily_summary
     WHERE day = ${day}::date
   `;
@@ -111,6 +136,14 @@ const TREND_COLUMNS: Record<TrendMetric, string> = {
   // supplements), not just stimulant entries.
   caffeine_mg: "caffeine_mg",
   lifting_volume_kg: "lifting_volume_kg",
+  total_sleep_min: "total_sleep_min",
+  deep_min: "deep_min",
+  rem_min: "rem_min",
+  hrv_ms: "hrv_ms",
+  resting_hr_bpm: "resting_hr_bpm",
+  body_fat_pct: "body_fat_pct",
+  muscle_mass_kg: "muscle_mass_kg",
+  fiber_g: "fiber_g",
 };
 
 export interface TrendPoint {

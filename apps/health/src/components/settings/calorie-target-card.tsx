@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { Drumstick } from "lucide-react";
+import { Flame } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -16,39 +16,41 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getJSON, patchJSON } from "@/lib/fetcher";
-import { proteinSettingSchema } from "@/lib/schemas/settings";
+import { intakeTargetSchema } from "@/lib/schemas/settings";
 
-// The protein-target factor (g/kg). Editing it re-derives the Today protein target from the
-// latest weight, so we invalidate the adherence queries on save.
-export function ProteinTargetCard() {
+// Daily intake calorie target. An intake-ONLY goal shown against logged calories — never
+// a deficit or an expenditure figure (CLAUDE.md no-net-calories guardrail). Saving
+// invalidates adherence so Today's intake progress refreshes. Empty until set.
+export function CalorieTargetCard() {
   const qc = useQueryClient();
   const [value, setValue] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    void getJSON<{ gPerKg: number }>("/api/settings/protein")
-      .then((d) => setValue(String(d.gPerKg)))
+    void getJSON<{ kcal: number | null }>("/api/settings/intake-target")
+      .then((d) => setValue(d.kcal == null ? "" : String(d.kcal)))
       .catch(() => {})
       .finally(() => setLoaded(true));
   }, []);
 
   async function handleSave() {
-    const parsed = proteinSettingSchema.safeParse({ gPerKg: value });
+    const parsed = intakeTargetSchema.safeParse({ kcal: value });
     if (!parsed.success) {
-      toast.error("Enter a protein factor between 0.1 and 10 g/kg");
+      toast.error("Enter a calorie target between 500 and 10000 kcal");
       return;
     }
     setSaving(true);
     try {
-      const d = await patchJSON<{ gPerKg: number }>("/api/settings/protein", {
-        gPerKg: parsed.data.gPerKg,
-      });
-      setValue(String(d.gPerKg));
+      const d = await patchJSON<{ kcal: number }>(
+        "/api/settings/intake-target",
+        { kcal: parsed.data.kcal },
+      );
+      setValue(String(d.kcal));
       await qc.invalidateQueries({ queryKey: ["adherence"] });
-      toast.success("Protein target updated");
+      toast.success("Calorie target updated");
     } catch {
-      toast.error("Couldn't update protein target");
+      toast.error("Couldn't update calorie target");
     } finally {
       setSaving(false);
     }
@@ -58,24 +60,25 @@ export function ProteinTargetCard() {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Drumstick className="size-4" /> Protein target
+          <Flame className="size-4" /> Calorie target
         </CardTitle>
         <CardDescription>
-          Grams of protein per kg of bodyweight. Your daily target is this ×
-          your most recent weight.
+          A daily intake goal, shown against the calories you log. It is never a
+          deficit or expenditure target.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="flex items-end gap-3">
           <div className="space-y-1.5">
-            <Label htmlFor="protein-g-per-kg">g/kg</Label>
+            <Label htmlFor="intake-kcal-target">kcal</Label>
             <Input
-              id="protein-g-per-kg"
+              id="intake-kcal-target"
               type="number"
-              inputMode="decimal"
-              min={0.1}
-              max={10}
-              step={0.1}
+              inputMode="numeric"
+              min={500}
+              max={10000}
+              step={10}
+              placeholder="e.g. 2200"
               className="w-28"
               value={value}
               disabled={!loaded || saving}

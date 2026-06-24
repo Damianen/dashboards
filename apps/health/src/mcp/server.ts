@@ -29,7 +29,9 @@ import {
 } from "@/server/services/meals";
 import {
   createExercise,
+  getE1rmHistory,
   getHistory,
+  getMuscleGroupWeeklyVolume,
   getSession,
   listSessions,
   logSet,
@@ -52,6 +54,7 @@ import { getRecovery } from "@/server/services/recovery";
 import { getObservations } from "@/server/services/observations";
 import { getDailySummary, getTrends } from "@/server/services/summary";
 import { getTdeeEstimate } from "@/server/services/tdee";
+import { getWeightGoal } from "@/server/services/weight-goal";
 import { VisionError } from "@/server/services/vision";
 import { syncOura } from "@/server/services/sync/oura";
 import { latestRunsBySource } from "@/server/services/sync/runs";
@@ -239,6 +242,21 @@ export function buildServer(): McpServer {
   );
 
   server.registerTool(
+    "get_weight_goal",
+    {
+      description:
+        "Body-weight goal status: the stored goal weight (kg), the current denoised " +
+        "weight (7-day average), the measured weekly trend, and a projected ETA. Returns " +
+        "{ goalKg, currentKg, slopeKgPerWeek, weeksToGoal, etaDay, onTrack, windowDays }. " +
+        "onTrack=false with weeksToGoal/etaDay=null means the trend is flat or moving away " +
+        "from the goal (no honest ETA). goalKg/onTrack are null until a goal is set. The " +
+        "trend is weight-derived ONLY — it never nets against device/active calories.",
+      inputSchema: {},
+    },
+    () => run(() => getWeightGoal()),
+  );
+
+  server.registerTool(
     "get_water_status",
     {
       description:
@@ -291,6 +309,54 @@ export function buildServer(): McpServer {
       },
     },
     ({ exercise, limit }) => run(() => getHistory(exercise, limit)),
+  );
+
+  server.registerTool(
+    "get_exercise_strength",
+    {
+      description:
+        "Strength progression for one exercise: the best estimated 1-rep-max (e1RM) " +
+        "per day over a rolling window, newest data last. e1RM (Epley) puts heavy-low-rep " +
+        "and lighter-high-rep working sets on ONE comparable scale; warmups are excluded. " +
+        "Each point flags isPr=true when it set an all-time e1RM high. e1RM is an ESTIMATE " +
+        "(a trend), not a tested max. Errors if the exercise name is unknown.",
+      inputSchema: {
+        exercise: z
+          .string()
+          .min(1)
+          .describe("Exercise name (case-insensitive exact match)."),
+        days: z
+          .number()
+          .int()
+          .min(1)
+          .max(365)
+          .default(90)
+          .describe("Rolling window in days (default 90)."),
+      },
+    },
+    ({ exercise, days }) => run(() => getE1rmHistory(exercise, days)),
+  );
+
+  server.registerTool(
+    "get_muscle_group_volume",
+    {
+      description:
+        "Weekly hard sets per muscle group (working sets only, warmups excluded), " +
+        "bucketed by ISO week over a rolling window — the key training-volume metric " +
+        "for balance and hypertrophy. Grouped by each exercise's muscle-group tag; " +
+        "untagged exercises fall under 'Other'. Returns { groups, weeks } where each " +
+        "week row has a set count per group.",
+      inputSchema: {
+        weeks: z
+          .number()
+          .int()
+          .min(1)
+          .max(52)
+          .default(12)
+          .describe("Rolling window in weeks (default 12)."),
+      },
+    },
+    ({ weeks }) => run(() => getMuscleGroupWeeklyVolume(weeks)),
   );
 
   server.registerTool(
