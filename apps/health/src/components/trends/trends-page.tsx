@@ -9,6 +9,7 @@ import {
   Legend,
   Line,
   LineChart,
+  ReferenceLine,
   ResponsiveContainer,
   Scatter,
   Tooltip,
@@ -18,6 +19,13 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   CHART,
@@ -32,8 +40,12 @@ import {
 } from "@/components/trends/trend-card";
 import { TdeeCard } from "@/components/trends/tdee-card";
 import { bucketWeekly, mergeByDay } from "@/lib/aggregate";
+import { useE1rm } from "@/lib/hooks/use-e1rm";
+import { useExercises } from "@/lib/hooks/use-exercises";
 import { useInView } from "@/lib/hooks/use-in-view";
+import { useMuscleVolume } from "@/lib/hooks/use-muscle-volume";
 import { useTrend } from "@/lib/hooks/use-trend";
+import { useWeightGoal, type WeightGoalResult } from "@/lib/hooks/use-weight-goal";
 import { useWorkouts } from "@/lib/hooks/use-workouts";
 
 const RANGES = [30, 90, 365] as const;
@@ -67,32 +79,54 @@ export function TrendsPage() {
           nor sharing an axis/card with, intake kcal. */}
       <div className="space-y-4">
         <WeightCard days={days} />
+        <BodyCompositionCard days={days} />
         {/* Self-contained: its own 14/21/28 window, independent of the page range. */}
         <TdeeCard />
         <SleepReadinessCard days={days} />
+        <SleepDurationCard days={days} />
+        <RecoveryTrendCard days={days} />
         <ActivityCard days={days} />
         <WorkoutsCard days={days} />
         <WaterCard days={days} />
         <CaffeineCard days={days} />
         <IntakeCard days={days} />
         <LiftingCard days={days} />
+        <E1rmCard days={days} />
+        <MuscleVolumeCard days={days} />
       </div>
     </div>
   );
+}
+
+// Default subtitle plus, when a goal is set, a plain-language projection from the
+// measured trend (or an honest "not trending toward it" when the slope says so).
+function weightSubtitle(g?: WeightGoalResult): string {
+  const base = "Daily · 7-day average (the signal)";
+  if (!g || g.goalKg == null) return base;
+  if (g.onTrack && g.weeksToGoal != null) {
+    if (g.weeksToGoal <= 0) return `Goal ${g.goalKg} kg · reached`;
+    const wks = Math.round(g.weeksToGoal);
+    return `Goal ${g.goalKg} kg · ~${wks} wk${wks === 1 ? "" : "s"}${
+      g.etaDay ? ` (≈ ${g.etaDay})` : ""
+    }`;
+  }
+  return `Goal ${g.goalKg} kg · not trending toward it`;
 }
 
 function WeightCard({ days }: { days: number }) {
   const [ref, inView] = useInView<HTMLDivElement>();
   const weight = useTrend("weight", days, inView);
   const avg = useTrend("weight_7d_avg", days, inView);
+  const goal = useWeightGoal(inView);
   const loading = !inView || weight.isLoading || avg.isLoading;
   const data = mergeByDay({ weight: weight.data ?? [], avg: avg.data ?? [] });
+  const goalKg = goal.data?.goalKg ?? null;
 
   return (
     <TrendCard
       innerRef={ref}
       title="Weight"
-      subtitle="Daily · 7-day average (the signal)"
+      subtitle={weightSubtitle(goal.data)}
       loading={loading}
       empty={!loading && data.length === 0}
     >
@@ -106,6 +140,20 @@ function WeightCard({ days }: { days: number }) {
             domain={["dataMin - 1", "dataMax + 1"]}
           />
           <Tooltip {...tooltipProps} />
+          {goalKg != null ? (
+            <ReferenceLine
+              y={goalKg}
+              stroke={CHART.c3}
+              strokeDasharray="5 3"
+              strokeWidth={1.5}
+              label={{
+                value: "goal",
+                position: "insideTopRight",
+                fontSize: 10,
+                fill: "var(--muted-foreground)",
+              }}
+            />
+          ) : null}
           <Scatter dataKey="weight" name="weight" fill={CHART.muted} />
           <Line
             dataKey="avg"
@@ -116,6 +164,69 @@ function WeightCard({ days }: { days: number }) {
             connectNulls
           />
         </ComposedChart>
+      </ResponsiveContainer>
+    </TrendCard>
+  );
+}
+
+// Body fat % and muscle mass (Withings) — synced but previously never charted.
+// Dual axis: the two metrics live on very different scales.
+function BodyCompositionCard({ days }: { days: number }) {
+  const [ref, inView] = useInView<HTMLDivElement>();
+  const bodyFat = useTrend("body_fat_pct", days, inView);
+  const muscle = useTrend("muscle_mass_kg", days, inView);
+  const loading = !inView || bodyFat.isLoading || muscle.isLoading;
+  const data = mergeByDay({
+    bodyFat: bodyFat.data ?? [],
+    muscle: muscle.data ?? [],
+  });
+
+  return (
+    <TrendCard
+      innerRef={ref}
+      title="Body composition"
+      subtitle="Body fat % · muscle mass (kg) — Withings"
+      loading={loading}
+      empty={!loading && data.length === 0}
+    >
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data} margin={CHART_MARGIN}>
+          <CartesianGrid {...gridProps} />
+          <XAxis {...xAxisProps} />
+          <YAxis
+            {...yAxisProps}
+            yAxisId="bf"
+            width={44}
+            domain={["dataMin - 1", "dataMax + 1"]}
+          />
+          <YAxis
+            {...yAxisProps}
+            yAxisId="mm"
+            orientation="right"
+            width={44}
+            domain={["dataMin - 1", "dataMax + 1"]}
+          />
+          <Tooltip {...tooltipProps} />
+          <Legend {...legendProps} />
+          <Line
+            yAxisId="bf"
+            dataKey="bodyFat"
+            name="body fat %"
+            stroke={CHART.c3}
+            strokeWidth={2}
+            dot={false}
+            connectNulls
+          />
+          <Line
+            yAxisId="mm"
+            dataKey="muscle"
+            name="muscle (kg)"
+            stroke={CHART.c1}
+            strokeWidth={2}
+            dot={false}
+            connectNulls
+          />
+        </LineChart>
       </ResponsiveContainer>
     </TrendCard>
   );
@@ -158,6 +269,126 @@ function SleepReadinessCard({ days }: { days: number }) {
             dataKey="readiness"
             name="Readiness"
             stroke={CHART.c4}
+            strokeWidth={2}
+            dot={false}
+            connectNulls
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </TrendCard>
+  );
+}
+
+// Sleep duration + depth (Oura). total_sleep_min was already in the view but never
+// charted; deep/REM are newly surfaced. Minutes on one axis.
+function SleepDurationCard({ days }: { days: number }) {
+  const [ref, inView] = useInView<HTMLDivElement>();
+  const total = useTrend("total_sleep_min", days, inView);
+  const deep = useTrend("deep_min", days, inView);
+  const rem = useTrend("rem_min", days, inView);
+  const loading = !inView || total.isLoading || deep.isLoading || rem.isLoading;
+  const data = mergeByDay({
+    total: total.data ?? [],
+    deep: deep.data ?? [],
+    rem: rem.data ?? [],
+  });
+
+  return (
+    <TrendCard
+      innerRef={ref}
+      title="Sleep duration & depth"
+      subtitle="Total · deep · REM minutes (Oura)"
+      loading={loading}
+      empty={!loading && data.length === 0}
+    >
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data} margin={CHART_MARGIN}>
+          <CartesianGrid {...gridProps} />
+          <XAxis {...xAxisProps} />
+          <YAxis {...yAxisProps} width={44} />
+          <Tooltip {...tooltipProps} />
+          <Legend {...legendProps} />
+          <Line
+            dataKey="total"
+            name="total (min)"
+            stroke={CHART.c2}
+            strokeWidth={2}
+            dot={false}
+            connectNulls
+          />
+          <Line
+            dataKey="deep"
+            name="deep (min)"
+            stroke={CHART.c4}
+            strokeWidth={1.5}
+            dot={false}
+            connectNulls
+          />
+          <Line
+            dataKey="rem"
+            name="REM (min)"
+            stroke={CHART.c1}
+            strokeWidth={1.5}
+            dot={false}
+            connectNulls
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </TrendCard>
+  );
+}
+
+// Recovery signals from sleep sessions (HRV averaged, resting HR as the night's
+// lowest) — promoted from the Today sparklines to a full trend. Dual axis: HRV (ms)
+// and resting HR (bpm) sit on different scales.
+function RecoveryTrendCard({ days }: { days: number }) {
+  const [ref, inView] = useInView<HTMLDivElement>();
+  const hrv = useTrend("hrv_ms", days, inView);
+  const rhr = useTrend("resting_hr_bpm", days, inView);
+  const loading = !inView || hrv.isLoading || rhr.isLoading;
+  const data = mergeByDay({ hrv: hrv.data ?? [], rhr: rhr.data ?? [] });
+
+  return (
+    <TrendCard
+      innerRef={ref}
+      title="Recovery — HRV & resting HR"
+      subtitle="Night HRV (ms) · resting HR (bpm) — from sleep"
+      loading={loading}
+      empty={!loading && data.length === 0}
+    >
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data} margin={CHART_MARGIN}>
+          <CartesianGrid {...gridProps} />
+          <XAxis {...xAxisProps} />
+          <YAxis
+            {...yAxisProps}
+            yAxisId="hrv"
+            width={44}
+            domain={["dataMin - 5", "dataMax + 5"]}
+          />
+          <YAxis
+            {...yAxisProps}
+            yAxisId="rhr"
+            orientation="right"
+            width={44}
+            domain={["dataMin - 3", "dataMax + 3"]}
+          />
+          <Tooltip {...tooltipProps} />
+          <Legend {...legendProps} />
+          <Line
+            yAxisId="hrv"
+            dataKey="hrv"
+            name="HRV (ms)"
+            stroke={CHART.c2}
+            strokeWidth={2}
+            dot={false}
+            connectNulls
+          />
+          <Line
+            yAxisId="rhr"
+            dataKey="rhr"
+            name="resting HR (bpm)"
+            stroke={CHART.c5}
             strokeWidth={2}
             dot={false}
             connectNulls
@@ -305,17 +536,20 @@ function IntakeCard({ days }: { days: number }) {
   const [ref, inView] = useInView<HTMLDivElement>();
   const kcal = useTrend("intake_kcal", days, inView);
   const protein = useTrend("protein_g", days, inView);
-  const loading = !inView || kcal.isLoading || protein.isLoading;
+  const fiber = useTrend("fiber_g", days, inView);
+  const loading =
+    !inView || kcal.isLoading || protein.isLoading || fiber.isLoading;
   const data = mergeByDay({
     kcal: kcal.data ?? [],
     protein: protein.data ?? [],
+    fiber: fiber.data ?? [],
   });
 
   return (
     <TrendCard
       innerRef={ref}
       title="Intake"
-      subtitle="Logged kcal · protein"
+      subtitle="Logged kcal · protein · fiber"
       loading={loading}
       empty={!loading && data.length === 0}
     >
@@ -344,6 +578,16 @@ function IntakeCard({ days }: { days: number }) {
             name="protein (g)"
             stroke={CHART.c2}
             strokeWidth={2}
+            dot={false}
+            connectNulls
+          />
+          <Line
+            yAxisId="protein"
+            dataKey="fiber"
+            name="fiber (g)"
+            stroke={CHART.c3}
+            strokeWidth={1.5}
+            strokeDasharray="4 2"
             dot={false}
             connectNulls
           />
@@ -492,6 +736,151 @@ function LiftingCard({ days }: { days: number }) {
             fill={CHART.c4}
             radius={[2, 2, 0, 0]}
           />
+        </BarChart>
+      </ResponsiveContainer>
+    </TrendCard>
+  );
+}
+
+// Estimated-1RM strength progression for ONE exercise (picked via the selector),
+// putting heavy-low-rep and lighter-high-rep working sets on one comparable scale.
+// PRs (all-time e1RM highs) are overlaid as scatter points. e1RM is a TREND estimate,
+// never a tested max. Custom Card (not TrendCard) so the picker stays visible when empty.
+function E1rmCard({ days }: { days: number }) {
+  const [ref, inView] = useInView<HTMLDivElement>();
+  const exercises = useExercises();
+  const [picked, setPicked] = useState<string | null>(null);
+  const list = exercises.data ?? [];
+  // Default to the first catalog exercise until the user picks one.
+  const selected = picked ?? list[0]?.name ?? null;
+  const e1rm = useE1rm(selected, days, inView);
+  const loading =
+    !inView || e1rm.isLoading || (exercises.isLoading && selected === null);
+  const points =
+    e1rm.data?.map((p) => ({
+      day: p.day,
+      e1rm: p.e1rmKg,
+      // Non-null only on PR days → Scatter renders a marker just there.
+      pr: p.isPr ? p.e1rmKg : null,
+    })) ?? [];
+  const empty = !loading && (selected === null || points.length === 0);
+
+  return (
+    <Card ref={ref} className="gap-3 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="space-y-0.5">
+          <h2 className="text-sm leading-tight font-semibold">
+            Exercise strength (e1RM)
+          </h2>
+          <p className="text-muted-foreground text-xs">
+            Best est. 1-rep-max per day · ◆ = PR — a trend, not a tested max
+          </p>
+        </div>
+        <Select value={selected ?? undefined} onValueChange={setPicked}>
+          <SelectTrigger className="h-8 w-36 shrink-0 text-xs">
+            <SelectValue placeholder="Exercise" />
+          </SelectTrigger>
+          <SelectContent>
+            {list.map((ex) => (
+              <SelectItem key={ex.id} value={ex.name}>
+                {ex.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="h-[180px] w-full">
+        {loading ? (
+          <Skeleton className="h-full w-full" />
+        ) : empty ? (
+          <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
+            {selected === null
+              ? "No exercises yet"
+              : "No working sets for this exercise yet"}
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart data={points} margin={CHART_MARGIN}>
+              <CartesianGrid {...gridProps} />
+              <XAxis {...xAxisProps} />
+              <YAxis
+                {...yAxisProps}
+                width={44}
+                domain={["dataMin - 2", "dataMax + 2"]}
+              />
+              <Tooltip {...tooltipProps} />
+              <Line
+                dataKey="e1rm"
+                name="e1RM (kg)"
+                stroke={CHART.c1}
+                strokeWidth={2}
+                dot={false}
+                connectNulls
+              />
+              <Scatter dataKey="pr" name="PR" fill={CHART.c4} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+// One distinct colour per muscle group, cycled if there are more groups than colours.
+const GROUP_PALETTE = [
+  CHART.c1,
+  CHART.c2,
+  CHART.c3,
+  CHART.c4,
+  CHART.c5,
+  CHART.muted,
+] as const;
+
+// Weekly hard sets (working sets) per muscle group — the key training-balance/volume
+// metric — as a stacked bar. Groups are dynamic (from the exercise muscleGroup tags),
+// so the bars are generated from the returned `groups` list.
+function MuscleVolumeCard({ days }: { days: number }) {
+  const [ref, inView] = useInView<HTMLDivElement>();
+  const weeks = Math.min(52, Math.ceil(days / 7));
+  const vol = useMuscleVolume(weeks, inView);
+  const loading = !inView || vol.isLoading;
+  const groups = vol.data?.groups ?? [];
+  const data = vol.data?.weeks ?? [];
+
+  return (
+    <TrendCard
+      innerRef={ref}
+      title="Weekly sets per muscle group"
+      subtitle="Hard sets (working sets) per week — training balance & volume"
+      loading={loading}
+      empty={!loading && data.length === 0}
+    >
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} margin={CHART_MARGIN}>
+          <CartesianGrid {...gridProps} />
+          <XAxis {...xAxisProps} dataKey="weekStart" />
+          <YAxis {...yAxisProps} width={36} />
+          <Tooltip
+            {...tooltipProps}
+            labelFormatter={(label: React.ReactNode) =>
+              `Week of ${formatDayShort(String(label))}`
+            }
+          />
+          <Legend {...legendProps} />
+          {groups.map((g, i) => (
+            <Bar
+              key={g}
+              dataKey={g}
+              stackId="mg"
+              name={g}
+              fill={GROUP_PALETTE[i % GROUP_PALETTE.length]}
+              radius={
+                i === groups.length - 1
+                  ? ([2, 2, 0, 0] as [number, number, number, number])
+                  : undefined
+              }
+            />
+          ))}
         </BarChart>
       </ResponsiveContainer>
     </TrendCard>

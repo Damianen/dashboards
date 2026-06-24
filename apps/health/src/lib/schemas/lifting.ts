@@ -45,3 +45,16 @@ export const sessionsQuerySchema = z.strictObject({
   limit: z.coerce.number().int().min(1).max(100).default(10),
 });
 export type SessionsQuery = z.infer<typeof sessionsQuerySchema>;
+
+/** Estimated-1RM strength history for one exercise over a rolling day window. */
+export const e1rmHistoryQuerySchema = z.strictObject({
+  exercise: z.string().min(1),
+  days: z.coerce.number().int().min(1).max(365).default(90),
+});
+export type E1rmHistoryQuery = z.infer<typeof e1rmHistoryQuerySchema>;
+
+/** Weekly hard-sets-per-muscle-group volume over a rolling week window. */
+export const muscleVolumeQuerySchema = z.strictObject({
+  weeks: z.coerce.number().int().min(1).max(52).default(12),
+});
+export type MuscleVolumeQuery = z.infer<typeof muscleVolumeQuerySchema>;

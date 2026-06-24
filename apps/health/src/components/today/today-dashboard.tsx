@@ -72,7 +72,7 @@ export function TodayDashboard() {
           <SleepCard s={data ?? null} />
           <RecoveryCard r={recovery ?? null} />
           <WeightCard s={data ?? null} />
-          <IntakeCard s={data ?? null} />
+          <IntakeCard s={data ?? null} a={adherence ?? null} />
           <ProteinCard a={adherence ?? null} />
           <ActivityCard s={data ?? null} />
           <LiftingCard s={data ?? null} />

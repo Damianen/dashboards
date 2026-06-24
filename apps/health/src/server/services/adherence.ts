@@ -1,7 +1,10 @@
 import { currentStreak, milestonesReached, proteinTarget } from "@/lib/adherence";
 import { shiftDay, todayLocal } from "@/lib/dates";
 import { prisma } from "@/server/db";
-import { getProteinGPerKg } from "@/server/services/settings";
+import {
+  getIntakeKcalTarget,
+  getProteinGPerKg,
+} from "@/server/services/settings";
 import { getDailySummary } from "@/server/services/summary";
 
 // How far back the streak queries scan. 365 days comfortably covers the longest milestone
@@ -34,9 +37,25 @@ export interface StreakView {
   milestonesReached: number[];
 }
 
+/** Calorie adherence: an intake-ONLY target vs logged intake. Never an energy balance —
+ *  `remaining` is target − intake, NEVER intake − expenditure (CLAUDE.md guardrail). All
+ *  kcal; target null when the user hasn't set one. */
+export interface CalorieAdherence {
+  /** Configured daily intake target (kcal), or null when unset. */
+  targetKcal: number | null;
+  /** Logged intake (kcal) for the day. */
+  actualKcal: number;
+  /** max(0, target − actual), or null without a target. */
+  remainingKcal: number | null;
+  /** actual / target as a 0–100 percentage (can exceed 100), or null without a target. */
+  pct: number | null;
+}
+
 export interface AdherenceResult {
   day: string;
   protein: ProteinAdherence;
+  /** Intake calorie target vs logged intake (intake-only; never netted). */
+  calories: CalorieAdherence;
   /** A day counts toward this streak if it has any logged food. */
   foodStreak: StreakView;
   /** A day counts if every currently-active supplement was checked that day. */
@@ -94,16 +113,18 @@ export async function getAdherence(
 ): Promise<AdherenceResult> {
   const start = shiftDay(day, -(STREAK_WINDOW_DAYS - 1));
 
-  const [latest, gPerKg, summary, foodDays, supplementDays] = await Promise.all([
-    prisma.weightMeasurement.findFirst({
-      orderBy: { measuredAt: "desc" },
-      select: { weightKg: true },
-    }),
-    getProteinGPerKg(),
-    getDailySummary(day),
-    foodLoggedDays(start, day),
-    supplementCompleteDays(start, day),
-  ]);
+  const [latest, gPerKg, kcalTarget, summary, foodDays, supplementDays] =
+    await Promise.all([
+      prisma.weightMeasurement.findFirst({
+        orderBy: { measuredAt: "desc" },
+        select: { weightKg: true },
+      }),
+      getProteinGPerKg(),
+      getIntakeKcalTarget(),
+      getDailySummary(day),
+      foodLoggedDays(start, day),
+      supplementCompleteDays(start, day),
+    ]);
 
   const latestWeightKg = latest ? Number(latest.weightKg) : null;
   const actualG = summary?.proteinG ?? 0;
@@ -115,9 +136,23 @@ export async function getAdherence(
       ? Math.round((actualG / targetG) * 100)
       : null;
 
+  const actualKcal = summary?.intakeKcal ?? 0;
+  const remainingKcal =
+    kcalTarget != null ? Math.max(0, kcalTarget - actualKcal) : null;
+  const kcalPct =
+    kcalTarget != null && kcalTarget > 0
+      ? Math.round((actualKcal / kcalTarget) * 100)
+      : null;
+
   return {
     day,
     protein: { gPerKg, latestWeightKg, targetG, actualG, remainingG, pct },
+    calories: {
+      targetKcal: kcalTarget,
+      actualKcal,
+      remainingKcal,
+      pct: kcalPct,
+    },
     foodStreak: toStreakView(foodDays, day),
     supplementStreak: toStreakView(supplementDays, day),
   };

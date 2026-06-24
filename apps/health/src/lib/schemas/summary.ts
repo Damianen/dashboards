@@ -13,6 +13,14 @@ export const trendMetricSchema = z.enum([
   "water_target_ml",
   "caffeine_mg",
   "lifting_volume_kg",
+  "total_sleep_min",
+  "deep_min",
+  "rem_min",
+  "hrv_ms",
+  "resting_hr_bpm",
+  "body_fat_pct",
+  "muscle_mass_kg",
+  "fiber_g",
 ]);
 export type TrendMetric = z.infer<typeof trendMetricSchema>;
 

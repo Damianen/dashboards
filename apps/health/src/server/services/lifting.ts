@@ -4,7 +4,8 @@ import {
   type LiftingSet,
   Prisma,
 } from "@/generated/prisma/client";
-import { dayOf, dayToDbDate, todayLocal } from "@/lib/dates";
+import { mondayOf } from "@/lib/aggregate";
+import { dayOf, dayToDbDate, shiftDay, todayLocal } from "@/lib/dates";
 import {
   type ExerciseGroup,
   groupSetsByExercise,
@@ -12,6 +13,7 @@ import {
   sessionVolumeKg,
   sessionWorkingSets,
 } from "@/lib/lifting-grouping";
+import { bestE1rm, type E1rmSet } from "@/lib/one-rep-max";
 import {
   type PlanProgress,
   type PlanTarget,
@@ -625,4 +627,129 @@ export function suggestExercises(
     orderBy: { name: "asc" },
     take: limit,
   });
+}
+
+/** One day's best estimated 1RM for an exercise, with its predicting set and an
+ *  all-time PR flag. e1rmKg is rounded to 1 decimal for display. */
+export interface E1rmPoint {
+  day: string;
+  e1rmKg: number;
+  reps: number;
+  weightKg: number;
+  /** True when this day's best e1RM beat every PRIOR day's (all-time, not just the
+   *  returned window) — so a PR mid-chart is genuine even if older data is off-screen. */
+  isPr: boolean;
+}
+
+/**
+ * Per-day best estimated 1RM for one exercise over the last `days` days, oldest first.
+ * Warmups are excluded (same guardrail as volume). PR flags are computed over the
+ * exercise's FULL history then the series is sliced to the window, so `isPr` always
+ * means an all-time high. Empty when the exercise has no working sets. NotFound → 404.
+ */
+export async function getE1rmHistory(
+  exerciseName: string,
+  days: number,
+): Promise<E1rmPoint[]> {
+  const exercise = await resolveExercise(undefined, exerciseName);
+  // Every working set ever for this exercise (single-user scale), oldest first.
+  const sets = await prisma.liftingSet.findMany({
+    where: { exerciseId: exercise.id, isWarmup: false },
+    select: { reps: true, weightKg: true, session: { select: { day: true } } },
+    orderBy: { loggedAt: "asc" },
+  });
+
+  // Bucket sets into civil days, then take each day's best e1RM.
+  const byDay = new Map<string, E1rmSet[]>();
+  for (const s of sets) {
+    const day = dayOf(s.session.day);
+    const set: E1rmSet = {
+      reps: s.reps,
+      weightKg: Number(s.weightKg),
+      isWarmup: false,
+    };
+    const list = byDay.get(day);
+    if (list) list.push(set);
+    else byDay.set(day, [set]);
+  }
+
+  const start = shiftDay(todayLocal(), -(days - 1));
+  let runningMax = 0;
+  const points: E1rmPoint[] = [];
+  // Civil-day strings sort chronologically lexicographically.
+  for (const day of [...byDay.keys()].sort()) {
+    const best = bestE1rm(byDay.get(day) ?? []);
+    if (!best) continue;
+    const isPr = best.e1rmKg > runningMax;
+    if (isPr) runningMax = best.e1rmKg;
+    if (day >= start) {
+      points.push({
+        day,
+        e1rmKg: Math.round(best.e1rmKg * 10) / 10,
+        reps: best.reps,
+        weightKg: best.weightKg,
+        isPr,
+      });
+    }
+  }
+  return points;
+}
+
+/** Weekly working-set counts per muscle group, shaped for a stacked bar chart: one
+ *  row per ISO week with a count for each group key. `groups` lists the stack keys. */
+export interface MuscleGroupWeek {
+  weekStart: string;
+  [group: string]: string | number;
+}
+export interface MuscleGroupVolume {
+  /** All muscle-group keys present in the window (sorted), i.e. the stack keys. */
+  groups: string[];
+  weeks: MuscleGroupWeek[];
+}
+
+/** Bucket for exercises with no muscleGroup tag. */
+const UNGROUPED = "Other";
+
+/**
+ * Hard sets per muscle group, bucketed by ISO week (Monday-start), over the last
+ * `weeks` weeks. Warmups excluded; an exercise with no muscleGroup tag falls under
+ * "Other". The key hypertrophy metric — weekly working sets — derived from the
+ * muscleGroup tag the catalog already carries.
+ */
+export async function getMuscleGroupWeeklyVolume(
+  weeks: number,
+): Promise<MuscleGroupVolume> {
+  const startDay = shiftDay(mondayOf(todayLocal()), -7 * (weeks - 1));
+  const sets = await prisma.liftingSet.findMany({
+    where: {
+      isWarmup: false,
+      session: { day: { gte: dayToDbDate(startDay) } },
+    },
+    select: {
+      session: { select: { day: true } },
+      exercise: { select: { muscleGroup: true } },
+    },
+  });
+
+  // week → group → count.
+  const byWeek = new Map<string, Map<string, number>>();
+  const groupSet = new Set<string>();
+  for (const s of sets) {
+    const week = mondayOf(dayOf(s.session.day));
+    const group = s.exercise.muscleGroup?.trim() || UNGROUPED;
+    groupSet.add(group);
+    const wk = byWeek.get(week) ?? new Map<string, number>();
+    wk.set(group, (wk.get(group) ?? 0) + 1);
+    byWeek.set(week, wk);
+  }
+
+  const groups = [...groupSet].sort();
+  const weeksOut: MuscleGroupWeek[] = [...byWeek.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([weekStart, counts]) => {
+      const row: MuscleGroupWeek = { weekStart };
+      for (const g of groups) row[g] = counts.get(g) ?? 0;
+      return row;
+    });
+  return { groups, weeks: weeksOut };
 }

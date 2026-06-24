@@ -19,6 +19,10 @@ export const queryKeys = {
     ["lifting", "sessions", day ?? "recent"] as const,
   liftingHistory: (exercise: string, limit: number) =>
     ["lifting", "history", exercise, limit] as const,
+  e1rm: (exercise: string, days: number) =>
+    ["lifting", "e1rm", exercise, days] as const,
+  muscleVolume: (weeks: number) =>
+    ["lifting", "muscle-volume", weeks] as const,
   // One session's full detail (plan + sets + progress), keyed on its own id so the
   // session view refetches after each set without disturbing the sessions list.
   session: (id: string) => ["session", id] as const,
@@ -44,4 +48,5 @@ export const queryKeys = {
   tdee: (window: number) => ["tdee", window] as const,
   recovery: (day: string, window: number) =>
     ["recovery", day, window] as const,
+  weightGoal: () => ["weight-goal"] as const,
 };
