@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { dayOf } from "@/lib/dates";
 import { daySchema } from "@/lib/schemas/common";
+import { observationsWindowSchema } from "@/lib/schemas/insights";
 import type { MealItemInput } from "@/lib/schemas/meals";
 import { trendMetricSchema } from "@/lib/schemas/summary";
 import { supplementTimeGroupSchema } from "@/lib/schemas/supplement";
@@ -42,6 +43,7 @@ import {
   getChecklist,
   resolveByName,
 } from "@/server/services/supplements";
+import { getObservations } from "@/server/services/observations";
 import { getDailySummary, getTrends } from "@/server/services/summary";
 import { VisionError } from "@/server/services/vision";
 import { syncOura } from "@/server/services/sync/oura";
@@ -133,6 +135,28 @@ export function buildServer(): McpServer {
       },
     },
     ({ metric, days }) => run(() => getTrends(metric, days)),
+  );
+
+  server.registerTool(
+    "get_observations",
+    {
+      description:
+        "Cross-domain OBSERVATIONS over a rolling window: late caffeine vs that night's " +
+        "sleep, sleep vs next-day readiness, readiness vs same-day lifting volume, and the " +
+        "7-day weight average vs sleep. Returns { windowDays, observations: [{ id, title, " +
+        "finding, direction, strength (signed correlation, point-biserial for the caffeine " +
+        "one), n, windowDays }] } ranked by |strength|. Each observation is a CORRELATIONAL " +
+        "HYPOTHESIS with its sample size n stated — NOT established fact and NOT causal. " +
+        "Treat them as hypotheses to investigate, always cite the n, avoid causal language " +
+        "('tends to', not 'because'/'causes'), and NEVER use them to change a target. " +
+        "Detectors with fewer than the minimum paired days are omitted entirely.",
+      inputSchema: {
+        window: observationsWindowSchema
+          .optional()
+          .describe("Rolling window in days, 14–180. Omit for the default (30)."),
+      },
+    },
+    ({ window }) => run(() => getObservations(window)),
   );
 
   server.registerTool(
