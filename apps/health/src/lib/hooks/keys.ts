@@ -39,4 +39,5 @@ export const queryKeys = {
   syncStatus: () => ["sync-status"] as const,
   trends: (metric: string, days: number) => ["trends", metric, days] as const,
   observations: (window: number) => ["observations", window] as const,
+  adherence: (day: string) => ["adherence", day] as const,
 };
