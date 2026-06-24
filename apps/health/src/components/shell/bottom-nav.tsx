@@ -8,6 +8,7 @@ import {
   LineChart,
   Pill,
   Settings,
+  Sparkles,
   Utensils,
   type LucideIcon,
 } from "lucide-react";
@@ -22,6 +23,7 @@ const TABS: Tab[] = [
   { href: "/lifting", label: "Lifting", icon: Dumbbell },
   { href: "/supplements", label: "Supps", icon: Pill },
   { href: "/trends", label: "Trends", icon: LineChart },
+  { href: "/insights", label: "Insights", icon: Sparkles },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
