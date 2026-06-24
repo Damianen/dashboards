@@ -3,6 +3,7 @@ import { Cron } from "croner";
 import {
   alertSyncFailure,
   observationDigest,
+  recoveryHeadsUp,
   streakMilestones,
   waterNudge,
   weeklySummary,
@@ -90,8 +91,12 @@ export function startScheduler(): void {
   new Cron("0 9 * * *", { timezone: TIMEZONE, name: "streak-milestones" }, () =>
     runNotificationJob("streak-milestones", streakMilestones),
   );
+  // 11:00 daily — under-recovery heads-up (after the 10:10 Oura sync lands last night's data).
+  new Cron("0 11 * * *", { timezone: TIMEZONE, name: "recovery-headsup" }, () =>
+    runNotificationJob("recovery-headsup", recoveryHeadsUp),
+  );
 
   console.log(
-    `[scheduler] started ${SYNC_SOURCES.length + 4} job(s) (${TIMEZONE})`,
+    `[scheduler] started ${SYNC_SOURCES.length + 5} job(s) (${TIMEZONE})`,
   );
 }

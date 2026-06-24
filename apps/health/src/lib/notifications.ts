@@ -74,6 +74,34 @@ export function weeklySummaryMessage(input: {
   };
 }
 
+function capitalize(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/** "a", "a and b", "a, b and c". */
+function joinList(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? "";
+  const last = items.at(-1) ?? "";
+  return `${items.slice(0, -1).join(", ")} and ${last}`;
+}
+
+/**
+ * A gentle under-recovery heads-up naming which signals (`offMetrics`, friendly phrases like
+ * "resting heart rate") sit off the recent baseline. Framed as something to consider — never a
+ * diagnosis — and always carries the "trend signal, not medical advice" caveat (CLAUDE.md).
+ * Returns null when nothing is off baseline.
+ */
+export function recoveryHeadsUpMessage(
+  offMetrics: string[],
+): NotificationMessage | null {
+  if (offMetrics.length === 0) return null;
+  return {
+    title: "Heads up — possible under-recovery",
+    body: `${capitalize(joinList(offMetrics))} ${offMetrics.length === 1 ? "is" : "are"} off your recent baseline. Might be a good day to take it easy. Trend signal, not medical advice.`,
+    url: "/insights",
+  };
+}
+
 /** Which adherence streak a milestone celebration is for. */
 export type StreakKind = "food" | "supplements";
 
