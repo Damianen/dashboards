@@ -232,6 +232,17 @@ export interface OuraDailyReadinessRecord {
   timestamp: string;
 }
 
+export interface OuraDailyActivityRecord {
+  id: string;
+  day: string;
+  score: number | null;
+  active_calories: number | null;
+  total_calories: number | null;
+  steps: number | null;
+  contributors: Record<string, number | null>;
+  timestamp: string;
+}
+
 interface OuraPage<T> {
   data: T[];
   next_token: string | null;
@@ -320,6 +331,17 @@ export function fetchDailyReadiness(
 ): Promise<OuraDailyReadinessRecord[]> {
   return fetchAll<OuraDailyReadinessRecord>(
     "/v2/usercollection/daily_readiness",
+    startDate,
+    endDate,
+  );
+}
+
+export function fetchDailyActivity(
+  startDate: string,
+  endDate: string,
+): Promise<OuraDailyActivityRecord[]> {
+  return fetchAll<OuraDailyActivityRecord>(
+    "/v2/usercollection/daily_activity",
     startDate,
     endDate,
   );
