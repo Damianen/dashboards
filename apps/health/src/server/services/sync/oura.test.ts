@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import { Source } from "@/generated/prisma/client";
 import type {
+  OuraDailyActivityRecord,
   OuraDailyReadinessRecord,
   OuraDailySleepRecord,
   OuraSleepRecord,
 } from "@/server/integrations/oura";
 import {
+  toDailyActivityData,
   toDailyReadinessData,
   toDailySleepData,
   toSleepSessionData,
@@ -181,5 +183,50 @@ describe("toDailyReadinessData", () => {
   it("retains the full record (incl. all contributors) in raw", () => {
     const r = readiness();
     expect(toDailyReadinessData(r).raw).toEqual(r);
+  });
+});
+
+describe("toDailyActivityData", () => {
+  function activity(
+    over: Partial<OuraDailyActivityRecord> = {},
+  ): OuraDailyActivityRecord {
+    return {
+      id: "da-1",
+      day: "2026-06-14",
+      score: 85,
+      active_calories: 540,
+      total_calories: 2680,
+      steps: 11234,
+      contributors: { steps: 95, training_volume: 80 },
+      timestamp: "2026-06-14T12:00:00.000Z",
+      ...over,
+    };
+  }
+
+  it("maps active/total calories and steps, tagging the source OURA", () => {
+    const d = toDailyActivityData(activity());
+    expect(d.activeKcal).toBe(540);
+    expect(d.totalKcal).toBe(2680);
+    expect(d.steps).toBe(11234);
+    expect(d.source).toBe(Source.OURA);
+  });
+
+  it("uses Oura's assigned `day` straight through dayToDbDate (UTC midnight)", () => {
+    const d = toDailyActivityData(activity({ day: "2026-06-14" }));
+    expect((d.day as Date).toISOString()).toBe("2026-06-14T00:00:00.000Z");
+  });
+
+  it("keeps null metrics null (never coerces to 0)", () => {
+    const d = toDailyActivityData(
+      activity({ active_calories: null, total_calories: null, steps: null }),
+    );
+    expect(d.activeKcal).toBeNull();
+    expect(d.totalKcal).toBeNull();
+    expect(d.steps).toBeNull();
+  });
+
+  it("retains the full record in raw", () => {
+    const r = activity();
+    expect(toDailyActivityData(r).raw).toEqual(r);
   });
 });

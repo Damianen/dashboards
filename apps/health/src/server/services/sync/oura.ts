@@ -2,10 +2,12 @@ import { Prisma, Source, SyncSource } from "@/generated/prisma/client";
 import { dayToDbDate, todayLocal } from "@/lib/dates";
 import { prisma } from "@/server/db";
 import {
+  fetchDailyActivity,
   fetchDailyReadiness,
   fetchDailySleep,
   fetchSleep,
   OuraAuthError,
+  type OuraDailyActivityRecord,
   type OuraDailyReadinessRecord,
   type OuraDailySleepRecord,
   type OuraSleepRecord,
@@ -95,6 +97,25 @@ export function toDailyReadinessData(
   };
 }
 
+/**
+ * Map daily activity. activeKcal / totalKcal are Oura's wrist-EE estimates — stored as a
+ * relative TREND signal only (per the health guardrails), never a measured truth and never
+ * netted against intake. Oura's `day` passes straight through dayToDbDate(). The full record
+ * (incl. contributors) is preserved in `raw`.
+ */
+export function toDailyActivityData(
+  r: OuraDailyActivityRecord,
+): Prisma.DailyActivityUncheckedCreateInput {
+  return {
+    day: dayToDbDate(r.day),
+    activeKcal: r.active_calories,
+    totalKcal: r.total_calories,
+    steps: r.steps,
+    source: Source.OURA,
+    raw: r as unknown as Prisma.InputJsonValue,
+  };
+}
+
 export interface OuraSyncSummary {
   runId: string;
   status: "OK" | "ERROR";
@@ -169,6 +190,20 @@ export async function syncOura(): Promise<OuraSyncSummary> {
     for (const r of readiness) {
       const data = toDailyReadinessData(r);
       await prisma.dailyReadiness.upsert({
+        where: { day: dayToDbDate(r.day) },
+        create: data,
+        update: data,
+      });
+      upserted++;
+    }
+
+    const activity = await fetchDailyActivity(
+      window.startDate,
+      window.endDate,
+    );
+    for (const r of activity) {
+      const data = toDailyActivityData(r);
+      await prisma.dailyActivity.upsert({
         where: { day: dayToDbDate(r.day) },
         create: data,
         update: data,
