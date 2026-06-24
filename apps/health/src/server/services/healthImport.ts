@@ -74,6 +74,11 @@ function energyKcalOf(value: unknown): number | null {
  *    offset. Separators normalized.
  *  - native ISO ("2025-01-21T10:30:00Z") passes straight through.
  *
+ * IMPORTANT: every separator is matched with `\s+`, not a literal space. iOS/ICU formats
+ * 12-hour times with a NARROW NO-BREAK SPACE (U+202F) before AM/PM (and sometimes U+00A0),
+ * not an ASCII space — a literal-space regex silently fails on real HAE payloads. JS `\s`
+ * matches both, so this tolerates whichever space HAE sends.
+ *
  * Returns null when the value is missing or unparseable, so the caller skips that workout
  * rather than storing an Invalid Date.
  */
@@ -85,7 +90,7 @@ export function parseHaeDate(value: unknown): Date | null {
   // 12-hour AM/PM form. new Date() can't parse it, so rebuild an ISO string: convert the
   // hour to 24h (12 AM → 0, 12 PM → 12) and give the offset a colon.
   const ampm = trimmed.match(
-    /^(\d{4}-\d{2}-\d{2}) (\d{1,2}):(\d{2}):(\d{2}) (AM|PM) ([+-]\d{2}):?(\d{2})$/i,
+    /^(\d{4}-\d{2}-\d{2})\s+(\d{1,2}):(\d{2}):(\d{2})\s+(AM|PM)\s+([+-]\d{2}):?(\d{2})$/i,
   );
   if (ampm) {
     const [, date, hh, mm, ss, meridiem, offHour, offMin] = ampm;
@@ -97,9 +102,9 @@ export function parseHaeDate(value: unknown): Date | null {
 
   // 24-hour HAE form / native ISO.
   const normalized = trimmed
-    .replace(/^(\d{4}-\d{2}-\d{2}) /, "$1T") // "YYYY-MM-DD " → "YYYY-MM-DDT"
-    .replace(/ ([+-]\d{2})(\d{2})$/, "$1:$2") // " +0000" → "+00:00"
-    .replace(/ ([+-]\d{2}:\d{2})$/, "$1"); // " +00:00" → "+00:00"
+    .replace(/^(\d{4}-\d{2}-\d{2})\s+/, "$1T") // "YYYY-MM-DD " → "YYYY-MM-DDT"
+    .replace(/\s+([+-]\d{2})(\d{2})$/, "$1:$2") // " +0000" → "+00:00"
+    .replace(/\s+([+-]\d{2}:\d{2})$/, "$1"); // " +00:00" → "+00:00"
   const date = new Date(normalized);
   return Number.isNaN(date.getTime()) ? null : date;
 }
