@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { dayOf } from "@/lib/dates";
 import { daySchema } from "@/lib/schemas/common";
+import { tdeeWindowSchema } from "@/lib/schemas/insights";
 import type { MealItemInput } from "@/lib/schemas/meals";
 import { trendMetricSchema } from "@/lib/schemas/summary";
 import { supplementTimeGroupSchema } from "@/lib/schemas/supplement";
@@ -43,6 +44,7 @@ import {
   resolveByName,
 } from "@/server/services/supplements";
 import { getDailySummary, getTrends } from "@/server/services/summary";
+import { getTdeeEstimate } from "@/server/services/tdee";
 import { VisionError } from "@/server/services/vision";
 import { syncOura } from "@/server/services/sync/oura";
 import { latestRunsBySource } from "@/server/services/sync/runs";
@@ -133,6 +135,31 @@ export function buildServer(): McpServer {
       },
     },
     ({ metric, days }) => run(() => getTrends(metric, days)),
+  );
+
+  server.registerTool(
+    "get_tdee_estimate",
+    {
+      description:
+        "Empirical TDEE — true maintenance calories — for a rolling window, derived ONLY " +
+        "from logged intake and the measured weight trend (least-squares regression of " +
+        "weight against time). maintenance = mean logged intake − weightChange→energy, so " +
+        "losing weight ⇒ maintenance above intake, gaining ⇒ below. Returns { window, tdee " +
+        "(kcal/day, null if not estimable), meanIntake, slopeKgPerWeek, nLoggedDays, nDays, " +
+        "completeness, weightPointCount, confidence }. This is the HONEST energy balance: it " +
+        "NEVER reads wearable/active calories and must NEVER be netted against device " +
+        "expenditure. Confidence is driven by logging completeness — 'low' means under-logged " +
+        "(missing food days bias the number HIGH); treat low-confidence estimates as rough and " +
+        "do NOT set any calorie/macro target from them.",
+      inputSchema: {
+        window: tdeeWindowSchema
+          .optional()
+          .describe(
+            "Rolling window in days: 14, 21, or 28. Omit to use the stored default (14).",
+          ),
+      },
+    },
+    ({ window }) => run(() => getTdeeEstimate(window)),
   );
 
   server.registerTool(
