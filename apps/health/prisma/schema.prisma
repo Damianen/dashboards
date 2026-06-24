@@ -519,6 +519,19 @@ model PushSubscription {
   @@map("push_subscriptions")
 }
 
+// One row per observation we've pushed. observationId is unique so a given observation
+// never re-fires (dedupe); `day` records when it fired so the digest can hold to ~1
+// push/day (throttle). Append-only bookkeeping — nothing else reads it.
+model NotifiedObservation {
+  id            String   @id @default(cuid())
+  observationId String   @unique @map("observation_id")
+  day           DateTime @db.Date
+  notifiedAt    DateTime @default(now()) @map("notified_at") @db.Timestamptz(6)
+
+  @@index([day])
+  @@map("notified_observations")
+}
+
 model OauthToken {
   provider        OauthProvider @id
   accessTokenEnc  String        @map("access_token_enc")

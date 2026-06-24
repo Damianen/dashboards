@@ -2,6 +2,7 @@ import { Cron } from "croner";
 
 import {
   alertSyncFailure,
+  observationDigest,
   waterNudge,
   weeklySummary,
 } from "@/server/services/notifications";
@@ -80,8 +81,12 @@ export function startScheduler(): void {
   new Cron("0 18 * * 0", { timezone: TIMEZONE, name: "weekly-summary" }, () =>
     runNotificationJob("weekly-summary", weeklySummary),
   );
+  // 19:00 daily — the observation digest (after the day's Oura/lifting data has landed).
+  new Cron("0 19 * * *", { timezone: TIMEZONE, name: "observations" }, () =>
+    runNotificationJob("observations", observationDigest),
+  );
 
   console.log(
-    `[scheduler] started ${SYNC_SOURCES.length + 2} job(s) (${TIMEZONE})`,
+    `[scheduler] started ${SYNC_SOURCES.length + 3} job(s) (${TIMEZONE})`,
   );
 }
