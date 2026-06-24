@@ -31,6 +31,7 @@ export function CustomTab({
   const [protein, setProtein] = useState("");
   const [carb, setCarb] = useState("");
   const [fat, setFat] = useState("");
+  const [caffeine, setCaffeine] = useState("");
   const [meal, setMeal] = useState(() => suggestMeal(new Date()));
   const { mutate, isPending } = useLogFood(day);
 
@@ -47,6 +48,7 @@ export function CustomTab({
       ...(protein.trim() !== "" ? { proteinG: Number(protein) } : {}),
       ...(carb.trim() !== "" ? { carbG: Number(carb) } : {}),
       ...(fat.trim() !== "" ? { fatG: Number(fat) } : {}),
+      ...(caffeine.trim() !== "" ? { caffeineMg: Number(caffeine) } : {}),
     };
     const parsed = logFoodSchema.safeParse(candidate);
     if (!parsed.success) {
@@ -136,6 +138,19 @@ export function CustomTab({
             placeholder="opt."
           />
         </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="custom-caffeine">Caffeine (mg)</Label>
+        <Input
+          id="custom-caffeine"
+          type="number"
+          inputMode="decimal"
+          min={0}
+          value={caffeine}
+          onChange={(e) => setCaffeine(e.target.value)}
+          placeholder="opt."
+        />
       </div>
 
       <div className="space-y-1.5">

@@ -5,6 +5,7 @@ import { ChevronLeft } from "lucide-react";
 
 import { MealPicker } from "@/components/food/meal-picker";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Stepper } from "@/components/ui/stepper";
 import { type LoggableItem, suggestMeal } from "@/lib/food";
@@ -43,6 +44,8 @@ export function QuantityStep({
   const servingG = item.servingG;
   const [grams, setGrams] = useState(servingG && servingG > 0 ? servingG : 100);
   const [meal, setMeal] = useState(() => suggestMeal(new Date()));
+  // null = follow the live scaled prefill; a string = the user has overridden it.
+  const [caffeineInput, setCaffeineInput] = useState<string | null>(null);
   const { mutate, isPending } = useLogFood(day);
 
   const scaled = scaleMacros(item.per100g, grams);
@@ -52,6 +55,10 @@ export function QuantityStep({
     carbG: scaled.carbG ?? 0,
     fatG: scaled.fatG ?? 0,
   };
+  // Caffeine (mg) for this portion: prefilled from the product/custom food (scaled to
+  // grams) when known, always editable. Tracks the grams stepper until the user edits.
+  const caffeineValue =
+    caffeineInput ?? (scaled.caffeineMg != null ? String(scaled.caffeineMg) : "");
 
   const presets: { label: string; grams: number }[] = [
     { label: "30 g", grams: 30 },
@@ -67,9 +74,23 @@ export function QuantityStep({
       item.ref.kind === "barcode"
         ? { barcode: item.ref.barcode }
         : { customFoodId: item.ref.customFoodId };
+    // Empty field: clear to 0 if the source carried caffeine (explicit removal),
+    // else omit entirely. A number overrides the snapshot.
+    const raw = caffeineValue.trim();
+    const caffeineMg =
+      raw === ""
+        ? item.per100g.caffeineMg != null
+          ? 0
+          : undefined
+        : Number(raw);
     mutate(
       {
-        input: { ...source, quantityG: grams, meal },
+        input: {
+          ...source,
+          quantityG: grams,
+          meal,
+          ...(caffeineMg !== undefined ? { caffeineMg } : {}),
+        },
         preview: {
           displayName: item.name,
           imageUrl: item.imageUrl,
@@ -134,6 +155,22 @@ export function QuantityStep({
         <PreviewStat value={`${formatNumber(macros.proteinG, 1)}g`} label="protein" />
         <PreviewStat value={`${formatNumber(macros.carbG, 1)}g`} label="carbs" />
         <PreviewStat value={`${formatNumber(macros.fatG, 1)}g`} label="fat" />
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="food-caffeine">Caffeine (mg)</Label>
+        <Input
+          id="food-caffeine"
+          type="number"
+          inputMode="decimal"
+          min={0}
+          value={caffeineValue}
+          onChange={(e) => setCaffeineInput(e.target.value)}
+          placeholder="opt."
+        />
+        <p className="text-muted-foreground text-[10px]">
+          Raises today&apos;s caffeine total and water target.
+        </p>
       </div>
 
       <div className="space-y-1.5">

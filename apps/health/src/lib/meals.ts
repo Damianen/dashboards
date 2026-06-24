@@ -14,6 +14,7 @@ const MACRO_KEYS = [
   "fiberG",
   "sugarG",
   "saltG",
+  "caffeineMg",
 ] as const satisfies readonly (keyof Macros)[];
 
 const round1 = (v: number): number => Math.round(v * 10) / 10;

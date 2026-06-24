@@ -34,6 +34,9 @@ export async function putJSON<T>(url: string, body: unknown): Promise<T> {
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new HttpError(res.status, `PUT ${url} failed`);
+  return res.json() as Promise<T>;
+}
+
 export async function patchJSON<T>(url: string, body: unknown): Promise<T> {
   const res = await fetch(url, {
     method: "PATCH",

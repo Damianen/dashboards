@@ -24,6 +24,9 @@ export interface DailySummary {
   waterMl: number | null;
   waterTargetMl: number | null;
   stimulantMg: number | null;
+  /** Unified caffeine total (mg) for the day: stimulant entries + food entries
+   *  (incl. meal-logged) + checked supplements. This is what drives the water target. */
+  caffeineMg: number | null;
   liftingVolumeKg: number | null;
   workingSets: number | null;
   supplementsTaken: number | null;
@@ -52,6 +55,7 @@ function mapRow(r: RawSummaryRow): DailySummary {
     waterMl: num(r.waterMl),
     waterTargetMl: num(r.waterTargetMl),
     stimulantMg: num(r.stimulantMg),
+    caffeineMg: num(r.caffeineMg),
     liftingVolumeKg: num(r.liftingVolumeKg),
     workingSets: num(r.workingSets),
     supplementsTaken: num(r.supplementsTaken),
@@ -79,6 +83,7 @@ export async function getDailySummary(
       water_ml          AS "waterMl",
       water_target_ml   AS "waterTargetMl",
       stimulant_mg      AS "stimulantMg",
+      caffeine_mg       AS "caffeineMg",
       lifting_volume_kg AS "liftingVolumeKg",
       working_sets      AS "workingSets",
       supplements_taken AS "supplementsTaken"
@@ -102,7 +107,9 @@ const TREND_COLUMNS: Record<TrendMetric, string> = {
   protein_g: "protein_g",
   water_ml: "water_ml",
   water_target_ml: "water_target_ml",
-  caffeine_mg: "stimulant_mg",
+  // The Caffeine trend now shows the UNIFIED daily total (stimulants + food +
+  // supplements), not just stimulant entries.
+  caffeine_mg: "caffeine_mg",
   lifting_volume_kg: "lifting_volume_kg",
 };
 

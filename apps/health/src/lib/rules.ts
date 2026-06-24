@@ -4,13 +4,14 @@
 
 import { DomainError } from "@/server/services/errors";
 
-/** Water target in mL: base intake plus a per-mg bump for the day's stimulants. */
+/** Water target in mL: base intake plus a per-mg bump for the day's total caffeine
+ *  (summed across stimulant entries, supplements and food — see the daily_summary view). */
 export function computeWaterTarget(
   baseMl: number,
   mlPerMg: number,
-  stimulantMg: number,
+  caffeineMg: number,
 ): number {
-  return Math.round(baseMl + stimulantMg * mlPerMg);
+  return Math.round(baseMl + caffeineMg * mlPerMg);
 }
 
 const THREE_HOURS_MS = 3 * 60 * 60 * 1000;
@@ -27,6 +28,9 @@ export function shouldReuseSession(
 /**
  * A macro nutrient set, per 100 g or scaled to a portion. `null` means the source
  * (Open Food Facts, or a manual entry) didn't report that nutrient — never 0.
+ * `caffeineMg` is in milligrams (every other field is grams, kcal aside); it never
+ * enters any calorie math — it feeds only the unified daily caffeine total and,
+ * through it, the water target.
  */
 export interface Macros {
   kcal: number | null;
@@ -36,6 +40,7 @@ export interface Macros {
   fiberG: number | null;
   sugarG: number | null;
   saltG: number | null;
+  caffeineMg: number | null;
 }
 
 /**
@@ -54,6 +59,7 @@ export function scaleMacros(per100g: Macros, quantityG: number): Macros {
     fiberG: scale(per100g.fiberG),
     sugarG: scale(per100g.sugarG),
     saltG: scale(per100g.saltG),
+    caffeineMg: scale(per100g.caffeineMg),
   };
 }
 

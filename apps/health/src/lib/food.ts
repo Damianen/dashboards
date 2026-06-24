@@ -42,6 +42,7 @@ export function coerceMacros(p: Partial<Macros> | null | undefined): Macros {
     fiberG: p?.fiberG ?? null,
     sugarG: p?.sugarG ?? null,
     saltG: p?.saltG ?? null,
+    caffeineMg: p?.caffeineMg ?? null,
   };
 }
 

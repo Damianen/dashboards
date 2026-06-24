@@ -30,6 +30,9 @@ export const per100gSchema = z.strictObject({
   fiberG: z.number().min(0).optional(),
   sugarG: z.number().min(0).optional(),
   saltG: z.number().min(0).optional(),
+  // Caffeine in MILLIGRAMS per 100 g (every other field is grams). Optional —
+  // OFF rarely reports it, and it's hand-entered otherwise. Never enters calorie math.
+  caffeineMg: z.number().min(0).max(99999.9).optional(),
 });
 export type Per100g = z.infer<typeof per100gSchema>;
 
@@ -62,6 +65,9 @@ export const logFoodSchema = z
     fiberG: macroOverride,
     sugarG: macroOverride,
     saltG: macroOverride,
+    // Caffeine (mg) for THIS entry, already scaled to quantity. Prefilled from the
+    // product/custom food when known, always overridable. Snapshotted onto the row.
+    caffeineMg: macroOverride,
   })
   .refine(
     (v) =>

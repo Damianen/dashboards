@@ -219,6 +219,7 @@ function ManualItemForm({ onAdd }: { onAdd: (item: BuilderItem) => void }) {
   const [protein, setProtein] = useState("");
   const [carb, setCarb] = useState("");
   const [fat, setFat] = useState("");
+  const [caffeine, setCaffeine] = useState("");
 
   function submit() {
     if (name.trim() === "" || kcal.trim() === "" || Number.isNaN(Number(kcal))) {
@@ -239,6 +240,7 @@ function ManualItemForm({ onAdd }: { onAdd: (item: BuilderItem) => void }) {
           fiberG: null,
           sugarG: null,
           saltG: null,
+          caffeineMg: caffeine.trim() === "" ? null : Number(caffeine),
         },
       },
     });
@@ -305,6 +307,18 @@ function ManualItemForm({ onAdd }: { onAdd: (item: BuilderItem) => void }) {
             placeholder="opt."
           />
         </div>
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="mi-caffeine">Caffeine (mg)</Label>
+        <Input
+          id="mi-caffeine"
+          type="number"
+          inputMode="decimal"
+          min={0}
+          value={caffeine}
+          onChange={(e) => setCaffeine(e.target.value)}
+          placeholder="opt."
+        />
       </div>
       <Button type="button" className="h-11 w-full" onClick={submit}>
         Add ingredient

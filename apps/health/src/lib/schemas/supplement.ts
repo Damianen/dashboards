@@ -35,6 +35,9 @@ export const createSupplementSchema = z.strictObject({
   name: z.string().trim().min(1),
   dose: z.number().gt(0),
   unit: z.string().trim().min(1),
+  // Caffeine per dose (mg), e.g. a pre-workout. Optional — most supplements have none.
+  // Snapshotted onto each daily check; feeds the unified caffeine total / water target.
+  caffeineMg: z.number().min(0).max(99999.9).optional(),
   timeGroup: supplementTimeGroupSchema,
 });
 export type CreateSupplementInput = z.infer<typeof createSupplementSchema>;

@@ -25,6 +25,7 @@ export interface SupplementView {
   name: string;
   dose: number;
   unit: string;
+  caffeineMg: number | null;
   timeGroup: Supplement["timeGroup"];
   position: number;
   archived: boolean;
@@ -38,6 +39,7 @@ function serialize(s: Supplement): SupplementView {
     name: s.name,
     dose: Number(s.dose),
     unit: s.unit,
+    caffeineMg: s.caffeineMg == null ? null : Number(s.caffeineMg),
     timeGroup: s.timeGroup,
     position: s.position,
     archived: s.archived,
@@ -70,6 +72,7 @@ export async function create(
       name: data.name,
       dose: data.dose,
       unit: data.unit,
+      caffeineMg: data.caffeineMg ?? null,
       timeGroup: data.timeGroup,
       position,
     },
@@ -89,6 +92,7 @@ export async function update(
     name: data.name,
     dose: data.dose,
     unit: data.unit,
+    caffeineMg: data.caffeineMg ?? null,
     timeGroup: data.timeGroup,
   };
   // Moving to a different group → append to the end of the new group.
@@ -197,6 +201,9 @@ export async function check(
       takenAt: new Date(),
       doseSnapshot: supp.dose,
       unitSnapshot: supp.unit,
+      // Snapshot caffeine at check time so editing the supplement later never
+      // rewrites past days. Raises the day's caffeine total + water target.
+      caffeineSnapshot: supp.caffeineMg,
       origin,
     },
     update: {},
@@ -226,7 +233,7 @@ export async function checkGroup(
 
   const active = await prisma.supplement.findMany({
     where: { archived: false, timeGroup },
-    select: { id: true, dose: true, unit: true },
+    select: { id: true, dose: true, unit: true, caffeineMg: true },
   });
   const have = new Set(
     (
@@ -246,6 +253,7 @@ export async function checkGroup(
         takenAt: now,
         doseSnapshot: a.dose,
         unitSnapshot: a.unit,
+        caffeineSnapshot: a.caffeineMg,
         origin,
       })),
       skipDuplicates: true,

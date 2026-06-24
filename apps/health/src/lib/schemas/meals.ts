@@ -26,6 +26,9 @@ export const mealItemSchema = z
     fiberG: macroValue.optional(),
     sugarG: macroValue.optional(),
     saltG: macroValue.optional(),
+    // Caffeine (mg) for a free-typed item; barcode/customFood/childMeal items inherit
+    // caffeine from their source. Folds into the meal's per-portion caffeine snapshot.
+    caffeineMg: macroValue.optional(),
   })
   .refine(
     (v) =>

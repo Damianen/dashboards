@@ -129,6 +129,7 @@ function serializeMealItem(it: MealWithItems["items"][number]): MealItemView {
       fiberG: dec(it.fiberG),
       sugarG: dec(it.sugarG),
       saltG: dec(it.saltG),
+      caffeineMg: dec(it.caffeineMg),
     },
     displayName:
       it.product?.name ??
@@ -188,6 +189,7 @@ async function resolveItems(items: MealItemInput[]): Promise<ResolvedItem[]> {
         fiberG: null,
         sugarG: null,
         saltG: null,
+        caffeineMg: null,
       },
     };
 
@@ -234,6 +236,7 @@ async function resolveItems(items: MealItemInput[]): Promise<ResolvedItem[]> {
         fiberG: it.fiberG ?? null,
         sugarG: it.sugarG ?? null,
         saltG: it.saltG ?? null,
+        caffeineMg: it.caffeineMg ?? null,
       };
     }
 
@@ -260,6 +263,7 @@ function toItemCreate(
     fiberG: r.macros.fiberG,
     sugarG: r.macros.sugarG,
     saltG: r.macros.saltG,
+    caffeineMg: r.macros.caffeineMg,
   };
 }
 
@@ -422,7 +426,9 @@ export async function resolveMealByName(
  * per-portion × portions (1 dp). The entry carries mealId, the portion count, the meal
  * name as customName, and the snapshotted totals — history never recomputes from the
  * recipe (CLAUDE.md). quantityG is null (meal entries are measured in portions). The
- * four required columns coalesce unknown → 0; fiber/sugar/salt keep their nulls.
+ * four required columns coalesce unknown → 0; fiber/sugar/salt and caffeine keep their
+ * nulls. Caffeine rides along with the per-portion snapshot, so a caffeinated meal
+ * (e.g. a pre-workout shake) raises the day's caffeine total and water target.
  */
 export async function logMeal(
   input: LogMealInput,
@@ -449,6 +455,7 @@ export async function logMeal(
       fiberG: totals.fiberG,
       sugarG: totals.sugarG,
       saltG: totals.saltG,
+      caffeineMg: totals.caffeineMg,
       meal: data.meal,
       origin,
     },

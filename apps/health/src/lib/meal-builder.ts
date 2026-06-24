@@ -114,6 +114,7 @@ function macroFields(m: Macros): Partial<MealItemInput> {
     ...(m.fiberG != null ? { fiberG: m.fiberG } : {}),
     ...(m.sugarG != null ? { sugarG: m.sugarG } : {}),
     ...(m.saltG != null ? { saltG: m.saltG } : {}),
+    ...(m.caffeineMg != null ? { caffeineMg: m.caffeineMg } : {}),
   };
 }
 
