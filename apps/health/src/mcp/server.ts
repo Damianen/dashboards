@@ -2,7 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 
-import { dayOf } from "@/lib/dates";
+import { dayOf, todayLocal } from "@/lib/dates";
 import { daySchema } from "@/lib/schemas/common";
 import {
   observationsWindowSchema,
@@ -27,6 +27,11 @@ import {
   logMeal,
   resolveMealByName,
 } from "@/server/services/meals";
+import {
+  applyDailyPlan,
+  listDailyPlans,
+  resolveDailyPlanByName,
+} from "@/server/services/dailyPlans";
 import {
   createExercise,
   getE1rmHistory,
@@ -467,6 +472,25 @@ export function buildServer(): McpServer {
   );
 
   server.registerTool(
+    "list_daily_plans",
+    {
+      description:
+        'Saved daily plans — named, reusable sets of food/meal items eaten on a typical ' +
+        'day (e.g. "Workday", "Rest day"), alphabetical. Each shows its item count and ' +
+        "the plan's current total kcal. Use apply_daily_plan to log one to a day's diary " +
+        "by name.",
+      inputSchema: {
+        include_archived: z
+          .boolean()
+          .optional()
+          .describe("Include archived plans (default false)."),
+      },
+    },
+    ({ include_archived }) =>
+      run(() => listDailyPlans({ includeArchived: include_archived })),
+  );
+
+  server.registerTool(
     "get_sync_status",
     {
       description:
@@ -865,6 +889,46 @@ export function buildServer(): McpServer {
           },
           "MCP",
         );
+      }),
+  );
+
+  server.registerTool(
+    "apply_daily_plan",
+    {
+      description:
+        "Apply a saved daily plan to a day's diary: logs EACH of its items as its own " +
+        "ordinary, separately-editable entry (products/custom foods via the food path, " +
+        "meals via the meal path), snapshotting macros exactly like a manual log, in the " +
+        "items' own meal slots. Resolves the plan by case-insensitive name: an exact " +
+        "single match applies it; multiple or no matches do NOT apply and return " +
+        "{ applied: false, candidates: [{ id, name }] } — re-call with an exact name. " +
+        "Stateless and repeatable: it never dedups, so applying twice logs two sets " +
+        "(delete extras manually). Returns { logged, skipped: [{ item, reason }] } — a " +
+        "since-deleted item is skipped while the rest still log. Intake only; never " +
+        "netted against expenditure.",
+      inputSchema: {
+        plan: z.string().describe("Name of the saved daily plan to apply."),
+        day: daySchema
+          .optional()
+          .describe(
+            "Civil date YYYY-MM-DD (Europe/Amsterdam). Defaults to today.",
+          ),
+      },
+    },
+    ({ plan, day }) =>
+      run(async () => {
+        const resolved = await resolveDailyPlanByName(plan);
+        if (!("plan" in resolved)) {
+          return {
+            applied: false,
+            message:
+              resolved.candidates.length === 0
+                ? `no daily plan matches "${plan}"`
+                : "Multiple plans match. Re-call apply_daily_plan with an exact name.",
+            candidates: resolved.candidates,
+          };
+        }
+        return await applyDailyPlan(resolved.plan.id, day ?? todayLocal(), "MCP");
       }),
   );
 

@@ -1,0 +1,174 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  itemContribution,
+  type PlanBuilderItem,
+  planItemFromView,
+  planTotal,
+  toCreateDailyPlanInput,
+  toDailyPlanItemInput,
+} from "./daily-plan-builder";
+import type { Macros } from "./rules";
+import type { DailyPlanItemView } from "@/server/services/dailyPlans";
+
+const CUID = "cflx0a1b2c3d4e5f6g7h8i9j";
+
+// A Macros with everything null by default; override only the fields a test cares about.
+function macros(p: Partial<Macros>): Macros {
+  return {
+    kcal: null,
+    proteinG: null,
+    carbG: null,
+    fatG: null,
+    fiberG: null,
+    sugarG: null,
+    saltG: null,
+    caffeineMg: null,
+    ...p,
+  };
+}
+
+const productItem: PlanBuilderItem = {
+  key: "a",
+  name: "Coke",
+  amount: 50,
+  mealSlot: "LUNCH",
+  source: {
+    kind: "product",
+    barcode: "5449000000996",
+    per100g: macros({ kcal: 200, proteinG: 4 }),
+  },
+};
+
+const mealItem: PlanBuilderItem = {
+  key: "b",
+  name: "Shake",
+  amount: 2,
+  mealSlot: null,
+  source: {
+    kind: "meal",
+    mealId: CUID,
+    perPortion: macros({ kcal: 300, proteinG: 30 }),
+  },
+};
+
+describe("itemContribution", () => {
+  it("scales a product per-100 g by its gram amount", () => {
+    const c = itemContribution(productItem); // 200 * 50/100
+    expect(c.kcal).toBe(100);
+    expect(c.proteinG).toBe(2);
+  });
+
+  it("scales a meal per-portion by its portion count", () => {
+    const c = itemContribution(mealItem); // 300 * 2
+    expect(c.kcal).toBe(600);
+    expect(c.proteinG).toBe(60);
+  });
+});
+
+describe("planTotal", () => {
+  it("sums every item's contribution (null-aware)", () => {
+    const total = planTotal([productItem, mealItem]);
+    expect(total.kcal).toBe(700); // 100 + 600
+    expect(total.proteinG).toBe(62); // 2 + 60
+    expect(total.fatG).toBeNull(); // unknown in both
+  });
+
+  it("is all-null for an empty plan", () => {
+    expect(planTotal([]).kcal).toBeNull();
+  });
+});
+
+describe("toDailyPlanItemInput", () => {
+  it("serializes a product item with its slot", () => {
+    expect(toDailyPlanItemInput(productItem)).toEqual({
+      barcode: "5449000000996",
+      quantityG: 50,
+      mealSlot: "LUNCH",
+    });
+  });
+
+  it("serializes a meal item by portions, omitting an unset slot", () => {
+    expect(toDailyPlanItemInput(mealItem)).toEqual({
+      mealId: CUID,
+      portions: 2,
+    });
+  });
+
+  it("serializes a custom-food item by grams", () => {
+    const item: PlanBuilderItem = {
+      key: "c",
+      name: "Oats",
+      amount: 80,
+      mealSlot: null,
+      source: { kind: "customFood", customFoodId: CUID, per100g: macros({ kcal: 380 }) },
+    };
+    expect(toDailyPlanItemInput(item)).toEqual({
+      customFoodId: CUID,
+      quantityG: 80,
+    });
+  });
+});
+
+describe("toCreateDailyPlanInput", () => {
+  it("trims the name and omits blank notes", () => {
+    const input = toCreateDailyPlanInput("  Workday  ", "   ", [productItem]);
+    expect(input.name).toBe("Workday");
+    expect("notes" in input).toBe(false);
+    expect(input.items).toHaveLength(1);
+  });
+
+  it("keeps trimmed notes when present", () => {
+    const input = toCreateDailyPlanInput("Rest day", "  gym off  ", [mealItem]);
+    expect(input.notes).toBe("gym off");
+  });
+});
+
+describe("planItemFromView (edit-mode round-trip)", () => {
+  it("reconstructs a product item whose contribution matches the snapshot", () => {
+    const view: DailyPlanItemView = {
+      id: "i1",
+      position: 0,
+      productBarcode: "5449000000996",
+      customFoodId: null,
+      mealId: null,
+      quantityG: 200,
+      portions: null,
+      mealSlot: "BREAKFAST",
+      macros: macros({ kcal: 300, proteinG: 12 }),
+      displayName: "Coke",
+    };
+    const item = planItemFromView(view);
+    expect(item.source.kind).toBe("product");
+    expect(item.amount).toBe(200);
+    expect(item.mealSlot).toBe("BREAKFAST");
+    // Re-scaling the derived per-unit macros by the amount returns the snapshot.
+    expect(itemContribution(item).kcal).toBe(300);
+    expect(itemContribution(item).proteinG).toBe(12);
+    expect(toDailyPlanItemInput(item)).toEqual({
+      barcode: "5449000000996",
+      quantityG: 200,
+      mealSlot: "BREAKFAST",
+    });
+  });
+
+  it("reconstructs a meal item by portions", () => {
+    const view: DailyPlanItemView = {
+      id: "i2",
+      position: 1,
+      productBarcode: null,
+      customFoodId: null,
+      mealId: CUID,
+      quantityG: null,
+      portions: 2,
+      mealSlot: null,
+      macros: macros({ kcal: 600 }),
+      displayName: "Shake",
+    };
+    const item = planItemFromView(view);
+    expect(item.source.kind).toBe("meal");
+    expect(item.amount).toBe(2);
+    expect(itemContribution(item).kcal).toBe(600);
+    expect(toDailyPlanItemInput(item)).toEqual({ mealId: CUID, portions: 2 });
+  });
+});

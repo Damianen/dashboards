@@ -146,6 +146,7 @@ model FoodProduct {
   fetchedAt DateTime    @map("fetched_at")
   entries   FoodEntry[]
   mealItems MealItem[]
+  dailyPlanItems DailyPlanItem[]
 
   @@map("food_products")
 }
@@ -196,6 +197,7 @@ model CustomFood {
   createdAt DateTime    @default(now()) @map("created_at")
   entries   FoodEntry[]
   mealItems MealItem[]
+  dailyPlanItems DailyPlanItem[]
 
   @@index([name])
   @@map("custom_foods")
@@ -219,6 +221,7 @@ model Meal {
   items         MealItem[]  @relation("MealItems")
   usedIn        MealItem[]  @relation("MealChild")
   entries       FoodEntry[]
+  dailyPlanItems DailyPlanItem[]
 
   @@index([archived])
   @@map("meals")
@@ -254,6 +257,47 @@ model MealItem {
   @@index([mealId])
   @@index([childMealId])
   @@map("meal_items")
+}
+
+/// A named, reusable set of food/meal items eaten on a typical day (e.g. "Workday").
+/// Pure template: applying it logs each item as an ordinary FoodEntry through the
+/// existing logFood/logMeal paths (re-resolving + snapshotting CURRENT macros). The
+/// plan itself stores NO macros — per-item / plan totals are resolved on read.
+model DailyPlan {
+  id        String          @id @default(cuid())
+  name      String          @unique
+  notes     String?
+  archived  Boolean         @default(false)
+  createdAt DateTime        @default(now()) @map("created_at")
+  updatedAt DateTime        @updatedAt @map("updated_at")
+  items     DailyPlanItem[]
+
+  @@index([archived])
+  @@map("daily_plans")
+}
+
+/// One item of a DailyPlan. Exactly one source is set (enforced in Zod + the
+/// service), mirroring how a FoodEntry resolves: an OFF product or a saved custom
+/// food (scaled by quantityG) or a saved meal (scaled by portions). The optional
+/// mealSlot is the diary slot the applied entry should land in.
+model DailyPlanItem {
+  id             String       @id @default(cuid())
+  dailyPlanId    String       @map("daily_plan_id")
+  dailyPlan      DailyPlan    @relation(fields: [dailyPlanId], references: [id], onDelete: Cascade)
+  position       Int
+  productBarcode String?      @map("product_barcode")
+  product        FoodProduct? @relation(fields: [productBarcode], references: [barcode])
+  customFoodId   String?      @map("custom_food_id")
+  customFood     CustomFood?  @relation(fields: [customFoodId], references: [id])
+  mealId         String?      @map("meal_id")
+  meal           Meal?        @relation(fields: [mealId], references: [id])
+  quantityG      Decimal?     @map("quantity_g") @db.Decimal(7, 1)
+  portions       Decimal?     @db.Decimal(6, 2)
+  mealSlot       MealSlot?    @map("meal_slot")
+
+  @@unique([dailyPlanId, position])
+  @@index([dailyPlanId])
+  @@map("daily_plan_items")
 }
 
 model Exercise {
