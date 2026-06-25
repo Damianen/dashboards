@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 
 import { AddFoodSheet } from "@/components/food/add-food-sheet";
+import { DailyPlansTab } from "@/components/food/daily-plans/daily-plans-tab";
 import { DayTotalBar } from "@/components/food/day-total-bar";
 import { MealSection } from "@/components/food/meal-section";
 import { MealsTab } from "@/components/food/meals/meals-tab";
@@ -39,7 +40,7 @@ function PageSkeleton() {
 export function FoodPage() {
   const [day, setDay] = useState(todayLocal());
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [tab, setTab] = useState<"diary" | "meals">("diary");
+  const [tab, setTab] = useState<"diary" | "meals" | "plans">("diary");
 
   const { data, isLoading, isError, isFetching, refetch } = useFoodEntries(day);
   const views = useMemo(() => (data ?? []).map(toView), [data]);
@@ -83,11 +84,14 @@ export function FoodPage() {
         options={[
           { value: "diary", label: "Diary" },
           { value: "meals", label: "Meals" },
+          { value: "plans", label: "Plans" },
         ]}
       />
 
       {tab === "meals" ? (
         <MealsTab day={day} />
+      ) : tab === "plans" ? (
+        <DailyPlansTab day={day} />
       ) : (
         <>
           <DayTotalBar total={total} />

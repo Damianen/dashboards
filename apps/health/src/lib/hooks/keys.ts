@@ -39,6 +39,12 @@ export const queryKeys = {
   mealList: (includeArchived: boolean) =>
     ["meals", "list", includeArchived] as const,
   meal: (id: string) => ["meals", "detail", id] as const,
+  // Daily plans nest under one ["daily-plans"] prefix so a single invalidate after any
+  // mutation refreshes the list (both filters) and any open builder detail.
+  dailyPlans: () => ["daily-plans"] as const,
+  dailyPlanList: (includeArchived: boolean) =>
+    ["daily-plans", "list", includeArchived] as const,
+  dailyPlan: (id: string) => ["daily-plans", "detail", id] as const,
   connections: () => ["connections"] as const,
   syncStatus: () => ["sync-status"] as const,
   trends: (metric: string, days: number) => ["trends", metric, days] as const,
