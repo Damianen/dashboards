@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ApplyPlanCard } from "@/components/today/apply-plan-card";
 import {
   ActivityCard,
   CaffeineCard,
@@ -74,6 +75,7 @@ export function TodayDashboard() {
           <WeightCard s={data ?? null} />
           <IntakeCard s={data ?? null} a={adherence ?? null} />
           <ProteinCard a={adherence ?? null} />
+          <ApplyPlanCard />
           <ActivityCard s={data ?? null} />
           <LiftingCard s={data ?? null} />
           <StreaksCard a={adherence ?? null} />
