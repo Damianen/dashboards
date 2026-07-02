@@ -8,8 +8,10 @@ import { queryKeys } from "@/lib/hooks/keys";
 
 /** The shared shape returned by the per-provider sync routes (Oura, Withings). */
 interface SyncResult {
-  status: "OK" | "ERROR";
-  itemsUpserted: number;
+  /** True when the guard found a run already in flight and did nothing. */
+  skipped?: boolean;
+  status?: "OK" | "ERROR";
+  itemsUpserted?: number;
   needsReauth?: boolean;
   error?: string;
 }
@@ -24,8 +26,12 @@ export function useSyncProvider(provider: string, label: string) {
   return useMutation({
     mutationFn: () => postJSON<SyncResult>(`/api/sync/${provider}`, {}),
     onSuccess: (result) => {
-      if (result.status === "OK") {
-        const n = result.itemsUpserted;
+      if (result.skipped) {
+        toast.info(`${label} sync already running`, {
+          description: "Try again in a moment.",
+        });
+      } else if (result.status === "OK") {
+        const n = result.itemsUpserted ?? 0;
         toast.success(`${label} synced`, {
           description: `${n} item${n === 1 ? "" : "s"} updated`,
         });

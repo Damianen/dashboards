@@ -61,9 +61,7 @@ import { getDailySummary, getTrends } from "@/server/services/summary";
 import { getTdeeEstimate } from "@/server/services/tdee";
 import { getWeightGoal } from "@/server/services/weight-goal";
 import { VisionError } from "@/server/services/vision";
-import { syncOura } from "@/server/services/sync/oura";
-import { latestRunsBySource } from "@/server/services/sync/runs";
-import { syncWithings } from "@/server/services/sync/withings";
+import { getSyncStatus, SYNC_SOURCES, syncSource } from "@/server/services/sync";
 import { getWaterStatus, logWater } from "@/server/services/water";
 
 // The active_kcal honesty caveat (CLAUDE.md domain guardrail), shared verbatim by the
@@ -494,11 +492,12 @@ export function buildServer(): McpServer {
     "get_sync_status",
     {
       description:
-        "The most recent sync run per source (Oura, Withings). " +
-        "Empty until sync phases land.",
+        "Per-source sync status (Oura, Withings): the configured cadence and the most " +
+        "recent run ({ status, startedAt, finishedAt, itemsUpserted, error }). lastRun " +
+        "is null for a source that has never synced.",
       inputSchema: {},
     },
-    () => run(() => latestRunsBySource()),
+    () => run(() => getSyncStatus()),
   );
 
   // ----- WRITE (origin "MCP") -----
@@ -1175,20 +1174,30 @@ export function buildServer(): McpServer {
       description:
         "Trigger a wearable sync for a source since the last successful run (idempotent " +
         "UPSERT by external id / day), returning a run summary { status, itemsUpserted, " +
-        "window }. Oura pulls sleep, daily sleep and readiness; an unlinked Oura or a " +
-        "rejected refresh token returns needsReauth: true. Withings pulls body " +
-        "measurements (weight + composition); a rejected refresh token returns " +
+        "window }. Runs under the same guard as the scheduler: { skipped: true } means a " +
+        "sync for that source is already in flight — retry in a few minutes. Oura pulls " +
+        "sleep, daily sleep and readiness; Withings pulls body measurements (weight + " +
+        "composition). An unlinked provider or a rejected refresh token returns " +
         "needsReauth: true rather than erroring out.",
       inputSchema: {
         source: z
-          .enum(["oura", "withings"])
+          .enum(
+            SYNC_SOURCES.map((c) => c.source.toLowerCase()) as [
+              string,
+              ...string[],
+            ],
+          )
           .describe("Which source to sync."),
       },
     },
-    ({ source }) => {
-      if (source === "oura") return run(() => syncOura());
-      return run(() => syncWithings());
-    },
+    ({ source }) =>
+      run(() => {
+        const cfg = SYNC_SOURCES.find(
+          (c) => c.source.toLowerCase() === source,
+        );
+        if (!cfg) throw new NotFoundError("sync source", source);
+        return syncSource(cfg.source);
+      }),
   );
 
   return server;

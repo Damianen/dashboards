@@ -9,7 +9,7 @@ import { queryKeys } from "@/lib/hooks/keys";
 /** One entry per source from POST /api/sync/all (mirrors the service's SyncAllResult). */
 interface SyncAllResult {
   source: string;
-  status: "OK" | "ERROR";
+  status: "OK" | "ERROR" | "SKIPPED";
   itemsUpserted: number;
   error?: string;
 }
@@ -27,9 +27,12 @@ export function useSyncAll() {
     onSuccess: (results) => {
       const items = results.reduce((sum, r) => sum + r.itemsUpserted, 0);
       const failed = results.filter((r) => r.status === "ERROR").length;
+      const skipped = results.filter((r) => r.status === "SKIPPED").length;
       if (failed === 0) {
-        toast.success("All sources synced", {
-          description: `${items} item${items === 1 ? "" : "s"} updated`,
+        toast.success(skipped === 0 ? "All sources synced" : "Sync finished", {
+          description:
+            `${items} item${items === 1 ? "" : "s"} updated` +
+            (skipped > 0 ? `, ${skipped} already running` : ""),
         });
       } else {
         toast.error(

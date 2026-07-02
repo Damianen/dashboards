@@ -13,6 +13,7 @@ import {
   type OuraSleepRecord,
   OuraRateLimitError,
 } from "@/server/integrations/oura";
+import { ReauthRequiredError } from "@/server/services/tokens";
 import {
   computeSyncWindow,
   failSyncRun,
@@ -128,17 +129,42 @@ export interface OuraSyncSummary {
 }
 
 /**
+ * How a rate-limited run must close. A steady-state 429 closes OK — the run's
+ * windowEnd advances the watermark and the fixed overlap re-covers the small gap
+ * next run. During the initial backfill that logic is a data-loss bug: the
+ * watermark would jump to today while months of unfetched history fall outside
+ * the overlap and would never be requested again. So a backfill 429 closes
+ * ERROR, keeping the watermark unset so the next run retries the full window.
+ */
+export function rateLimitedClose(isBackfill: boolean): {
+  status: "OK" | "ERROR";
+  note: string;
+} {
+  return isBackfill
+    ? {
+        status: "ERROR",
+        note: "rate limited during initial backfill; the full window is retried next run",
+      }
+    : {
+        status: "OK",
+        note: "rate limited; partial sync, gap re-covered next run",
+      };
+}
+
+/**
  * Sync Oura sleep, daily sleep and readiness for the incremental window. Idempotent:
  * every record UPSERTs by external id (sleep) or day (daily summaries), so a re-run over
  * the overlap touches no duplicates, and absence upstream never deletes a local row.
  *
  * Resilient by design — it does not throw for sync-level failures. A 429 stops the run
- * early but closes it OK (partial; the overlap re-covers the gap next run). An unlinked
- * Oura or a rejected refresh token (OuraAuthError) closes the run ERROR with the stable
- * re-auth marker and returns needsReauth: true; any other error closes it ERROR with its
- * message. Either way an auditable SyncRun row is written and a structured summary
- * returned, so the MCP agent / route always gets a readable result. Only a failure before
- * the run row exists (missing env, DB down at openSyncRun) propagates.
+ * early and closes it per rateLimitedClose (OK on an incremental run, ERROR during the
+ * initial backfill so the watermark never advances past unfetched history). An unlinked
+ * Oura, a rejected refresh token (OuraAuthError), or an undecryptable stored token
+ * (ReauthRequiredError) closes the run ERROR with the stable re-auth marker and returns
+ * needsReauth: true; any other error closes it ERROR with its message. Either way an
+ * auditable SyncRun row is written and a structured summary returned, so the MCP agent /
+ * route always gets a readable result. Only a failure before the run row exists (missing
+ * env, DB down at openSyncRun) propagates.
  */
 export async function syncOura(): Promise<OuraSyncSummary> {
   const today = todayLocal();
@@ -146,6 +172,7 @@ export async function syncOura(): Promise<OuraSyncSummary> {
     where: { source: SyncSource.OURA, status: "OK" },
     orderBy: { startedAt: "desc" },
   });
+  const isBackfill = lastOk == null;
   const window = computeSyncWindow({
     lastOkWindowEnd: lastOk?.windowEnd ?? null,
     today,
@@ -214,7 +241,8 @@ export async function syncOura(): Promise<OuraSyncSummary> {
     if (err instanceof OuraRateLimitError) {
       rateLimited = true;
     } else {
-      const needsReauth = err instanceof OuraAuthError;
+      const needsReauth =
+        err instanceof OuraAuthError || err instanceof ReauthRequiredError;
       const message = needsReauth
         ? OURA_REAUTH_MSG
         : err instanceof Error
@@ -234,18 +262,41 @@ export async function syncOura(): Promise<OuraSyncSummary> {
     }
   }
 
-  await finishSyncRun(
-    run.id,
-    upserted,
-    rateLimited ? "rate limited; partial sync, gap re-covered next run" : undefined,
-  );
+  if (rateLimited) {
+    const close = rateLimitedClose(isBackfill);
+    if (close.status === "ERROR") {
+      await failSyncRun(run.id, close.note, upserted);
+      return {
+        runId: run.id,
+        status: "ERROR",
+        itemsUpserted: upserted,
+        windowStart: window.startDate,
+        windowEnd: window.endDate,
+        rateLimited: true,
+        needsReauth: false,
+        error: close.note,
+      };
+    }
+    await finishSyncRun(run.id, upserted, close.note);
+    return {
+      runId: run.id,
+      status: "OK",
+      itemsUpserted: upserted,
+      windowStart: window.startDate,
+      windowEnd: window.endDate,
+      rateLimited: true,
+      needsReauth: false,
+    };
+  }
+
+  await finishSyncRun(run.id, upserted);
   return {
     runId: run.id,
     status: "OK",
     itemsUpserted: upserted,
     windowStart: window.startDate,
     windowEnd: window.endDate,
-    rateLimited,
+    rateLimited: false,
     needsReauth: false,
   };
 }
