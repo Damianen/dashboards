@@ -15,6 +15,7 @@ import {
 import {
   type LabelNutrients,
   type Macros,
+  mergeSnapshot,
   normalizeToPer100g,
   scaleMacros,
   sumMealTotals,
@@ -295,9 +296,9 @@ export async function listCustomFoods(
 /**
  * Saved custom foods whose name or brand contains `query` (case-insensitive), EXCLUDING
  * archived (retired) foods so a retired food is never logged afresh. An empty query lists
- * all active foods. Powers the MCP custom_food_name resolution (log_food / create_meal).
+ * all active foods. Module-private: resolveCustomFoodByName is the consumer.
  */
-export function searchCustomFoods(query: string): Promise<CustomFood[]> {
+function searchCustomFoods(query: string): Promise<CustomFood[]> {
   const q = query.trim();
   return prisma.customFood.findMany({
     where: {
@@ -313,6 +314,36 @@ export function searchCustomFoods(query: string): Promise<CustomFood[]> {
     },
     orderBy: { name: "asc" },
   });
+}
+
+export interface CustomFoodCandidate {
+  id: string;
+  name: string;
+  brand: string | null;
+}
+
+/**
+ * Resolve a saved custom food by name for MCP (log_food / create_meal).
+ * DELIBERATELY different semantics from resolveMealByName: matches come from
+ * searchCustomFoods (contains over name OR brand, archived excluded), an
+ * exact-name match wins, and a SOLE fuzzy match is accepted as unambiguous.
+ * `{ candidates: [] }` means nothing matched at all.
+ */
+export async function resolveCustomFoodByName(
+  name: string,
+): Promise<{ food: CustomFood } | { candidates: CustomFoodCandidate[] }> {
+  const matches = await searchCustomFoods(name);
+  const exact = matches.filter(
+    (f) => f.name.toLowerCase() === name.trim().toLowerCase(),
+  );
+  // Prefer an exact-name match (a `contains` search can return several);
+  // fall back to the sole result when the search itself is unambiguous.
+  const chosen =
+    exact.length === 1 ? exact[0] : matches.length === 1 ? matches[0] : null;
+  if (chosen) return { food: chosen };
+  return {
+    candidates: matches.map((c) => ({ id: c.id, name: c.name, brand: c.brand })),
+  };
 }
 
 /** A single saved custom food; 404s if it doesn't exist. */
@@ -426,20 +457,9 @@ export async function logFood(
     };
   }
 
-  // Explicit overrides win; `undefined` (omitted) keeps the computed value, so an
-  // intentional 0 is preserved (we test `!== undefined`, never `??`).
-  const pick = (override: number | undefined, computed: number | null) =>
-    override !== undefined ? override : computed;
-  const snap: Macros = {
-    kcal: pick(data.kcal, base.kcal),
-    proteinG: pick(data.proteinG, base.proteinG),
-    carbG: pick(data.carbG, base.carbG),
-    fatG: pick(data.fatG, base.fatG),
-    fiberG: pick(data.fiberG, base.fiberG),
-    sugarG: pick(data.sugarG, base.sugarG),
-    saltG: pick(data.saltG, base.saltG),
-    caffeineMg: pick(data.caffeineMg, base.caffeineMg),
-  };
+  // Explicit overrides win; omitted fields keep the computed value (see
+  // mergeSnapshot — pure, vitest-covered).
+  const snap: Macros = mergeSnapshot(data, base);
 
   return prisma.foodEntry.create({
     data: {

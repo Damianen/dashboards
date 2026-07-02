@@ -7,15 +7,8 @@ import { SupplementGroupSection } from "@/components/supplements/supplement-grou
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { todayLocal } from "@/lib/dates";
+import { dateLabel } from "@/lib/format";
 import { useChecklist } from "@/lib/hooks/use-supplements";
-
-function dateLabel(day: string): string {
-  return new Date(`${day}T00:00:00`).toLocaleDateString("en-GB", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  });
-}
 
 export function SupplementsPage() {
   const day = todayLocal();

@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { Camera, ImagePlus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
+import { CONFIDENCE, type Confidence } from "@/components/food/confidence";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,8 +18,6 @@ import {
   type Per100g,
 } from "@/lib/schemas/food";
 
-type Confidence = "high" | "medium" | "low";
-
 /** The wire shape of POST /api/food/scan-label (mirrors LabelScanResponse). */
 interface ScanResponse {
   draft: {
@@ -31,15 +30,6 @@ interface ScanResponse {
   confidence: Confidence;
   notes: string;
 }
-
-const CONFIDENCE: Record<
-  Confidence,
-  { label: string; variant: "default" | "secondary" | "destructive" }
-> = {
-  high: { label: "High confidence", variant: "default" },
-  medium: { label: "Medium confidence", variant: "secondary" },
-  low: { label: "Low confidence", variant: "destructive" },
-};
 
 /**
  * Scan a nutrition label into an editable custom-food draft. The scan endpoint

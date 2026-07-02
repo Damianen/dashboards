@@ -1,4 +1,4 @@
-import { dayOf, dayToDbDate, todayLocal } from "@/lib/dates";
+import { civilDay, dayToDbDate, shiftDay, todayLocal } from "@/lib/dates";
 import { prisma } from "@/server/db";
 // Type-only: erased at build, so no extra server code is pulled in.
 import type { TrendPoint } from "@/server/services/summary";
@@ -50,18 +50,10 @@ export function dailyWorkoutMinutes(
     .sort((a, b) => a.day.localeCompare(b.day));
 }
 
-// `day` is stored UTC-midnight (it IS the civil date), so slicing the ISO date
-// part is the exact inverse of dayToDbDate() — no timezone shift.
-function civilDay(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
-
 /** Recent workouts + a daily-minutes series over the last `days` days (ending today). */
 export async function getWorkoutTrends(days: number): Promise<WorkoutTrends> {
   const end = todayLocal();
-  const start = dayOf(
-    new Date(dayToDbDate(end).getTime() - (days - 1) * 86_400_000),
-  );
+  const start = shiftDay(end, -(days - 1));
   const rows = await prisma.workout.findMany({
     where: { day: { gte: dayToDbDate(start), lte: dayToDbDate(end) } },
     orderBy: { startedAt: "desc" },

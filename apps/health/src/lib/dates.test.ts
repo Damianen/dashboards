@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { dayOf, dayToDbDate, shiftDay, todayLocal } from "./dates";
+import { civilDay, dayOf, dayToDbDate, shiftDay, todayLocal } from "./dates";
 
 describe("dayOf", () => {
   it("buckets a late-evening UTC instant to the next Amsterdam day in summer (CEST, +02:00)", () => {
@@ -84,5 +84,16 @@ describe("todayLocal", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-13T22:30:00Z"));
     expect(todayLocal()).toBe("2026-06-14");
+  });
+});
+
+describe("civilDay", () => {
+  it("is the exact inverse of dayToDbDate", () => {
+    expect(civilDay(dayToDbDate("2026-07-02"))).toBe("2026-07-02");
+    expect(civilDay(dayToDbDate("2026-01-01"))).toBe("2026-01-01");
+  });
+
+  it("slices a non-midnight instant to its UTC date (no timezone shift)", () => {
+    expect(civilDay(new Date("2026-06-13T22:30:00Z"))).toBe("2026-06-13");
   });
 });

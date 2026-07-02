@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   clampPercent,
+  dateLabel,
   formatHm,
   formatKg,
   formatLastPerformed,
@@ -106,5 +107,18 @@ describe("formatLastPerformed", () => {
   it("handles month/year boundaries without drift", () => {
     expect(formatLastPerformed("2025-12-31", "2026-01-01")).toBe("Yesterday");
     expect(formatLastPerformed("2025-12-25", "2026-01-01")).toBe("25 Dec 2025");
+  });
+});
+
+describe("dateLabel", () => {
+  it("prints the civil day's full weekday label", () => {
+    // Local-midnight parse: local midnight of `day` always renders as `day`,
+    // so this holds in any test-runner timezone.
+    expect(dateLabel("2026-07-02")).toBe("Thursday 2 July");
+  });
+
+  it("stays on its own civil date across a year boundary", () => {
+    expect(dateLabel("2026-12-31")).toBe("Thursday 31 December");
+    expect(dateLabel("2026-01-01")).toBe("Thursday 1 January");
   });
 });

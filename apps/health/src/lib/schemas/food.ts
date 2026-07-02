@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { MEAL_ORDER } from "@/lib/food";
+
 /** A numeric EAN/UPC barcode (6–14 digits). Reused by the product route param. */
 export const barcodeSchema = z
   .string()
@@ -84,7 +86,7 @@ export const logFoodSchema = z
     customFoodId: z.cuid().optional(),
     customName: z.string().trim().min(1).optional(),
     quantityG: z.number().gt(0).max(5000),
-    meal: z.enum(["BREAKFAST", "LUNCH", "DINNER", "SNACK"]).optional(),
+    meal: z.enum(MEAL_ORDER).optional(),
     notes: z.string().trim().min(1).optional(),
     eatenAt: z.iso.datetime({ offset: true }).optional(),
     kcal: macroOverride,

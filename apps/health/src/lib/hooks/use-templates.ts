@@ -7,7 +7,7 @@ import {
 } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { getJSON, HttpError, postJSON } from "@/lib/fetcher";
+import { getJSON, HttpError, postJSON, putJSON } from "@/lib/fetcher";
 import { queryKeys } from "@/lib/hooks/keys";
 import type { CreateTemplateInput } from "@/lib/schemas/template";
 // Type-only imports: erased at build time, so no server code is bundled.
@@ -72,23 +72,23 @@ function toSaveError(body: unknown): TemplateSaveError {
   return new TemplateSaveError("Couldn't save template");
 }
 
-/** POST/PUT a template, surfacing 400 bodies as a typed TemplateSaveError (the
- *  shared postJSON discards the body, which we need for inline field errors). */
+/** POST/PUT a template, surfacing 400 bodies as a typed TemplateSaveError for
+ *  inline field errors (rebuilt from HttpError.body). */
 async function saveTemplate(
   url: string,
   method: "POST" | "PUT",
   body: CreateTemplateInput,
 ): Promise<TemplateDTO> {
-  const res = await fetch(url, {
-    method,
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (res.status === 400) {
-    throw toSaveError(await res.json().catch(() => null));
+  try {
+    return method === "POST"
+      ? await postJSON<TemplateDTO>(url, body)
+      : await putJSON<TemplateDTO>(url, body);
+  } catch (err) {
+    if (err instanceof HttpError && err.status === 400) {
+      throw toSaveError(err.body);
+    }
+    throw err;
   }
-  if (!res.ok) throw new HttpError(res.status, `${method} ${url} failed`);
-  return res.json() as Promise<TemplateDTO>;
 }
 
 /** All templates (or active-only). Belt-and-suspenders: the section also filters

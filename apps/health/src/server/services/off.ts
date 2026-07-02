@@ -1,3 +1,4 @@
+import { round1 } from "@/lib/round";
 import type { Macros } from "@/lib/rules";
 
 // Open Food Facts client. OFF blocks anonymous clients, so EVERY request must
@@ -43,7 +44,7 @@ function numOrNull(v: unknown): number | null {
 /** Convert grams to milligrams (OFF reports caffeine in g per 100 g; we store mg),
  *  rounding to 1 dp. Nulls stay null — a missing nutrient is never fabricated. */
 function gramsToMg(g: number | null): number | null {
-  return g == null ? null : Math.round(g * 1000 * 10) / 10;
+  return g == null ? null : round1(g * 1000);
 }
 
 /** First brand from OFF's comma-joined `brands` string. */

@@ -3,6 +3,8 @@
 // and unit-testable without a database (CLAUDE.md "Definition of done"). Warmups
 // never count toward volume or progression; these only seed the logger's prefills.
 
+import { round05 } from "@/lib/round";
+
 /** A template/snapshot warmup definition reduced to plain numbers (Decimals already
  *  coerced). Exactly one of weightKg (ABSOLUTE) / percentOfWorking (PERCENT) is set. */
 export interface WarmupDef {
@@ -16,11 +18,6 @@ export interface WarmupDef {
 export interface LastWarmup {
   reps: number;
   weightKg: number;
-}
-
-/** Round to the nearest 0.5 kg — same idiom as progression.ts's round05. */
-function round05(x: number): number {
-  return Math.round(x * 2) / 2;
 }
 
 /**

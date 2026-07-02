@@ -7,20 +7,16 @@ import { delJSON } from "@/lib/fetcher";
 import type { FoodEntryDTO, FoodEntryView } from "@/lib/food";
 import { queryKeys } from "@/lib/hooks/keys";
 import {
-  applyOptimisticSummary,
-  type DailySummary,
-  rollbackSummary,
-} from "@/lib/hooks/optimistic-summary";
-
-type Ctx = {
-  prevEntries: FoodEntryDTO[] | undefined;
-  prevSummary: DailySummary | null | undefined;
-};
+  type DiaryCtx,
+  invalidateDiaryDay,
+  rollbackDiary,
+} from "@/lib/hooks/optimistic-diary";
+import { applyOptimisticSummary } from "@/lib/hooks/optimistic-summary";
 
 /**
  * Delete a diary entry. Takes the resolved view so it can optimistically drop the
  * row from ["food", day] and subtract its macros from the cached summary; rolls
- * both back on error and invalidates ["food", day] + ["summary", day] on settle.
+ * both back on error and invalidates the day's diary-dependent reads on settle.
  */
 export function useDeleteFoodEntry(day: string) {
   const qc = useQueryClient();
@@ -29,7 +25,7 @@ export function useDeleteFoodEntry(day: string) {
   return useMutation({
     mutationFn: (entry: FoodEntryView) =>
       delJSON(`/api/food/entries/${encodeURIComponent(entry.id)}`),
-    onMutate: async (entry): Promise<Ctx> => {
+    onMutate: async (entry): Promise<DiaryCtx> => {
       await qc.cancelQueries({ queryKey: foodKey });
       const prevEntries = qc.getQueryData<FoodEntryDTO[]>(foodKey);
       qc.setQueryData<FoodEntryDTO[]>(foodKey, (cur) =>
@@ -47,22 +43,14 @@ export function useDeleteFoodEntry(day: string) {
       return { prevEntries, prevSummary };
     },
     onError: (_err, _entry, ctx) => {
-      if (ctx?.prevEntries !== undefined) {
-        qc.setQueryData(foodKey, ctx.prevEntries);
-      }
-      rollbackSummary(qc, day, ctx?.prevSummary);
+      rollbackDiary(qc, day, ctx);
       toast.error("Couldn't delete entry");
     },
     onSuccess: () => {
       toast.success("Entry deleted");
     },
     onSettled: () => {
-      void qc.invalidateQueries({ queryKey: foodKey });
-      void qc.invalidateQueries({ queryKey: queryKeys.summary(day) });
-      // The deleted entry counted toward adherence, and its caffeine toward the
-      // water target — refresh both or Today's cards go stale.
-      void qc.invalidateQueries({ queryKey: queryKeys.adherence(day) });
-      void qc.invalidateQueries({ queryKey: queryKeys.water(day) });
+      invalidateDiaryDay(qc, day);
       // Deleting the newest use changes the recents order / last-used quantity.
       void qc.invalidateQueries({ queryKey: queryKeys.foodRecentPrefix() });
     },

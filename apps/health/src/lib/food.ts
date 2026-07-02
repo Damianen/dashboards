@@ -4,6 +4,9 @@
 // shape: Prisma Decimal columns serialize to strings and dates to ISO strings,
 // so `toView` is the single place those are coerced to numbers.
 
+// Type-only import from the browser-safe enums module (a plain-object file with
+// zero imports) — never from @/generated/prisma/client in client-reachable code.
+import type { MealSlot as PrismaMealSlot } from "@/generated/prisma/enums";
 import type { Macros } from "@/lib/rules";
 import type { CreateCustomFoodInput } from "@/lib/schemas/food";
 
@@ -131,7 +134,14 @@ export function productToLoggable(product: FoodProductDTO): LoggableItem {
   };
 }
 
-export const MEAL_ORDER = ["BREAKFAST", "LUNCH", "DINNER", "SNACK"] as const;
+/** Diary slots in display order — pinned to the Prisma enum, so a schema change
+ *  fails typecheck here (and in MEAL_LABELS) instead of silently drifting. */
+export const MEAL_ORDER = [
+  "BREAKFAST",
+  "LUNCH",
+  "DINNER",
+  "SNACK",
+] as const satisfies readonly PrismaMealSlot[];
 export type MealSlot = (typeof MEAL_ORDER)[number];
 
 export const MEAL_LABELS: Record<MealSlot, string> = {

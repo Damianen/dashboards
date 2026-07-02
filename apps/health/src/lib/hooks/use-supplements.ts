@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { getJSON, postJSON } from "@/lib/fetcher";
+import { getJSON, postJSON, putJSON } from "@/lib/fetcher";
 import { queryKeys } from "@/lib/hooks/keys";
 import type {
   CreateSupplementInput,
@@ -172,14 +172,7 @@ export function useUpdateSupplement(id: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: UpdateSupplementInput) =>
-      fetch(`/api/supplements/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(input),
-      }).then((res) => {
-        if (!res.ok) throw new Error("update failed");
-        return res.json() as Promise<SupplementDTO>;
-      }),
+      putJSON<SupplementDTO>(`/api/supplements/${id}`, input),
     onError: () => toast.error("Couldn't save supplement"),
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.supplements() });

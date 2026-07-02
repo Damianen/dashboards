@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/segmented";
 import { Skeleton } from "@/components/ui/skeleton";
 import { shiftDay, todayLocal } from "@/lib/dates";
+import { dateLabel } from "@/lib/format";
 import { dayTotal, groupByMeal, toView } from "@/lib/food";
 import { useFoodEntries } from "@/lib/hooks/use-food-entries";
 
@@ -21,11 +22,7 @@ function dayHeading(day: string): string {
   const today = todayLocal();
   if (day === today) return "Today";
   if (day === shiftDay(today, -1)) return "Yesterday";
-  return new Date(`${day}T00:00:00`).toLocaleDateString("en-GB", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  });
+  return dateLabel(day);
 }
 
 function PageSkeleton() {

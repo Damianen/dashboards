@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { MEAL_ORDER } from "@/lib/food";
+
 import { barcodeSchema } from "./food";
 
 // A macro value as entered for a free-typed meal item — same bounds as food's macroOverride.
@@ -69,7 +71,7 @@ export type UpdateMealInput = CreateMealInput;
 export const logMealSchema = z.strictObject({
   mealId: z.cuid(),
   portions: z.number().gt(0).max(9999),
-  meal: z.enum(["BREAKFAST", "LUNCH", "DINNER", "SNACK"]).optional(),
+  meal: z.enum(MEAL_ORDER).optional(),
   eatenAt: z.iso.datetime({ offset: true }).optional(),
 });
 export type LogMealInput = z.infer<typeof logMealSchema>;
