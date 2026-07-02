@@ -1,11 +1,10 @@
 import { EntryOrigin, type WaterEntry } from "@/generated/prisma/client";
 import { dayOf, dayToDbDate, todayLocal } from "@/lib/dates";
 import { logWaterSchema, type LogWaterInput } from "@/lib/schemas/water";
+// Matches the daily_summary view's COALESCE default — used only as the no-data fallback.
+import { DEFAULT_BASE_TARGET_ML } from "@/lib/water-defaults";
 import { prisma } from "@/server/db";
 import { getDailySummary } from "./summary";
-
-// Matches the daily_summary view's COALESCE default — used only as the no-data fallback.
-const DEFAULT_BASE_TARGET_ML = 2500;
 
 export async function logWater(
   input: LogWaterInput,

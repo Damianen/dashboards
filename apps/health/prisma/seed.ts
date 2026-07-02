@@ -2,6 +2,10 @@ import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 
 import { PrismaClient, TemplateTargetType } from "../src/generated/prisma/client";
+import {
+  DEFAULT_BASE_TARGET_ML,
+  DEFAULT_ML_PER_MG_STIMULANT,
+} from "../src/lib/water-defaults";
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
@@ -10,8 +14,8 @@ const prisma = new PrismaClient({
 // Deterministic config the daily_summary view reads (water target formula), plus
 // the empirical-TDEE rolling-window default (read by the TDEE service / MCP tool).
 const settings: { key: string; value: number }[] = [
-  { key: "water.baseTargetMl", value: 2500 },
-  { key: "water.mlPerMgStimulant", value: 1.0 },
+  { key: "water.baseTargetMl", value: DEFAULT_BASE_TARGET_ML },
+  { key: "water.mlPerMgStimulant", value: DEFAULT_ML_PER_MG_STIMULANT },
   // Protein target factor: grams per kg bodyweight (adherence layer).
   { key: "protein.gPerKg", value: 2.0 },
   { key: "tdee.windowDays", value: 14 },
@@ -39,8 +43,8 @@ const exercises: { name: string; muscleGroup: string }[] = [
 
 // Example workout templates. Each entry references an exercise by its (unique)
 // name, which is resolved against the catalogue seeded above. Position is the
-// array index. Templates are upserted by name and their TemplateExercise rows
-// are replaced on every seed, so re-running never duplicates.
+// array index. Templates are upserted by name; their exercises seed only when
+// the template has none, so re-seeding never rewrites user edits.
 const templates: {
   name: string;
   exercises: {
@@ -102,11 +106,12 @@ async function main() {
       update: {},
       create: { name: t.name },
     });
-    // Replace the template's exercises rather than appending, so re-seeding is
-    // idempotent and respects the @@unique([templateId, position]) constraint.
-    await prisma.templateExercise.deleteMany({
+    // Seed exercises only when the template has none: re-seeding must never
+    // wipe user edits (or cascade-delete their TemplateWarmupSet children).
+    const existing = await prisma.templateExercise.count({
       where: { templateId: template.id },
     });
+    if (existing > 0) continue;
     await prisma.templateExercise.createMany({
       data: t.exercises.map((ex, position) => {
         const exerciseId = exerciseIdByName.get(ex.name);
