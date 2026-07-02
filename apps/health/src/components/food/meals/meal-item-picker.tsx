@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, Loader2, Search } from "lucide-react";
 import { toast } from "sonner";
 
@@ -17,8 +16,8 @@ import {
   type BuilderItem,
   builderKey,
 } from "@/lib/meal-builder";
+import { useCustomFoods } from "@/lib/hooks/use-custom-foods";
 import { useMeals } from "@/lib/hooks/use-meals";
-import type { Macros } from "@/lib/rules";
 import { cn } from "@/lib/utils";
 
 type Tab = "search" | "scan" | "saved" | "manual" | "meal";
@@ -30,14 +29,6 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "manual", label: "Manual" },
   { id: "meal", label: "Meal" },
 ];
-
-interface SavedFood {
-  id: string;
-  name: string;
-  brand: string | null;
-  per100g: Partial<Macros>;
-  servingG: string | null;
-}
 
 /**
  * The "add an ingredient" step of the meal builder. Each tab resolves to a BuilderItem
@@ -139,13 +130,7 @@ export function MealItemPicker({
 
 function SavedFoodPicker({ onAdd }: { onAdd: (item: BuilderItem) => void }) {
   const [query, setQuery] = useState("");
-  const { data, isFetching, isError } = useQuery({
-    queryKey: ["food", "custom-search", query.trim()],
-    queryFn: () =>
-      getJSON<SavedFood[]>(
-        `/api/food/custom${query.trim() ? `?q=${encodeURIComponent(query.trim())}` : ""}`,
-      ),
-  });
+  const { data, isFetching, isError } = useCustomFoods(query);
   const results = data ?? [];
 
   return (

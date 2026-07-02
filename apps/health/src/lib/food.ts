@@ -5,6 +5,7 @@
 // so `toView` is the single place those are coerced to numbers.
 
 import type { Macros } from "@/lib/rules";
+import type { CreateCustomFoodInput } from "@/lib/schemas/food";
 
 /** A cached product as GET /api/food/products/{barcode} serializes it. */
 export interface FoodProductDTO {
@@ -43,6 +44,65 @@ export function coerceMacros(p: Partial<Macros> | null | undefined): Macros {
     sugarG: p?.sugarG ?? null,
     saltG: p?.saltG ?? null,
     caffeineMg: p?.caffeineMg ?? null,
+  };
+}
+
+/**
+ * A saved custom food as GET /api/food/custom serializes it. `lastUsedAt` is the most
+ * recent diary entry that used it (ISO, null if never), driving recently-used-first
+ * order in the "My Foods" list. Decimals already coerced to numbers server-side.
+ */
+export interface CustomFoodDTO {
+  id: string;
+  name: string;
+  brand: string | null;
+  per100g: Macros;
+  servingG: number | null;
+  source: string;
+  archived: boolean;
+  lastUsedAt: string | null;
+}
+
+/**
+ * Order saved foods recently-used first (never-used last), then name A→Z. ISO timestamps
+ * compare lexicographically in chronological order, and "" (stand-in for never-used)
+ * sorts below any real timestamp, so it lands last under the descending compare. Pure.
+ */
+export function compareCustomFoodRecency(
+  a: { lastUsedAt: string | null; name: string },
+  b: { lastUsedAt: string | null; name: string },
+): number {
+  const at = a.lastUsedAt ?? "";
+  const bt = b.lastUsedAt ?? "";
+  if (at !== bt) return at < bt ? 1 : -1;
+  return a.name.localeCompare(b.name);
+}
+
+/** Adapt a saved custom food (per-100g) into a LoggableItem for the quantity step. */
+export function customFoodToLoggable(food: CustomFoodDTO): LoggableItem {
+  return {
+    name: food.name,
+    brand: food.brand,
+    imageUrl: null,
+    per100g: coerceMacros(food.per100g),
+    servingG: food.servingG,
+    ref: { kind: "customFood", customFoodId: food.id },
+  };
+}
+
+/** Adapt a just-created custom food (its create input + new id) into a LoggableItem,
+ *  so "save & log" can hand it straight to the quantity step without a re-fetch. */
+export function customFoodInputToLoggable(
+  input: CreateCustomFoodInput,
+  id: string,
+): LoggableItem {
+  return {
+    name: input.name,
+    brand: input.brand ?? null,
+    imageUrl: null,
+    per100g: coerceMacros(input.per100g),
+    servingG: input.servingG ?? null,
+    ref: { kind: "customFood", customFoodId: id },
   };
 }
 

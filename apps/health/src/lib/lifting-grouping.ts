@@ -116,3 +116,24 @@ export function clampStep(
   const decimals = (String(step).split(".")[1] ?? "").length;
   return Number(clamped.toFixed(decimals));
 }
+
+/**
+ * Parse free-typed stepper text into a clean number, or null when it isn't a number
+ * yet (empty / mid-edit / garbage) so the caller can leave the field untouched.
+ * Accepts the Europe/Amsterdam decimal comma (`62,5`), clamps to [min, max], and
+ * rounds to the step's decimal precision — so a 2.5-step field yields a 1-dp weight,
+ * a 0.5-step field 1-dp, and a 1-step field whole numbers, with no float drift.
+ */
+export function parseStepperInput(
+  raw: string,
+  step: number,
+  min: number,
+  max: number,
+): number | null {
+  if (raw.trim() === "") return null;
+  const n = Number(raw.replace(",", "."));
+  if (Number.isNaN(n)) return null;
+  const clamped = Math.min(max, Math.max(min, n));
+  const decimals = (String(step).split(".")[1] ?? "").length;
+  return Number(clamped.toFixed(decimals));
+}

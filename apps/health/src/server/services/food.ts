@@ -6,6 +6,7 @@ import {
   Prisma,
 } from "@/generated/prisma/client";
 import { dayOf, dayToDbDate, todayLocal } from "@/lib/dates";
+import { compareCustomFoodRecency, type CustomFoodDTO } from "@/lib/food";
 import {
   type LabelNutrients,
   type Macros,
@@ -19,6 +20,8 @@ import {
   type LogFoodInput,
   logFoodSchema,
   type Per100g,
+  type UpdateCustomFoodInput,
+  updateCustomFoodSchema,
 } from "@/lib/schemas/food";
 import {
   labelScanResultSchema,
@@ -219,27 +222,80 @@ export async function estimateMeal(
   return { ...read, ...sumMealTotals(read.components) };
 }
 
-/** All saved custom foods, alphabetical (the natural pick-list order). */
-export function listCustomFoods(): Promise<CustomFood[]> {
-  return prisma.customFood.findMany({ orderBy: { name: "asc" } });
+/** Shape a stored custom food (+ its most recent use) into the picker/list DTO:
+ *  Decimal serving → number, per100g read back as full Macros, dates → ISO. */
+function serializeCustomFood(
+  food: CustomFood,
+  lastUsedAt: Date | null,
+): CustomFoodDTO {
+  return {
+    id: food.id,
+    name: food.name,
+    brand: food.brand,
+    per100g: macrosFromJson(food.per100g),
+    servingG: food.servingG != null ? Number(food.servingG) : null,
+    source: food.source,
+    archived: food.archived,
+    lastUsedAt: lastUsedAt?.toISOString() ?? null,
+  };
 }
 
 /**
- * Saved custom foods whose name or brand contains `query` (case-insensitive);
- * an empty query lists all. Powers both the UI picker and the MCP
- * custom_food_name resolution.
+ * Saved custom foods for the "My Foods" picker, recently-used first (never-used last),
+ * then name. `q` filters name/brand (case-insensitive); archived foods are excluded
+ * unless `includeArchived`. Each row carries its most-recent diary use so the list
+ * surfaces what's actually eaten.
+ */
+export async function listCustomFoods(
+  opts: { q?: string; includeArchived?: boolean } = {},
+): Promise<CustomFoodDTO[]> {
+  const q = opts.q?.trim();
+  const rows = await prisma.customFood.findMany({
+    where: {
+      ...(opts.includeArchived ? {} : { archived: false }),
+      ...(q
+        ? {
+            OR: [
+              { name: { contains: q, mode: "insensitive" } },
+              { brand: { contains: q, mode: "insensitive" } },
+            ],
+          }
+        : {}),
+    },
+    include: {
+      entries: {
+        orderBy: { eatenAt: "desc" },
+        take: 1,
+        select: { eatenAt: true },
+      },
+    },
+  });
+  return rows
+    .map(({ entries, ...food }) =>
+      serializeCustomFood(food, entries[0]?.eatenAt ?? null),
+    )
+    .sort(compareCustomFoodRecency);
+}
+
+/**
+ * Saved custom foods whose name or brand contains `query` (case-insensitive), EXCLUDING
+ * archived (retired) foods so a retired food is never logged afresh. An empty query lists
+ * all active foods. Powers the MCP custom_food_name resolution (log_food / create_meal).
  */
 export function searchCustomFoods(query: string): Promise<CustomFood[]> {
   const q = query.trim();
   return prisma.customFood.findMany({
-    where: q
-      ? {
-          OR: [
-            { name: { contains: q, mode: "insensitive" } },
-            { brand: { contains: q, mode: "insensitive" } },
-          ],
-        }
-      : {},
+    where: {
+      archived: false,
+      ...(q
+        ? {
+            OR: [
+              { name: { contains: q, mode: "insensitive" } },
+              { brand: { contains: q, mode: "insensitive" } },
+            ],
+          }
+        : {}),
+    },
     orderBy: { name: "asc" },
   });
 }
@@ -249,6 +305,62 @@ export async function getCustomFood(id: string): Promise<CustomFood> {
   const food = await prisma.customFood.findUnique({ where: { id } });
   if (!food) throw new NotFoundError("custom food", id);
   return food;
+}
+
+/**
+ * Edit a saved food's name/brand/per-100g macros/serving. Source is immutable and the
+ * archived flag toggles separately. Past diary entries snapshot their macros, so an edit
+ * never rewrites history (CLAUDE.md). 404s if the food doesn't exist.
+ */
+export async function updateCustomFood(
+  id: string,
+  input: UpdateCustomFoodInput,
+): Promise<CustomFood> {
+  const data = updateCustomFoodSchema.parse(input);
+  try {
+    return await prisma.customFood.update({
+      where: { id },
+      data: {
+        name: data.name,
+        brand: data.brand ?? null,
+        per100g: data.per100g as unknown as Prisma.InputJsonValue,
+        servingG: data.servingG ?? null,
+      },
+    });
+  } catch (err) {
+    if (
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      err.code === "P2025"
+    ) {
+      throw new NotFoundError("custom food", id);
+    }
+    throw err;
+  }
+}
+
+/**
+ * Archive (retire from the active list) or restore a saved food. While archived it's
+ * hidden from the picker and from MCP name resolution; past diary entries are untouched.
+ * 404s if the food doesn't exist.
+ */
+export async function setCustomFoodArchived(
+  id: string,
+  archived: boolean,
+): Promise<CustomFood> {
+  try {
+    return await prisma.customFood.update({
+      where: { id },
+      data: { archived },
+    });
+  } catch (err) {
+    if (
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      err.code === "P2025"
+    ) {
+      throw new NotFoundError("custom food", id);
+    }
+    throw err;
+  }
 }
 
 /**

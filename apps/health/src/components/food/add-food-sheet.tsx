@@ -5,9 +5,9 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Drawer } from "vaul";
 
-import { CustomTab } from "@/components/food/custom-tab";
 import { EstimatePhotoTab } from "@/components/food/estimate-photo-tab";
 import { MealsAddTab } from "@/components/food/meals/meals-add-tab";
+import { MyFoodsTab } from "@/components/food/my-foods-tab";
 import { QuantityStep } from "@/components/food/quantity-step";
 import { ScanLabelTab } from "@/components/food/scan-label-tab";
 import { ScanTab } from "@/components/food/scan-tab";
@@ -20,21 +20,22 @@ import {
 } from "@/lib/food";
 import { cn } from "@/lib/utils";
 
-type Tab = "scan" | "scanLabel" | "estimate" | "search" | "custom" | "meals";
+type Tab = "scan" | "scanLabel" | "estimate" | "search" | "myFoods" | "meals";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "scan", label: "Scan" },
   { id: "scanLabel", label: "Scan label" },
   { id: "estimate", label: "Estimate" },
   { id: "search", label: "Search" },
-  { id: "custom", label: "Custom" },
+  { id: "myFoods", label: "My foods" },
   { id: "meals", label: "Meals" },
 ];
 
 /**
  * "Add food" bottom sheet. Scan/Search produce a barcode → the sheet looks the
  * product up and converges on the quantity step; a not-found barcode drops into
- * the Custom tab prefilled. Custom logs directly. State resets on close.
+ * the My foods tab's quick one-off, prefilled. My foods also browses/logs saved
+ * custom foods and creates new ones. State resets on close.
  */
 export function AddFoodSheet({
   open,
@@ -72,7 +73,7 @@ export function AddFoodSheet({
     } catch (err) {
       if (err instanceof HttpError && err.status === 404) {
         setPrefillName(barcode);
-        setTab("custom");
+        setTab("myFoods");
         toast.error("Product not found — add it as a custom entry");
       } else {
         toast.error("Couldn't look up that barcode");
@@ -137,20 +138,21 @@ export function AddFoodSheet({
               <ScanLabelTab
                 onLog={setLoggable}
                 onSaved={() => handleOpenChange(false)}
-                onFallback={() => setTab("custom")}
+                onFallback={() => setTab("myFoods")}
               />
             ) : tab === "estimate" ? (
               <EstimatePhotoTab
                 day={day}
                 onLogged={() => handleOpenChange(false)}
-                onFallback={() => setTab("custom")}
+                onFallback={() => setTab("myFoods")}
               />
             ) : tab === "search" ? (
               <SearchTab onBarcode={handleBarcode} />
-            ) : tab === "custom" ? (
-              <CustomTab
+            ) : tab === "myFoods" ? (
+              <MyFoodsTab
                 day={day}
                 prefillName={prefillName}
+                onLog={setLoggable}
                 onLogged={() => handleOpenChange(false)}
               />
             ) : (

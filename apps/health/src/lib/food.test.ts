@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  compareCustomFoodRecency,
   dayTotal,
   type FoodEntryDTO,
   type FoodEntryView,
@@ -30,6 +31,41 @@ describe("suggestMeal", () => {
     expect(suggestMeal(at(11))).toBe("LUNCH");
     expect(suggestMeal(at(15))).toBe("DINNER");
     expect(suggestMeal(at(21))).toBe("SNACK");
+  });
+});
+
+describe("compareCustomFoodRecency", () => {
+  const food = (name: string, lastUsedAt: string | null) => ({
+    name,
+    lastUsedAt,
+  });
+
+  it("orders more-recently-used foods first", () => {
+    const older = food("Apple", "2026-06-10T08:00:00.000Z");
+    const newer = food("Banana", "2026-06-16T08:00:00.000Z");
+    expect([older, newer].sort(compareCustomFoodRecency)).toEqual([
+      newer,
+      older,
+    ]);
+  });
+
+  it("sorts never-used foods after used ones (regardless of name)", () => {
+    const used = food("Zucchini", "2026-06-16T08:00:00.000Z");
+    const never = food("Aaa never", null);
+    expect([never, used].sort(compareCustomFoodRecency)).toEqual([used, never]);
+  });
+
+  it("breaks ties (both never used) by name A→Z", () => {
+    const b = food("Banana", null);
+    const a = food("Apple", null);
+    expect([b, a].sort(compareCustomFoodRecency)).toEqual([a, b]);
+  });
+
+  it("breaks ties (same timestamp) by name A→Z", () => {
+    const ts = "2026-06-16T08:00:00.000Z";
+    const z = food("Zucchini", ts);
+    const a = food("Almond", ts);
+    expect([z, a].sort(compareCustomFoodRecency)).toEqual([a, z]);
   });
 });
 
