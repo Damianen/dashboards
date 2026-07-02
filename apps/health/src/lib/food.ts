@@ -7,6 +7,7 @@
 // Type-only import from the browser-safe enums module (a plain-object file with
 // zero imports) — never from @/generated/prisma/client in client-reachable code.
 import type { MealSlot as PrismaMealSlot } from "@/generated/prisma/enums";
+import { round1 } from "@/lib/round";
 import type { Macros } from "@/lib/rules";
 import type { CreateCustomFoodInput } from "@/lib/schemas/food";
 
@@ -188,6 +189,8 @@ export interface FoodEntryDTO {
   carbG: string;
   fatG: string;
   meal: MealSlot | null;
+  /** Free-text note snapshotted at log time (e.g. AI-estimate assumptions). */
+  notes: string | null;
   product: FoodEntryProductDTO | null;
   /** A saved custom food joined in for display (name/brand only — no image). */
   customFood: { name: string; brand: string | null } | null;
@@ -211,6 +214,8 @@ export interface FoodEntryView {
   proteinG: number;
   carbG: number;
   fatG: number;
+  /** Free-text note snapshotted at log time (e.g. AI-estimate assumptions). */
+  notes: string | null;
 }
 
 /** The four macro totals shown on the day bar and each meal subtotal. */
@@ -240,6 +245,46 @@ export function toView(dto: FoodEntryDTO): FoodEntryView {
     proteinG: Number(dto.proteinG),
     carbG: Number(dto.carbG),
     fatG: Number(dto.fatG),
+    notes: dto.notes,
+  };
+}
+
+/** The full macro snapshot a FoodEntry stores, as numbers. Null = the source
+ *  didn't report that field (the four energy macros are always present). */
+export interface EntryTotals {
+  kcal: number;
+  proteinG: number;
+  carbG: number;
+  fatG: number;
+  fiberG: number | null;
+  sugarG: number | null;
+  saltG: number | null;
+  caffeineMg: number | null;
+}
+
+/**
+ * Rescale an entry's OWN stored totals to a new quantity: per-unit = totals ÷
+ * stored quantity, so each value scales by newQuantityG/storedQuantityG, rounded
+ * to 1 dp (the scaleMacros idiom). Nulls stay null. This is the snapshot rule's
+ * edit path — the product/custom-food cache is never consulted, so an edit can
+ * never rewrite history from changed cache data.
+ */
+export function rescaleEntryTotals(
+  stored: EntryTotals,
+  storedQuantityG: number,
+  newQuantityG: number,
+): EntryTotals {
+  const factor = newQuantityG / storedQuantityG;
+  const scale = (v: number | null) => (v == null ? null : round1(v * factor));
+  return {
+    kcal: round1(stored.kcal * factor),
+    proteinG: round1(stored.proteinG * factor),
+    carbG: round1(stored.carbG * factor),
+    fatG: round1(stored.fatG * factor),
+    fiberG: scale(stored.fiberG),
+    sugarG: scale(stored.sugarG),
+    saltG: scale(stored.saltG),
+    caffeineMg: scale(stored.caffeineMg),
   };
 }
 

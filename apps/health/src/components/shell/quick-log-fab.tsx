@@ -30,13 +30,15 @@ export function QuickLogFabFallback() {
 }
 
 export function QuickLogFab() {
-  // PWA-shortcut deep link: /?quick=water|stimulant opens the drawer on that
-  // segment. Read via lazy initial state — never a setState-in-effect.
+  // PWA-shortcut deep link: /?quick=water|stimulant|weight opens the drawer on
+  // that segment. Read via lazy initial state — never a setState-in-effect.
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const quick = searchParams.get("quick");
   const quickSegment =
-    quick === "water" || quick === "stimulant" ? quick : undefined;
+    quick === "water" || quick === "stimulant" || quick === "weight"
+      ? quick
+      : undefined;
   const [open, setOpen] = useState(() => quickSegment !== undefined);
 
   // Consume the shortcut param: without this, a pull-to-refresh (or session

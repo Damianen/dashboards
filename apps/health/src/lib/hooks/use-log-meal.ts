@@ -60,6 +60,7 @@ export function useLogMeal(day: string) {
         carbG: String(macros.carbG),
         fatG: String(macros.fatG),
         meal,
+        notes: null,
         product: null,
         customFood: null,
       };

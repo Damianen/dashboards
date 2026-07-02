@@ -4,6 +4,7 @@ import {
   createCustomFoodSchema,
   logFoodSchema,
   per100gSchema,
+  updateFoodEntrySchema,
 } from "./food";
 
 const CUID = "cflx0a1b2c3d4e5f6g7h8i9j";
@@ -168,5 +169,38 @@ describe("logFoodSchema sources", () => {
     expect(logFoodSchema.safeParse({ ...base, saltG: 10000 }).success).toBe(false);
     // The other overrides keep the wider Decimal(7,1)/(6,1)-derived cap.
     expect(logFoodSchema.safeParse({ ...base, kcal: 99999.9 }).success).toBe(true);
+  });
+});
+
+describe("updateFoodEntrySchema", () => {
+  it("rejects an empty patch (at least one field required)", () => {
+    expect(updateFoodEntrySchema.safeParse({}).success).toBe(false);
+  });
+
+  it("accepts each field alone", () => {
+    expect(updateFoodEntrySchema.safeParse({ quantityG: 250 }).success).toBe(true);
+    expect(updateFoodEntrySchema.safeParse({ meal: "DINNER" }).success).toBe(true);
+    expect(updateFoodEntrySchema.safeParse({ notes: "less oil" }).success).toBe(true);
+  });
+
+  it("accepts explicit nulls for meal and notes (clear semantics)", () => {
+    expect(updateFoodEntrySchema.safeParse({ meal: null }).success).toBe(true);
+    expect(updateFoodEntrySchema.safeParse({ notes: null }).success).toBe(true);
+  });
+
+  it("bounds quantityG like logFoodSchema (0 < q ≤ 5000)", () => {
+    expect(updateFoodEntrySchema.safeParse({ quantityG: 0 }).success).toBe(false);
+    expect(updateFoodEntrySchema.safeParse({ quantityG: 5001 }).success).toBe(false);
+    expect(updateFoodEntrySchema.safeParse({ quantityG: 5000 }).success).toBe(true);
+  });
+
+  it("is strict — unknown keys are rejected", () => {
+    expect(
+      updateFoodEntrySchema.safeParse({ quantityG: 100, kcal: 500 }).success,
+    ).toBe(false);
+  });
+
+  it("rejects an empty-string note (trim + min 1 — null is the clear signal)", () => {
+    expect(updateFoodEntrySchema.safeParse({ notes: "  " }).success).toBe(false);
   });
 });

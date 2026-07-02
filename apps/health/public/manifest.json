@@ -44,6 +44,11 @@
       "name": "Add food",
       "url": "/food?quick=add",
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Log weight",
+      "url": "/?quick=weight",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     }
   ]
 }

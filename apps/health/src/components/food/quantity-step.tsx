@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ChevronLeft } from "lucide-react";
 
 import { MealPicker } from "@/components/food/meal-picker";
+import { PreviewStat } from "@/components/food/preview-stat";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,15 +14,6 @@ import { formatNumber } from "@/lib/format";
 import { useLogFood } from "@/lib/hooks/use-log-food";
 import { scaleMacros } from "@/lib/rules";
 import type { LogFoodInput } from "@/lib/schemas/food";
-
-function PreviewStat({ value, label }: { value: string; label: string }) {
-  return (
-    <div className="text-center">
-      <div className="font-semibold tabular-nums">{value}</div>
-      <div className="text-muted-foreground text-[10px] uppercase">{label}</div>
-    </div>
-  );
-}
 
 /**
  * The grams step a scan/search/label-scan converges on: pick a portion, preview the

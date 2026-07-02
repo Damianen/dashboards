@@ -3,9 +3,11 @@ import { describe, expect, it } from "vitest";
 import {
   compareCustomFoodRecency,
   dayTotal,
+  type EntryTotals,
   type FoodEntryDTO,
   type FoodEntryView,
   groupByMeal,
+  rescaleEntryTotals,
   suggestMeal,
   toView,
 } from "./food";
@@ -82,6 +84,7 @@ const dto = (over: Partial<FoodEntryDTO>): FoodEntryDTO => ({
   carbG: "0",
   fatG: "0",
   meal: null,
+  notes: null,
   product: null,
   customFood: null,
   ...over,
@@ -131,6 +134,13 @@ describe("toView", () => {
     expect(v.isCustom).toBe(false);
   });
 
+  it("passes notes through untouched", () => {
+    expect(toView(dto({ notes: "AI estimate: assumed whole milk" })).notes).toBe(
+      "AI estimate: assumed whole milk",
+    );
+    expect(toView(dto({ notes: null })).notes).toBeNull();
+  });
+
   it("surfaces portions for a meal-logged entry (custom name = meal name)", () => {
     const v = toView(
       dto({
@@ -160,6 +170,7 @@ const view = (over: Partial<FoodEntryView>): FoodEntryView => ({
   proteinG: 0,
   carbG: 0,
   fatG: 0,
+  notes: null,
   ...over,
 });
 
@@ -174,6 +185,61 @@ describe("dayTotal", () => {
 
   it("is all-zero for an empty day", () => {
     expect(dayTotal([])).toEqual({ kcal: 0, proteinG: 0, carbG: 0, fatG: 0 });
+  });
+});
+
+const totals = (over: Partial<EntryTotals>): EntryTotals => ({
+  kcal: 200,
+  proteinG: 10,
+  carbG: 30,
+  fatG: 5,
+  fiberG: null,
+  sugarG: null,
+  saltG: null,
+  caffeineMg: null,
+  ...over,
+});
+
+describe("rescaleEntryTotals", () => {
+  it("scales every field linearly when the quantity doubles", () => {
+    const next = rescaleEntryTotals(
+      totals({ fiberG: 2, sugarG: 8.5, saltG: 0.6, caffeineMg: 40 }),
+      150,
+      300,
+    );
+    expect(next).toEqual({
+      kcal: 400,
+      proteinG: 20,
+      carbG: 60,
+      fatG: 10,
+      fiberG: 4,
+      sugarG: 17,
+      saltG: 1.2,
+      caffeineMg: 80,
+    });
+  });
+
+  it("scales down and rounds to 1 dp", () => {
+    const next = rescaleEntryTotals(totals({ kcal: 123.4, proteinG: 5.1 }), 100, 33);
+    expect(next.kcal).toBe(40.7); // 123.4 × 0.33 = 40.722
+    expect(next.proteinG).toBe(1.7); // 5.1 × 0.33 = 1.683
+  });
+
+  it("keeps null detail fields null", () => {
+    const next = rescaleEntryTotals(totals({}), 100, 250);
+    expect(next.fiberG).toBeNull();
+    expect(next.sugarG).toBeNull();
+    expect(next.saltG).toBeNull();
+    expect(next.caffeineMg).toBeNull();
+  });
+
+  it("is the identity when the quantity is unchanged", () => {
+    const stored = totals({ fiberG: 1.5, saltG: 0.25 });
+    // saltG rounds 1dp — 0.25 → 0.3 — so identity holds only for 1dp-clean values.
+    expect(rescaleEntryTotals(totals({ fiberG: 1.5, saltG: 0.3 }), 120, 120)).toEqual(
+      totals({ fiberG: 1.5, saltG: 0.3 }),
+    );
+    expect(rescaleEntryTotals(stored, 120, 120).saltG).toBe(0.3);
   });
 });
 

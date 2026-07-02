@@ -14,14 +14,17 @@ const REVEAL_PX = 96;
  * button (pure pointer-event drag — `touch-action: pan-y` keeps vertical
  * scrolling native, and a vertical scroll fires pointercancel so the row never
  * drags). The revealed red Delete is the destructive tap; the visible trash is
- * only the discoverable way in. Tapping the open row closes it.
+ * only the discoverable way in. Tapping an open row closes it; tapping a closed
+ * row opens the entry editor.
  */
 export function FoodEntryRow({
   entry,
   day,
+  onEdit,
 }: {
   entry: FoodEntryView;
   day: string;
+  onEdit: (entry: FoodEntryView) => void;
 }) {
   const { mutate, isPending } = useDeleteFoodEntry(day);
   const [offset, setOffset] = useState(0);
@@ -74,7 +77,12 @@ export function FoodEntryRow({
       {/* A div (not a button) so the trailing control isn't nested-interactive. */}
       <div
         onClick={() => {
-          if (open && !moved.current) setOffset(0);
+          if (moved.current) return;
+          if (open) {
+            setOffset(0);
+            return;
+          }
+          onEdit(entry);
         }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}

@@ -59,6 +59,7 @@ export function useLogFood(day: string) {
         carbG: String(preview.macros.carbG),
         fatG: String(preview.macros.fatG),
         meal: preview.meal,
+        notes: input.notes ?? null,
         product: input.barcode
           ? { name: preview.displayName, brand: null, imageUrl: preview.imageUrl }
           : null,
