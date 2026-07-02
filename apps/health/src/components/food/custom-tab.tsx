@@ -13,20 +13,18 @@ import { type LogFoodInput, logFoodSchema } from "@/lib/schemas/food";
 
 /**
  * Manually log a food by name + kcal (+ optional macros). Also the "barcode not
- * found" fallback — the sheet prefills `prefillName` with the scanned code.
+ * found" fallback (the name starts empty — scanned digits make a useless name).
  * quantityG is fixed to 1 (the schema requires >0; custom macros are absolute,
  * not per-100g) and the diary hides the gram count for custom rows.
  */
 export function CustomTab({
   day,
-  prefillName,
   onLogged,
 }: {
   day: string;
-  prefillName: string | null;
   onLogged: () => void;
 }) {
-  const [name, setName] = useState(prefillName ?? "");
+  const [name, setName] = useState("");
   const [kcal, setKcal] = useState("");
   const [protein, setProtein] = useState("");
   const [carb, setCarb] = useState("");
@@ -84,7 +82,7 @@ export function CustomTab({
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="e.g. Homemade soup"
-          autoFocus={!prefillName}
+          autoFocus
         />
       </div>
 

@@ -8,6 +8,7 @@ import { EstimatePhotoTab } from "@/components/food/estimate-photo-tab";
 import { MealsAddTab } from "@/components/food/meals/meals-add-tab";
 import { MyFoodsTab } from "@/components/food/my-foods-tab";
 import { QuantityStep } from "@/components/food/quantity-step";
+import { RecentFoodChips } from "@/components/food/recent-foods";
 import { ScanLabelTab } from "@/components/food/scan-label-tab";
 import { ScanTab } from "@/components/food/scan-tab";
 import { SearchTab } from "@/components/food/search-tab";
@@ -19,8 +20,17 @@ import {
   type LoggableItem,
   productToLoggable,
 } from "@/lib/food";
+import { usePersistentState } from "@/lib/hooks/use-persistent-state";
 
-type Tab = "scan" | "scanLabel" | "estimate" | "search" | "myFoods" | "meals";
+const TAB_VALUES = [
+  "scan",
+  "scanLabel",
+  "estimate",
+  "search",
+  "myFoods",
+  "meals",
+] as const;
+type Tab = (typeof TAB_VALUES)[number];
 
 const TABS: SegmentedOption<Tab>[] = [
   { value: "scan", label: "Scan" },
@@ -34,8 +44,9 @@ const TABS: SegmentedOption<Tab>[] = [
 /**
  * "Add food" bottom sheet. Scan/Search produce a barcode → the sheet looks the
  * product up and converges on the quantity step; a not-found barcode drops into
- * the My foods tab's quick one-off, prefilled. My foods also browses/logs saved
- * custom foods and creates new ones. State resets on close.
+ * the My foods tab's quick one-off. My foods also browses/logs saved custom
+ * foods and creates new ones. The tab is remembered across opens (2-tap
+ * re-logging); everything else resets on close.
  */
 export function AddFoodSheet({
   open,
@@ -46,16 +57,31 @@ export function AddFoodSheet({
   onOpenChange: (open: boolean) => void;
   day: string;
 }) {
-  const [tab, setTab] = useState<Tab>("scan");
-  const [loggable, setLoggable] = useState<LoggableItem | null>(null);
+  const [storedTab, setStoredTab] = usePersistentState<Tab>(
+    "health:addFoodTab",
+    "scan",
+    TAB_VALUES,
+  );
+  // Programmatic jumps (barcode-not-found, vision fallbacks) are session-only:
+  // they must not overwrite the remembered tab the user actually chose.
+  const [tabOverride, setTabOverride] = useState<Tab | null>(null);
+  const tab = tabOverride ?? storedTab;
+  function setTab(next: Tab) {
+    setTabOverride(null);
+    setStoredTab(next);
+  }
+  const [loggable, setLoggable] = useState<{
+    item: LoggableItem;
+    initialGrams?: number;
+  } | null>(null);
   const [looking, setLooking] = useState(false);
-  const [prefillName, setPrefillName] = useState<string | null>(null);
+  const [oneOffJump, setOneOffJump] = useState(false);
 
   function reset() {
-    setTab("scan");
+    setTabOverride(null);
     setLoggable(null);
     setLooking(false);
-    setPrefillName(null);
+    setOneOffJump(false);
   }
 
   function handleOpenChange(next: boolean) {
@@ -69,11 +95,11 @@ export function AddFoodSheet({
       const found = await getJSON<FoodProductDTO>(
         `/api/food/products/${encodeURIComponent(barcode)}`,
       );
-      setLoggable(productToLoggable(found));
+      setLoggable({ item: productToLoggable(found) });
     } catch (err) {
       if (err instanceof HttpError && err.status === 404) {
-        setPrefillName(barcode);
-        setTab("myFoods");
+        setOneOffJump(true);
+        setTabOverride("myFoods");
         toast.error("Product not found — add it as a custom entry");
       } else {
         toast.error("Couldn't look up that barcode");
@@ -94,19 +120,27 @@ export function AddFoodSheet({
       bodyClassName="space-y-4 overflow-y-auto"
     >
       {showTabs && (
-        <Segmented<Tab>
-          value={tab}
-          onChange={setTab}
-          options={TABS}
-          columns={3}
-          ariaLabel="Add food method"
-        />
+        <>
+          <Segmented<Tab>
+            value={tab}
+            onChange={setTab}
+            options={TABS}
+            columns={3}
+            ariaLabel="Add food method"
+          />
+          {/* On every landing tab so a recent re-log is always 2 taps. */}
+          <RecentFoodChips
+            day={day}
+            onLogged={() => handleOpenChange(false)}
+          />
+        </>
       )}
 
       {loggable ? (
         <QuantityStep
-          item={loggable}
+          item={loggable.item}
           day={day}
+          initialGrams={loggable.initialGrams}
           onBack={() => setLoggable(null)}
           onLogged={() => handleOpenChange(false)}
         />
@@ -119,23 +153,30 @@ export function AddFoodSheet({
         <ScanTab active={open && tab === "scan"} onBarcode={handleBarcode} />
       ) : tab === "scanLabel" ? (
         <ScanLabelTab
-          onLog={setLoggable}
+          onLog={(item) => setLoggable({ item })}
           onSaved={() => handleOpenChange(false)}
-          onFallback={() => setTab("myFoods")}
+          onFallback={() => setTabOverride("myFoods")}
         />
       ) : tab === "estimate" ? (
         <EstimatePhotoTab
           day={day}
           onLogged={() => handleOpenChange(false)}
-          onFallback={() => setTab("myFoods")}
+          onFallback={() => setTabOverride("myFoods")}
         />
       ) : tab === "search" ? (
-        <SearchTab onBarcode={handleBarcode} />
+        <SearchTab
+          day={day}
+          onBarcode={handleBarcode}
+          onPickRecent={(item, initialGrams) =>
+            setLoggable({ item, initialGrams })
+          }
+          onLogged={() => handleOpenChange(false)}
+        />
       ) : tab === "myFoods" ? (
         <MyFoodsTab
           day={day}
-          prefillName={prefillName}
-          onLog={setLoggable}
+          jumpToOneOff={oneOffJump}
+          onLog={(item) => setLoggable({ item })}
           onLogged={() => handleOpenChange(false)}
         />
       ) : (

@@ -18,7 +18,12 @@ export function useUpdateCustomFood(id: string) {
       putJSON<{ id: string }>(`/api/food/custom/${id}`, input),
     onSuccess: () => toast.success("Food updated"),
     onError: () => toast.error("Couldn't update the food"),
-    onSettled: () =>
-      void qc.invalidateQueries({ queryKey: queryKeys.customFoods() }),
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.customFoods() });
+      // The re-log strip scales macros (incl. the caffeine override it sends)
+      // from the cached per100g — refresh it so an edit is never re-snapshotted
+      // from stale values.
+      void qc.invalidateQueries({ queryKey: queryKeys.foodRecentPrefix() });
+    },
   });
 }

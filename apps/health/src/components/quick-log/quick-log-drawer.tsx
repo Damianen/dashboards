@@ -1,14 +1,14 @@
 "use client";
 
-import { useState } from "react";
-
 import { StimulantForm } from "@/components/quick-log/stimulant-form";
 import { WaterForm } from "@/components/quick-log/water-form";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Segmented, type SegmentedOption } from "@/components/ui/segmented";
 import { todayLocal } from "@/lib/dates";
+import { usePersistentState } from "@/lib/hooks/use-persistent-state";
 
-type Segment = "water" | "stimulant";
+const SEGMENT_VALUES = ["water", "stimulant"] as const;
+type Segment = (typeof SEGMENT_VALUES)[number];
 
 const SEGMENTS: SegmentedOption<Segment>[] = [
   { value: "water", label: "Water" },
@@ -18,11 +18,21 @@ const SEGMENTS: SegmentedOption<Segment>[] = [
 export function QuickLogDrawer({
   open,
   onOpenChange,
+  initialSegment,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** PWA-shortcut override (?quick=); wins over the remembered segment. */
+  initialSegment?: Segment;
 }) {
-  const [segment, setSegment] = useState<Segment>("water");
+  // Remembers the last-SELECTED segment so repeating it is FAB → preset
+  // (2 taps). Only segment taps persist; logging and shortcut launches don't.
+  const [segment, setSegment] = usePersistentState<Segment>(
+    "health:quickLogSegment",
+    "water",
+    SEGMENT_VALUES,
+    initialSegment,
+  );
   const day = todayLocal();
 
   const close = () => onOpenChange(false);

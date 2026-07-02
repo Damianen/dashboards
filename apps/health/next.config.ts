@@ -20,6 +20,11 @@ const withSerwist = withSerwistInit({
   // The service worker only matters in production; turning it off in dev avoids
   // stale-cache surprises during local development.
   disable: process.env.NODE_ENV === "development",
+  // The offline fallback document (sw.ts `fallbacks`) must be precached. A fresh
+  // revision per build re-precaches it on deploy.
+  additionalPrecacheEntries: [
+    { url: "/~offline", revision: crypto.randomUUID() },
+  ],
 });
 
 export default withSerwist(nextConfig);

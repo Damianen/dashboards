@@ -21,6 +21,18 @@ const serwist = new Serwist({
   clientsClaim: true,
   navigationPreload: true,
   runtimeCaching: defaultCache,
+  // Offline cold load of an uncached page falls back to the precached offline
+  // document (precached via additionalPrecacheEntries in next.config.ts).
+  fallbacks: {
+    entries: [
+      {
+        url: "/~offline",
+        matcher({ request }) {
+          return request.destination === "document";
+        },
+      },
+    ],
+  },
 });
 
 serwist.addEventListeners();
@@ -63,6 +75,14 @@ self.addEventListener("notificationclick", (event: NotificationEvent) => {
       for (const client of clients) {
         if ("focus" in client) {
           await client.focus();
+          try {
+            // Actually take the focused window to the payload's url — focusing
+            // alone left the user on whatever page happened to be open.
+            if ("navigate" in client) await client.navigate(url);
+          } catch {
+            // navigate() rejects for uncontrolled clients — open a fresh one.
+            await self.clients.openWindow(url);
+          }
           return;
         }
       }

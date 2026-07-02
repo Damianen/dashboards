@@ -9,7 +9,10 @@ import {
   recoveryWindowSchema,
   tdeeWindowSchema,
 } from "@/lib/schemas/insights";
-import { per100gSchema } from "@/lib/schemas/food";
+import {
+  per100gSchema,
+  recentLoggablesQuerySchema,
+} from "@/lib/schemas/food";
 import type { MealItemInput } from "@/lib/schemas/meals";
 import { trendMetricSchema } from "@/lib/schemas/summary";
 import { imageDataUrlSchema } from "@/lib/schemas/vision";
@@ -18,6 +21,7 @@ import { DomainError, NotFoundError } from "@/server/services/errors";
 import {
   createCustomFood,
   estimateMeal,
+  listRecentLoggables,
   logFood,
   scanLabel,
   searchCustomFoods,
@@ -451,6 +455,24 @@ export function buildServer(): McpServer {
       },
     },
     ({ day, query }) => run(() => searchFoodLog({ day, query })),
+  );
+
+  server.registerTool(
+    "list_recent_foods",
+    {
+      description:
+        "Recently logged DISTINCT foods (barcode products and saved custom foods), " +
+        "newest first, each with the quantity last used (lastQuantityG). The fastest " +
+        "way to resolve a food the user has eaten before: re-log one by calling " +
+        "log_food with its barcode or custom food name and the last quantity.",
+      inputSchema: {
+        // The route's schema is the single source of the bounds/default.
+        limit: recentLoggablesQuerySchema.shape.limit.describe(
+          "How many distinct foods to return (default 8).",
+        ),
+      },
+    },
+    ({ limit }) => run(() => listRecentLoggables(limit)),
   );
 
   server.registerTool(

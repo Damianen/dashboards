@@ -12,6 +12,11 @@ export const searchQuerySchema = z.strictObject({
 });
 export type SearchQuery = z.infer<typeof searchQuerySchema>;
 
+/** GET /api/food/entries/recent — how many distinct recent foods to return. */
+export const recentLoggablesQuerySchema = z.strictObject({
+  limit: z.coerce.number().int().min(1).max(20).default(8),
+});
+
 // Optional explicit macro values. Kept .optional() (never .default(0)) so an omitted
 // field stays undefined (keep the computed value) while an explicit 0 overrides it.
 // Max fits the FoodEntry Decimal(7,1)/(6,1) snapshot columns.

@@ -6,14 +6,15 @@ import { Trash2 } from "lucide-react";
 import type { FoodEntryView } from "@/lib/food";
 import { formatNumber } from "@/lib/format";
 import { useDeleteFoodEntry } from "@/lib/hooks/use-delete-food-entry";
-import { cn } from "@/lib/utils";
 
 const REVEAL_PX = 96;
 
 /**
- * One diary row. Swipe left to reveal a Delete button (pure pointer-event drag —
- * `touch-action: pan-y` keeps vertical scrolling native, and a vertical scroll
- * fires pointercancel so the row never drags). Tapping the open row closes it.
+ * One diary row. Swipe left OR tap the trailing trash button to reveal a Delete
+ * button (pure pointer-event drag — `touch-action: pan-y` keeps vertical
+ * scrolling native, and a vertical scroll fires pointercancel so the row never
+ * drags). The revealed red Delete is the destructive tap; the visible trash is
+ * only the discoverable way in. Tapping the open row closes it.
  */
 export function FoodEntryRow({
   entry,
@@ -70,8 +71,8 @@ export function FoodEntryRow({
         Delete
       </button>
 
-      <button
-        type="button"
+      {/* A div (not a button) so the trailing control isn't nested-interactive. */}
+      <div
         onClick={() => {
           if (open && !moved.current) setOffset(0);
         }}
@@ -84,9 +85,7 @@ export function FoodEntryRow({
           touchAction: "pan-y",
           transition: isDragging ? "none" : "transform 150ms ease-out",
         }}
-        className={cn(
-          "bg-card flex min-h-[3.25rem] w-full items-center justify-between gap-3 px-3 py-2 text-left",
-        )}
+        className="bg-card flex min-h-[3.25rem] w-full items-center justify-between gap-2 py-2 pr-1 pl-3 text-left"
       >
         <div className="min-w-0">
           <div className="truncate font-medium">{entry.displayName}</div>
@@ -105,7 +104,22 @@ export function FoodEntryRow({
           <span className="font-semibold">{formatNumber(entry.kcal)}</span>
           <span className="text-muted-foreground ml-1 text-xs">kcal</span>
         </div>
-      </button>
+        <button
+          type="button"
+          aria-label={`Show delete for ${entry.displayName}`}
+          aria-expanded={open}
+          onClick={(e) => {
+            e.stopPropagation();
+            // Same drag guard as the row: a swipe that starts on this button
+            // must not fire a click that undoes the settle it just caused.
+            if (moved.current) return;
+            setOffset(open ? 0 : -REVEAL_PX);
+          }}
+          className="hover:bg-accent text-muted-foreground flex size-11 shrink-0 items-center justify-center rounded-md transition-colors"
+        >
+          <Trash2 className="size-4" aria-hidden />
+        </button>
+      </div>
     </div>
   );
 }

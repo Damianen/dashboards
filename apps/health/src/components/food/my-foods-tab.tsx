@@ -57,20 +57,21 @@ function BackHeader({ title, onBack }: { title: string; onBack: () => void }) {
  * scaled macros); the pencil edits it, the archive button retires/restores it. "New
  * custom food" saves a per-100 g food to the list; "Save & log" also logs it. A quick
  * one-off (not saved) covers things you won't reuse — and the barcode-not-found fallback
- * lands here, prefilled.
+ * lands here.
  */
 export function MyFoodsTab({
   day,
-  prefillName,
+  jumpToOneOff,
   onLog,
   onLogged,
 }: {
   day: string;
-  prefillName: string | null;
+  /** Barcode-not-found fallback: open straight on the quick one-off form. */
+  jumpToOneOff: boolean;
   onLog: (item: LoggableItem) => void;
   onLogged: () => void;
 }) {
-  const [view, setView] = useState<View>(prefillName ? "oneOff" : "list");
+  const [view, setView] = useState<View>(jumpToOneOff ? "oneOff" : "list");
   const [editing, setEditing] = useState<CustomFoodDTO | null>(null);
   const [query, setQuery] = useState("");
   const [showArchived, setShowArchived] = useState(false);
@@ -144,7 +145,7 @@ export function MyFoodsTab({
         <p className="text-muted-foreground text-xs">
           Logs once to today&apos;s diary without saving to My Foods.
         </p>
-        <CustomTab day={day} prefillName={prefillName} onLogged={onLogged} />
+        <CustomTab day={day} onLogged={onLogged} />
       </div>
     );
   }
