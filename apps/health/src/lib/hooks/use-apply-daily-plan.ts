@@ -46,6 +46,8 @@ export function useApplyDailyPlan() {
       }
       void qc.invalidateQueries({ queryKey: queryKeys.food(day) });
       void qc.invalidateQueries({ queryKey: queryKeys.summary(day) });
+      // Plan items log through logFood, which reshuffles the recents strip.
+      void qc.invalidateQueries({ queryKey: queryKeys.foodRecentPrefix() });
     },
     onError: () => toast.error("Couldn't apply plan"),
   });

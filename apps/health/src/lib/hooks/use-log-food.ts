@@ -120,6 +120,8 @@ export function useLogFood(day: string) {
       // entry moves the water target — refresh both or those cards go stale.
       void qc.invalidateQueries({ queryKey: queryKeys.adherence(day) });
       void qc.invalidateQueries({ queryKey: queryKeys.water(day) });
+      // Logging changes the recents order and last-used quantity.
+      void qc.invalidateQueries({ queryKey: queryKeys.foodRecentPrefix() });
     },
   });
 }

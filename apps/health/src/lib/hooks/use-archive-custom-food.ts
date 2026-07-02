@@ -19,7 +19,11 @@ export function useArchiveCustomFood() {
     onSuccess: (_data, { archived = true }) =>
       toast.success(archived ? "Food archived" : "Food restored"),
     onError: () => toast.error("Couldn't update the food"),
-    onSettled: () =>
-      void qc.invalidateQueries({ queryKey: queryKeys.customFoods() }),
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.customFoods() });
+      // An archived food must drop out of the re-log strip immediately (the
+      // recents read path excludes archived foods; the cache must follow).
+      void qc.invalidateQueries({ queryKey: queryKeys.foodRecentPrefix() });
+    },
   });
 }

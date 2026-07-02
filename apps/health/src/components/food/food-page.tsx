@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 
 import { AddFoodSheet } from "@/components/food/add-food-sheet";
@@ -38,9 +39,21 @@ function PageSkeleton() {
 }
 
 export function FoodPage() {
+  // PWA-shortcut deep link: /food?quick=add opens the sheet on launch. Lazy
+  // initial state — never a setState-in-effect.
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const fromShortcut = searchParams.get("quick") === "add";
   const [day, setDay] = useState(todayLocal());
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(() => fromShortcut);
   const [tab, setTab] = useState<"diary" | "meals" | "plans">("diary");
+
+  // Consume the shortcut param so a reload/session-restore doesn't re-open a
+  // sheet the user dismissed. URL cleanup only — no state updates.
+  useEffect(() => {
+    if (fromShortcut) window.history.replaceState(null, "", pathname);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once, on mount
+  }, []);
 
   const { data, isLoading, isError, isFetching, refetch } = useFoodEntries(day);
   const views = useMemo(() => (data ?? []).map(toView), [data]);

@@ -63,6 +63,8 @@ export function useDeleteFoodEntry(day: string) {
       // water target — refresh both or Today's cards go stale.
       void qc.invalidateQueries({ queryKey: queryKeys.adherence(day) });
       void qc.invalidateQueries({ queryKey: queryKeys.water(day) });
+      // Deleting the newest use changes the recents order / last-used quantity.
+      void qc.invalidateQueries({ queryKey: queryKeys.foodRecentPrefix() });
     },
   });
 }

@@ -10,6 +10,10 @@ export const queryKeys = {
   // ["food"] namespace but never collides with ["food", <day>] — the second
   // element is the literal "search", never a date.
   foodSearch: (q: string) => ["food", "search", q] as const,
+  // Recently-logged distinct foods (the 2-tap re-log strip). Same namespace
+  // trick: "recent" is never a date.
+  foodRecent: (limit: number) => ["food", "recent", limit] as const,
+  foodRecentPrefix: () => ["food", "recent"] as const,
   // Saved custom foods nest under one ["custom-foods"] prefix so a single invalidate
   // after any create/edit/archive refreshes the My Foods list (every q/filter) AND the
   // meal builder's "Saved" picker.

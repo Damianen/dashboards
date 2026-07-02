@@ -33,16 +33,21 @@ function PreviewStat({ value, label }: { value: string; label: string }) {
 export function QuantityStep({
   item,
   day,
+  initialGrams,
   onBack,
   onLogged,
 }: {
   item: LoggableItem;
   day: string;
+  /** Prefill (e.g. a recent entry's last-used amount); falls back to serving/100 g. */
+  initialGrams?: number;
   onBack: () => void;
   onLogged: () => void;
 }) {
   const servingG = item.servingG;
-  const [grams, setGrams] = useState(servingG && servingG > 0 ? servingG : 100);
+  const [grams, setGrams] = useState(
+    initialGrams ?? (servingG && servingG > 0 ? servingG : 100),
+  );
   const [meal, setMeal] = useState(() => suggestMeal(new Date()));
   // null = follow the live scaled prefill; a string = the user has overridden it.
   const [caffeineInput, setCaffeineInput] = useState<string | null>(null);

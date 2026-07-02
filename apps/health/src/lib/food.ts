@@ -106,6 +106,19 @@ export function customFoodInputToLoggable(
   };
 }
 
+/**
+ * A recently-logged distinct food as GET /api/food/entries/recent serializes it:
+ * ready to hand to the quantity step (or re-log instantly) plus the quantity the
+ * user chose last time. `lastMeal` is display-only — instant re-logs use
+ * suggestMeal(now) so an evening repeat of a lunch food lands in Dinner.
+ */
+export interface RecentLoggableDTO {
+  loggable: LoggableItem;
+  lastQuantityG: number;
+  lastMeal: MealSlot | null;
+  lastEatenAt: string;
+}
+
 /** Adapt a fetched product (Decimal servingG → number) into a LoggableItem. */
 export function productToLoggable(product: FoodProductDTO): LoggableItem {
   return {

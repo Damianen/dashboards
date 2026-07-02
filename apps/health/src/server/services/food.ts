@@ -6,7 +6,12 @@ import {
   Prisma,
 } from "@/generated/prisma/client";
 import { dayOf, dayToDbDate, todayLocal } from "@/lib/dates";
-import { compareCustomFoodRecency, type CustomFoodDTO } from "@/lib/food";
+import {
+  compareCustomFoodRecency,
+  type CustomFoodDTO,
+  type LoggableItem,
+  type RecentLoggableDTO,
+} from "@/lib/food";
 import {
   type LabelNutrients,
   type Macros,
@@ -477,6 +482,87 @@ export function listByDay(day: string = todayLocal()) {
       customFood: { select: { name: true, brand: true } },
     },
   });
+}
+
+/**
+ * The most recently eaten DISTINCT foods (by barcode product or saved custom
+ * food), newest first, each as a ready-to-log item plus the quantity used last
+ * time — the 2-tap re-log fast path. Free-typed one-off entries are excluded
+ * (no resolvable source; one-offs deliberately don't recur) and so are archived
+ * custom foods (same rule as searchCustomFoods: retired means not re-loggable).
+ */
+export async function listRecentLoggables(
+  limit = 8,
+): Promise<RecentLoggableDTO[]> {
+  // Step 1: latest eatenAt per distinct source. Every qualifying row has exactly
+  // one of (productBarcode, customFoodId) set, so grouping by both yields one
+  // group per source. NOT findMany({ distinct, take }): Prisma applies take in
+  // SQL but distinct in memory, which can return fewer than `limit` sources.
+  const groups = await prisma.foodEntry.groupBy({
+    by: ["productBarcode", "customFoodId"],
+    where: {
+      OR: [
+        { productBarcode: { not: null } },
+        { customFood: { is: { archived: false } } },
+      ],
+    },
+    _max: { eatenAt: true },
+    orderBy: { _max: { eatenAt: "desc" } },
+    take: limit,
+  });
+
+  // Step 2: the concrete latest row per source, with full relations for
+  // per100g/servingG (listByDay's include selects display fields only).
+  const rows = await Promise.all(
+    groups.map((g) =>
+      prisma.foodEntry.findFirst({
+        where: g.productBarcode
+          ? { productBarcode: g.productBarcode }
+          : { customFoodId: g.customFoodId },
+        orderBy: { eatenAt: "desc" },
+        include: { product: true, customFood: true },
+      }),
+    ),
+  );
+
+  const out: RecentLoggableDTO[] = [];
+  for (const row of rows) {
+    if (!row) continue;
+    let loggable: LoggableItem;
+    if (row.product) {
+      loggable = {
+        name: row.product.name,
+        brand: row.product.brand,
+        imageUrl: row.product.imageUrl,
+        per100g: macrosFromJson(row.product.per100g),
+        servingG:
+          row.product.servingG != null ? Number(row.product.servingG) : null,
+        ref: { kind: "barcode", barcode: row.product.barcode },
+      };
+    } else if (row.customFood) {
+      loggable = {
+        name: row.customFood.name,
+        brand: row.customFood.brand,
+        imageUrl: null,
+        per100g: macrosFromJson(row.customFood.per100g),
+        servingG:
+          row.customFood.servingG != null
+            ? Number(row.customFood.servingG)
+            : null,
+        ref: { kind: "customFood", customFoodId: row.customFood.id },
+      };
+    } else {
+      continue;
+    }
+    out.push({
+      loggable,
+      // Defensive coalesce — barcode/custom-food entries always store grams.
+      lastQuantityG: Number(row.quantityG ?? 100),
+      lastMeal: row.meal,
+      lastEatenAt: row.eatenAt.toISOString(),
+    });
+  }
+  return out;
 }
 
 /**
