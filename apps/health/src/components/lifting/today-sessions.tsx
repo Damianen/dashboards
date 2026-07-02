@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 
+import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/today/metric-card";
 import { formatNumber } from "@/lib/format";
@@ -39,8 +40,11 @@ export function TodaySessions({ sessions }: { sessions: SessionDTO[] }) {
           >
             <Card className="hover:bg-accent flex-row items-center justify-between gap-3 p-4 transition-colors">
               <div className="min-w-0">
-                <div className="font-medium">
+                <div className="flex items-center gap-2 font-medium">
                   Today, {timeLabel(session.startedAt)}
+                  {session.endedAt != null && (
+                    <Badge variant="secondary">Finished</Badge>
+                  )}
                 </div>
                 <div className="text-muted-foreground truncate text-xs">
                   {top || "No sets"}

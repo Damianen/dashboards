@@ -1,6 +1,8 @@
 // Pure display formatters for the dashboard. Kept side-effect free so they can
 // be unit-tested without a DOM or DB.
 
+import { shiftDay } from "@/lib/dates";
+
 /** Minutes → "h:mm" (e.g. 437 → "7:17"). Negative input clamps to 0. */
 export function formatHm(minutes: number): string {
   const total = Math.max(0, Math.round(minutes));
@@ -62,6 +64,16 @@ export function dateLabel(day: string): string {
     day: "numeric",
     month: "long",
   });
+}
+
+/**
+ * Heading for a day pager: "Today" / "Yesterday" / dateLabel(day). `today` is
+ * injected (todayLocal() at call sites) so the function stays pure.
+ */
+export function dayHeading(day: string, today: string): string {
+  if (day === today) return "Today";
+  if (day === shiftDay(today, -1)) return "Yesterday";
+  return dateLabel(day);
 }
 
 /**

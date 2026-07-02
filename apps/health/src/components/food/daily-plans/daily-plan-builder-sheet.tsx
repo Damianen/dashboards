@@ -262,7 +262,7 @@ function DailyPlanBuilderForm({
           variant="ghost"
           className="text-destructive w-full"
           disabled={isPending}
-          onClick={() => archive.mutate(planId, { onSuccess: onDone })}
+          onClick={() => archive.mutate({ id: planId }, { onSuccess: onDone })}
         >
           Archive plan
         </Button>

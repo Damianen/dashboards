@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, Plus, Timer } from "lucide-react";
+import { CheckCircle2, ChevronLeft, Plus, Timer } from "lucide-react";
 
 import { AddSetSheet } from "@/components/lifting/add-set-sheet";
 import { ExerciseSetTable } from "@/components/lifting/exercise-set-table";
+import { SessionMenu } from "@/components/lifting/session-menu";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { dateLabel } from "@/lib/format";
@@ -64,7 +65,7 @@ export function SessionView({ id }: { id: string }) {
     useSession(id);
   // The plan snapshot froze targets, but the title just needs the current name.
   const { data: template } = useTemplate(session?.templateId ?? undefined);
-  const finish = useFinishSession(id, session?.day ?? "");
+  const { finish } = useFinishSession(id, session?.day ?? "");
 
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -108,14 +109,30 @@ export function SessionView({ id }: { id: string }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2">
-        <ElapsedTimer startedAt={session.startedAt} />
-        <Button
-          onClick={() => finish.mutate()}
-          disabled={finish.isPending}
-          className="bg-success text-success-foreground hover:bg-success/90 h-9 px-5"
-        >
-          Finish
-        </Button>
+        {session.endedAt == null ? (
+          <ElapsedTimer startedAt={session.startedAt} />
+        ) : (
+          <span className="text-muted-foreground flex items-center gap-1.5 text-sm">
+            <CheckCircle2 className="size-4" aria-hidden />
+            Finished{" "}
+            {new Date(session.endedAt).toLocaleTimeString("en-GB", {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </span>
+        )}
+        <div className="flex items-center gap-1">
+          {session.endedAt == null && (
+            <Button
+              onClick={() => finish.mutate()}
+              disabled={finish.isPending}
+              className="bg-success text-success-foreground hover:bg-success/90 h-9 px-5"
+            >
+              Finish
+            </Button>
+          )}
+          <SessionMenu session={session} />
+        </div>
       </div>
 
       <header className="space-y-0.5">

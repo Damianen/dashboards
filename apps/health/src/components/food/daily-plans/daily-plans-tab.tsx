@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Pencil, Plus } from "lucide-react";
+import { Archive, ArchiveRestore, Pencil, Plus } from "lucide-react";
 
 import { DailyPlanBuilderSheet } from "@/components/food/daily-plans/daily-plan-builder-sheet";
 import { EmptyState } from "@/components/today/metric-card";
@@ -9,17 +9,24 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatNumber } from "@/lib/format";
 import { useApplyDailyPlan } from "@/lib/hooks/use-apply-daily-plan";
+import { useArchiveDailyPlan } from "@/lib/hooks/use-archive-daily-plan";
 import { useDailyPlans } from "@/lib/hooks/use-daily-plans";
+import { cn } from "@/lib/utils";
 
 /**
  * The "Plans" view inside the Food page: saved daily plans with their item count and
  * total kcal. "Apply" logs every item into the viewed day's diary as its own entry;
- * the pencil edits the plan; "New plan" opens the builder.
+ * the pencil edits the plan; "New plan" opens the builder. "Show archived" reveals
+ * retired plans with a Restore button (Apply hides until restored — applying a
+ * retired plan is the mistake archiving exists to prevent).
  */
 export function DailyPlansTab({ day }: { day: string }) {
-  const { data, isLoading, isError, isFetching, refetch } = useDailyPlans();
+  const [showArchived, setShowArchived] = useState(false);
+  const { data, isLoading, isError, isFetching, refetch } =
+    useDailyPlans(showArchived);
   const plans = data ?? [];
   const apply = useApplyDailyPlan();
+  const archive = useArchiveDailyPlan();
 
   const [builderOpen, setBuilderOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -39,6 +46,19 @@ export function DailyPlansTab({ day }: { day: string }) {
         <Plus className="size-5" aria-hidden />
         New plan
       </Button>
+
+      <div className="flex items-center justify-between">
+        <span className="text-muted-foreground text-xs">
+          {plans.length} plan{plans.length === 1 ? "" : "s"}
+        </span>
+        <button
+          type="button"
+          onClick={() => setShowArchived((v) => !v)}
+          className="text-muted-foreground text-xs font-medium underline-offset-2 hover:underline"
+        >
+          {showArchived ? "Hide archived" : "Show archived"}
+        </button>
+      </div>
 
       {isLoading ? (
         <div className="space-y-2">
@@ -70,7 +90,10 @@ export function DailyPlansTab({ day }: { day: string }) {
             return (
               <li
                 key={plan.id}
-                className="bg-card space-y-2 rounded-md border p-3"
+                className={cn(
+                  "bg-card space-y-2 rounded-md border p-3",
+                  plan.archived && "opacity-60",
+                )}
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="min-w-0">
@@ -80,22 +103,41 @@ export function DailyPlansTab({ day }: { day: string }) {
                       {formatNumber(plan.totalKcal ?? 0)} kcal
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    aria-label={`Edit ${plan.name}`}
-                    onClick={() => openEdit(plan.id)}
-                    className="hover:bg-accent flex size-9 shrink-0 items-center justify-center rounded-md transition-colors"
-                  >
-                    <Pencil className="size-4" aria-hidden />
-                  </button>
+                  <div className="flex shrink-0 items-center">
+                    <button
+                      type="button"
+                      aria-label={`Edit ${plan.name}`}
+                      onClick={() => openEdit(plan.id)}
+                      className="hover:bg-accent flex size-9 items-center justify-center rounded-md transition-colors"
+                    >
+                      <Pencil className="size-4" aria-hidden />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`${plan.archived ? "Restore" : "Archive"} ${plan.name}`}
+                      onClick={() =>
+                        archive.mutate({ id: plan.id, archived: !plan.archived })
+                      }
+                      disabled={archive.isPending}
+                      className="hover:bg-accent flex size-9 items-center justify-center rounded-md transition-colors"
+                    >
+                      {plan.archived ? (
+                        <ArchiveRestore className="size-4" aria-hidden />
+                      ) : (
+                        <Archive className="size-4" aria-hidden />
+                      )}
+                    </button>
+                  </div>
                 </div>
-                <Button
-                  className="h-11 w-full"
-                  disabled={apply.isPending}
-                  onClick={() => apply.mutate({ id: plan.id, day })}
-                >
-                  {applying ? "Applying…" : "Apply"}
-                </Button>
+                {!plan.archived && (
+                  <Button
+                    className="h-11 w-full"
+                    disabled={apply.isPending}
+                    onClick={() => apply.mutate({ id: plan.id, day })}
+                  >
+                    {applying ? "Applying…" : "Apply"}
+                  </Button>
+                )}
               </li>
             );
           })}

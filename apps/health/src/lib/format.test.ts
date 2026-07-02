@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   clampPercent,
   dateLabel,
+  dayHeading,
   formatHm,
   formatKg,
   formatLastPerformed,
@@ -120,5 +121,21 @@ describe("dateLabel", () => {
   it("stays on its own civil date across a year boundary", () => {
     expect(dateLabel("2026-12-31")).toBe("Thursday 31 December");
     expect(dateLabel("2026-01-01")).toBe("Thursday 1 January");
+  });
+});
+
+describe("dayHeading", () => {
+  it("labels today and yesterday", () => {
+    expect(dayHeading("2026-07-02", "2026-07-02")).toBe("Today");
+    expect(dayHeading("2026-07-01", "2026-07-02")).toBe("Yesterday");
+  });
+
+  it("recognises yesterday across a month boundary", () => {
+    expect(dayHeading("2026-06-30", "2026-07-01")).toBe("Yesterday");
+    expect(dayHeading("2025-12-31", "2026-01-01")).toBe("Yesterday");
+  });
+
+  it("falls back to the full date label for older days", () => {
+    expect(dayHeading("2026-06-16", "2026-07-02")).toBe(dateLabel("2026-06-16"));
   });
 });

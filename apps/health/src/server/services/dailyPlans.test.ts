@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { EntryOrigin, MealSlot } from "@/generated/prisma/client";
 import { todayLocal } from "@/lib/dates";
-import { applyDailyPlan } from "./dailyPlans";
+import { Prisma } from "@/generated/prisma/client";
+import { applyDailyPlan, setDailyPlanArchived } from "./dailyPlans";
 import { DomainError, NotFoundError } from "./errors";
 
 // ----- Collaborator mocks (every name dailyPlans.ts imports from each module) -----
@@ -30,6 +31,8 @@ const getOrFetchProduct = vi.fn<(barcode: string) => Promise<unknown>>();
 const macrosFromJson = vi.fn<(json: unknown) => unknown>();
 const dailyPlanFindUnique =
   vi.fn<(args: unknown) => Promise<PlanFixture | null>>();
+const dailyPlanUpdate =
+  vi.fn<(args: { where: unknown; data: unknown }) => Promise<unknown>>();
 
 vi.mock("./food", () => ({
   logFood: (input: LoggedFoodInput, origin: EntryOrigin) =>
@@ -43,7 +46,10 @@ vi.mock("./meals", () => ({
 }));
 vi.mock("@/server/db", () => ({
   prisma: {
-    dailyPlan: { findUnique: (args: unknown) => dailyPlanFindUnique(args) },
+    dailyPlan: {
+      findUnique: (args: unknown) => dailyPlanFindUnique(args),
+      update: (args: { where: unknown; data: unknown }) => dailyPlanUpdate(args),
+    },
   },
 }));
 
@@ -238,5 +244,45 @@ describe("applyDailyPlan", () => {
     ).rejects.toThrow("daily plan not found: missing");
     expect(logFood).not.toHaveBeenCalled();
     expect(logMeal).not.toHaveBeenCalled();
+  });
+});
+
+describe("setDailyPlanArchived", () => {
+  /** A stored plan row shaped for serializeSummary (no items → zero totals). */
+  const planRow = (archived: boolean) => ({
+    id: "p1",
+    name: "Workday",
+    notes: null,
+    archived,
+    items: [],
+    createdAt: new Date("2026-06-01T10:00:00.000Z"),
+    updatedAt: new Date("2026-07-01T10:00:00.000Z"),
+  });
+
+  it("passes the archived flag through (restore = false)", async () => {
+    dailyPlanUpdate.mockResolvedValue(planRow(false));
+
+    const result = await setDailyPlanArchived("p1", false);
+
+    expect(dailyPlanUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "p1" },
+        data: { archived: false },
+      }),
+    );
+    expect(result.archived).toBe(false);
+  });
+
+  it("maps Prisma's P2025 to NotFoundError", async () => {
+    dailyPlanUpdate.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError("No record found", {
+        code: "P2025",
+        clientVersion: "test",
+      }),
+    );
+
+    await expect(setDailyPlanArchived("missing", true)).rejects.toBeInstanceOf(
+      NotFoundError,
+    );
   });
 });

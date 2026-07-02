@@ -280,7 +280,7 @@ function MealBuilderForm({
           variant="ghost"
           className="text-destructive w-full"
           disabled={isPending}
-          onClick={() => archive.mutate(mealId, { onSuccess: onDone })}
+          onClick={() => archive.mutate({ id: mealId }, { onSuccess: onDone })}
         >
           Archive meal
         </Button>

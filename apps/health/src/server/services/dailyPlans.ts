@@ -284,12 +284,16 @@ export async function getDailyPlan(id: string): Promise<DailyPlanDetail> {
   return serializeDetail(plan);
 }
 
-/** Archive a plan (hidden from the list; never deleted). 404s if it doesn't exist. */
-export async function archiveDailyPlan(id: string): Promise<DailyPlanSummary> {
+/** Archive a plan (hidden from the list; never deleted) or restore it. 404s if
+ *  it doesn't exist. */
+export async function setDailyPlanArchived(
+  id: string,
+  archived: boolean,
+): Promise<DailyPlanSummary> {
   try {
     const plan = await prisma.dailyPlan.update({
       where: { id },
-      data: { archived: true },
+      data: { archived },
       include: DETAIL_INCLUDE,
     });
     return serializeSummary(plan);

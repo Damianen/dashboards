@@ -33,6 +33,13 @@ export const updateSetSchema = z
   );
 export type UpdateSetInput = z.infer<typeof updateSetSchema>;
 
+/** Finish-toggle route body: a bare POST finishes (stamps endedAt); pass
+ *  { finished: false } to reopen a mistakenly-finished session. */
+export const finishSessionSchema = z.strictObject({
+  finished: z.boolean().default(true),
+});
+export type FinishSessionInput = z.infer<typeof finishSessionSchema>;
+
 export const historyQuerySchema = z.strictObject({
   exercise: z.string().min(1),
   limit: z.coerce.number().int().min(1).max(100).default(10),

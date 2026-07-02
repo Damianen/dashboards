@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { createMealSchema, logMealSchema, mealItemSchema } from "./meals";
+import {
+  archiveMealSchema,
+  createMealSchema,
+  logMealSchema,
+  mealItemSchema,
+} from "./meals";
 
 const CUID = "cflx0a1b2c3d4e5f6g7h8i9j";
 const BARCODE = "5449000000996";
@@ -158,5 +163,20 @@ describe("logMealSchema", () => {
     expect(
       logMealSchema.safeParse({ ...base, eatenAt: "2026-07-02" }).success,
     ).toBe(false);
+  });
+});
+
+describe("archiveMealSchema", () => {
+  it("defaults a bare body to archive (back-compat with the old route)", () => {
+    expect(archiveMealSchema.parse({})).toEqual({ archived: true });
+  });
+
+  it("accepts an explicit restore", () => {
+    expect(archiveMealSchema.parse({ archived: false })).toEqual({ archived: false });
+  });
+
+  it("is strict and boolean-only", () => {
+    expect(archiveMealSchema.safeParse({ archived: "yes" }).success).toBe(false);
+    expect(archiveMealSchema.safeParse({ archived: true, id: "x" }).success).toBe(false);
   });
 });

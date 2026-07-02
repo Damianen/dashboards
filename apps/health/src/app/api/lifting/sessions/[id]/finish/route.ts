@@ -1,15 +1,22 @@
 import { jsonError } from "@/lib/api";
-import { finishSession } from "@/server/services/lifting";
+import { finishSessionSchema } from "@/lib/schemas/lifting";
+import { setSessionFinished } from "@/server/services/lifting";
 
 export const runtime = "nodejs";
 
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
-    return Response.json(await finishSession(id));
+    // A bare POST finishes; { finished: false } reopens. Tolerate an empty body.
+    const body = await req.json().catch(() => ({}));
+    const parsed = finishSessionSchema.safeParse(body);
+    if (!parsed.success) {
+      return Response.json(parsed.error.flatten(), { status: 400 });
+    }
+    return Response.json(await setSessionFinished(id, parsed.data.finished));
   } catch (err) {
     return jsonError(err);
   }

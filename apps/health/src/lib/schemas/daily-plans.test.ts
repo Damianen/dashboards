@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   applyDailyPlanSchema,
+  archiveDailyPlanSchema,
   createDailyPlanSchema,
   dailyPlanItemSchema,
 } from "./daily-plans";
@@ -117,6 +118,25 @@ describe("applyDailyPlanSchema", () => {
     ).toBe(false);
     expect(
       applyDailyPlanSchema.safeParse({ dailyPlanId: "nope" }).success,
+    ).toBe(false);
+  });
+});
+
+describe("archiveDailyPlanSchema", () => {
+  it("defaults a bare body to archive (back-compat with the old route)", () => {
+    expect(archiveDailyPlanSchema.parse({})).toEqual({ archived: true });
+  });
+
+  it("accepts an explicit restore", () => {
+    expect(archiveDailyPlanSchema.parse({ archived: false })).toEqual({
+      archived: false,
+    });
+  });
+
+  it("is strict and boolean-only", () => {
+    expect(archiveDailyPlanSchema.safeParse({ archived: 1 }).success).toBe(false);
+    expect(
+      archiveDailyPlanSchema.safeParse({ archived: true, x: 1 }).success,
     ).toBe(false);
   });
 });

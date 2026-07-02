@@ -62,3 +62,10 @@ export const applyDailyPlanSchema = z.strictObject({
   day: daySchema.optional(),
 });
 export type ApplyDailyPlanInput = z.infer<typeof applyDailyPlanSchema>;
+
+// Archive route body: `archived` defaults true so a bare POST archives; pass
+// { archived: false } to restore a plan from the "show archived" view.
+export const archiveDailyPlanSchema = z.strictObject({
+  archived: z.boolean().default(true),
+});
+export type ArchiveDailyPlanInput = z.infer<typeof archiveDailyPlanSchema>;
