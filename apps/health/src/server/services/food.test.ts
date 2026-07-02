@@ -2,13 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Prisma } from "@/generated/prisma/client";
 import { DomainError, NotFoundError } from "./errors";
-import { updateFoodEntry } from "./food";
+import { logFood, updateFoodEntry } from "./food";
 
 // ----- Collaborator mocks (food.ts imports ./off and ./vision at module scope) -----
 
 const foodEntryFindUnique = vi.fn<(args: unknown) => Promise<unknown>>();
 const foodEntryUpdate =
   vi.fn<(args: { where: unknown; data: Record<string, unknown> }) => Promise<unknown>>();
+const foodEntryCreate = vi.fn<(args: unknown) => Promise<unknown>>();
 const foodProductFindUnique = vi.fn<(args: unknown) => Promise<unknown>>();
 const customFoodFindUnique = vi.fn<(args: unknown) => Promise<unknown>>();
 
@@ -18,6 +19,7 @@ vi.mock("@/server/db", () => ({
       findUnique: (args: unknown) => foodEntryFindUnique(args),
       update: (args: { where: unknown; data: Record<string, unknown> }) =>
         foodEntryUpdate(args),
+      create: (args: unknown) => foodEntryCreate(args),
     },
     foodProduct: { findUnique: (args: unknown) => foodProductFindUnique(args) },
     customFood: { findUnique: (args: unknown) => customFoodFindUnique(args) },
@@ -63,6 +65,22 @@ function updatedData(): Record<string, unknown> {
   if (!call) throw new Error("expected foodEntry.update to be called");
   return call[0].data;
 }
+
+describe("logFood archived guard", () => {
+  it("refuses to log an archived custom food by id (write-path twin of the read exclusions)", async () => {
+    customFoodFindUnique.mockResolvedValue({
+      id: "cf1",
+      name: "Old shake",
+      archived: true,
+      per100g: { kcal: 100, proteinG: 10, carbG: 5, fatG: 2 },
+    });
+
+    await expect(
+      logFood({ customFoodId: "c".repeat(24), quantityG: 100 }, "MCP"),
+    ).rejects.toBeInstanceOf(DomainError);
+    expect(foodEntryCreate).not.toHaveBeenCalled();
+  });
+});
 
 describe("updateFoodEntry", () => {
   it("rescales every snapshot field from the entry's OWN totals — never the product cache", async () => {

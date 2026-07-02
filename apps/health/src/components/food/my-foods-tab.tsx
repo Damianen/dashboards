@@ -214,6 +214,9 @@ export function MyFoodsTab({
               <button
                 type="button"
                 onClick={() => onLog(customFoodToLoggable(f))}
+                // Retired means not re-loggable (logFood enforces it server-side
+                // too) — restore first; edit and restore stay tappable.
+                disabled={f.archived}
                 className="flex min-h-14 min-w-0 flex-1 items-center justify-between gap-3 px-3 py-2 text-left"
               >
                 <div className="min-w-0">
