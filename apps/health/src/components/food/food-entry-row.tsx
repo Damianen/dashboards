@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Trash2 } from "lucide-react";
+import { Sparkles, Trash2 } from "lucide-react";
 
 import type { FoodEntryView } from "@/lib/food";
 import { formatNumber } from "@/lib/format";
@@ -96,7 +96,16 @@ export function FoodEntryRow({
         className="bg-card flex min-h-[3.25rem] w-full items-center justify-between gap-2 py-2 pr-1 pl-3 text-left"
       >
         <div className="min-w-0">
-          <div className="truncate font-medium">{entry.displayName}</div>
+          <div className="flex items-center gap-1.5 font-medium">
+            <span className="truncate">{entry.displayName}</span>
+            {entry.notes != null && (
+              // AI-estimated entry — its assumptions show in the editor (tap).
+              <Sparkles
+                className="text-muted-foreground size-3.5 shrink-0"
+                aria-label="Has AI-estimate notes"
+              />
+            )}
+          </div>
           {entry.portions != null ? (
             <div className="text-muted-foreground text-xs tabular-nums">
               {formatNumber(entry.portions, 2)}{" "}

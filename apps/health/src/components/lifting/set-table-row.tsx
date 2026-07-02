@@ -17,8 +17,8 @@ type SetSuggestion =
   SessionDetailDTO["exercises"][number]["suggestions"][number];
 
 // Shared column template so the header and every row line up:
-// Set | Previous | kg | Reps | ✓ | (remove, extras only)
-// The two trailing columns are 2.75rem so their buttons reach 44px hit areas.
+// Set | Previous | kg | Reps | ✓ | (RPE once logged; remove on extras)
+// The two trailing columns are 2.75rem so their controls reach 44px hit areas.
 export const ROW =
   "grid grid-cols-[1.5rem_minmax(0,1fr)_3.5rem_3rem_2.75rem_2.75rem] items-center gap-1.5";
 
@@ -226,8 +226,10 @@ export function EditableRow({
 }
 
 /** An already-logged set: editable inputs (commit on blur via PATCH) with a
- *  filled ✓ that un-logs (deletes) on tap. Keyed by its server values upstream,
- *  so it re-seeds when the server value changes. */
+ *  filled ✓ that un-logs (deletes) on tap. RPE is a post-set rating, so its cell
+ *  lives here (the trailing column EditableRow uses for remove) — rate the set
+ *  after ✓ flips the row. Keyed by its server values upstream, so it re-seeds
+ *  when the server value changes. */
 export function LoggedRow({
   set,
   badge,
@@ -245,16 +247,25 @@ export function LoggedRow({
   const del = useDeleteSet(day, sessionId);
   const [reps, setReps] = useState(String(set.reps));
   const [weight, setWeight] = useState(String(set.weightKg));
+  const [rpe, setRpe] = useState(set.rpe == null ? "" : String(set.rpe));
 
   function commit() {
     const r = Number(reps);
     const w = Number(weight);
-    if (r === set.reps && w === set.weightKg) return;
-    const parsed = updateSetSchema.safeParse({ reps: r, weightKg: w });
+    // The ""→null branch must run before Number(): Number("") is 0, which
+    // would fail the 1–10 bound instead of clearing the RPE.
+    const rpeVal = rpe.trim() === "" ? null : Number(rpe);
+    if (r === set.reps && w === set.weightKg && rpeVal === set.rpe) return;
+    const parsed = updateSetSchema.safeParse({
+      reps: r,
+      weightKg: w,
+      rpe: rpeVal,
+    });
     if (!parsed.success) {
       toast.error("Check the set values");
       setReps(String(set.reps));
       setWeight(String(set.weightKg));
+      setRpe(set.rpe == null ? "" : String(set.rpe));
       return;
     }
     update.mutate({ id: set.id, input: parsed.data });
@@ -290,7 +301,13 @@ export function LoggedRow({
           label="Remove set"
         />
       </div>
-      <div />
+      <NumCell
+        value={rpe}
+        onChange={setRpe}
+        onCommit={commit}
+        label="RPE"
+        disabled={del.isPending}
+      />
     </div>
   );
 }

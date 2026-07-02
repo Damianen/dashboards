@@ -5,6 +5,7 @@ import {
   alignByDay,
   lateCaffeineVsSleep,
   MIN_PAIRED_DAYS,
+  OBSERVATION_TITLES,
   pearson,
   readinessVsLiftingVolume,
   sleepVsNextDayReadiness,
@@ -185,4 +186,36 @@ describe("lateCaffeineVsSleep", () => {
 
 it("exposes the minimum-paired-days gate", () => {
   expect(MIN_PAIRED_DAYS).toBe(8);
+});
+
+describe("OBSERVATION_TITLES", () => {
+  // Enough signal for every detector to fire.
+  const x = series(START, [50, 60, 70, 55, 80, 65, 75, 58, 62, 90]);
+  const y = series(START, [50, 60, 70, 55, 80, 65, 75, 58, 62, 90]);
+  const lagged = [
+    { day: START, value: 40 },
+    ...series(shiftDay(START, 1), [50, 60, 70, 55, 80, 65, 75, 58, 62]),
+  ];
+  const lateFlags = flags(START, [true, false, true, false, true, false, true, false, true, false]);
+  const sleepForFlags = [
+    { day: START, value: 40 },
+    ...series(shiftDay(START, 1), [50, 80, 50, 80, 50, 80, 50, 80, 50]),
+  ];
+
+  it("every detector's id is a key of the map and its title matches", () => {
+    const produced = [
+      lateCaffeineVsSleep(lateFlags, sleepForFlags, 30, 14),
+      sleepVsNextDayReadiness(x, lagged, 30),
+      readinessVsLiftingVolume(x, y, 30),
+      weightTrendVsSleep(x, y, 30),
+    ];
+    const titles: Record<string, string> = OBSERVATION_TITLES;
+    for (const obs of produced) {
+      expect(obs).not.toBeNull();
+      expect(titles[obs!.id]).toBe(obs!.title);
+    }
+    expect(produced.map((o) => o!.id).sort()).toEqual(
+      Object.keys(OBSERVATION_TITLES).sort(),
+    );
+  });
 });

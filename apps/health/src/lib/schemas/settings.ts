@@ -29,3 +29,16 @@ export const intakeTargetSchema = z.strictObject({
   kcal: z.coerce.number().int().min(500).max(10000),
 });
 export type IntakeTargetSetting = z.infer<typeof intakeTargetSchema>;
+
+/**
+ * The two water-target inputs (the formula itself lives ONLY in the daily_summary
+ * view: base + Σ stimulant mg × mlPerMg). Single source of truth for the PATCH
+ * /api/settings/water body. baseTargetMl 500–6000 brackets any sane base;
+ * mlPerMgStimulant 0–5 brackets the 1.0 default, with 0 disabling the caffeine
+ * adjustment entirely. Coerced so form strings parse.
+ */
+export const waterSettingsSchema = z.strictObject({
+  baseTargetMl: z.coerce.number().int().min(500).max(6000),
+  mlPerMgStimulant: z.coerce.number().min(0).max(5),
+});
+export type WaterSettings = z.infer<typeof waterSettingsSchema>;

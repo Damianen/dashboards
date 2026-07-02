@@ -3,6 +3,7 @@ import { ConnectionsSection } from "@/components/settings/connections-section";
 import { NotificationsCard } from "@/components/settings/notifications-card";
 import { ProteinTargetCard } from "@/components/settings/protein-card";
 import { SyncStatusCard } from "@/components/settings/sync-status-card";
+import { WaterSettingsCard } from "@/components/settings/water-settings-card";
 import { WeightGoalCard } from "@/components/settings/weight-goal-card";
 
 export default function SettingsPage() {
@@ -17,6 +18,7 @@ export default function SettingsPage() {
         <ProteinTargetCard />
         <CalorieTargetCard />
         <WeightGoalCard />
+        <WaterSettingsCard />
       </section>
       <SyncStatusCard />
       <NotificationsCard />

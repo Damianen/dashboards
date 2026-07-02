@@ -13,7 +13,7 @@ import {
   sessionVolumeKg,
   sessionWorkingSets,
 } from "@/lib/lifting-grouping";
-import { bestE1rm, type E1rmSet } from "@/lib/one-rep-max";
+import { averageRpe, bestE1rm, type E1rmSet } from "@/lib/one-rep-max";
 import { round1 } from "@/lib/round";
 import {
   type PlanProgress,
@@ -661,6 +661,9 @@ export interface E1rmPoint {
   /** True when this day's best e1RM beat every PRIOR day's (all-time, not just the
    *  returned window) — so a PR mid-chart is genuine even if older data is off-screen. */
   isPr: boolean;
+  /** Mean RPE of the day's RATED working sets (1 dp); null when none were rated.
+   *  Appended field — additive for the route and the MCP get_exercise_strength tool. */
+  avgRpe: number | null;
 }
 
 /**
@@ -677,12 +680,19 @@ export async function getE1rmHistory(
   // Every working set ever for this exercise (single-user scale), oldest first.
   const sets = await prisma.liftingSet.findMany({
     where: { exerciseId: exercise.id, isWarmup: false },
-    select: { reps: true, weightKg: true, session: { select: { day: true } } },
+    select: {
+      reps: true,
+      weightKg: true,
+      rpe: true,
+      session: { select: { day: true } },
+    },
     orderBy: { loggedAt: "asc" },
   });
 
-  // Bucket sets into civil days, then take each day's best e1RM.
+  // Bucket sets into civil days, then take each day's best e1RM (and the mean
+  // RPE of its rated sets — the Decimal→number chokepoint is here).
   const byDay = new Map<string, E1rmSet[]>();
+  const rpesByDay = new Map<string, (number | null)[]>();
   for (const s of sets) {
     const day = dayOf(s.session.day);
     const set: E1rmSet = {
@@ -690,9 +700,15 @@ export async function getE1rmHistory(
       weightKg: Number(s.weightKg),
       isWarmup: false,
     };
+    const rpe = s.rpe == null ? null : Number(s.rpe);
     const list = byDay.get(day);
-    if (list) list.push(set);
-    else byDay.set(day, [set]);
+    if (list) {
+      list.push(set);
+      rpesByDay.get(day)?.push(rpe);
+    } else {
+      byDay.set(day, [set]);
+      rpesByDay.set(day, [rpe]);
+    }
   }
 
   const start = shiftDay(todayLocal(), -(days - 1));
@@ -711,6 +727,7 @@ export async function getE1rmHistory(
         reps: best.reps,
         weightKg: best.weightKg,
         isPr,
+        avgRpe: averageRpe(rpesByDay.get(day) ?? []),
       });
     }
   }

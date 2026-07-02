@@ -127,6 +127,15 @@ function EditEntryBody({
         )}
       </div>
 
+      {entry.notes != null && (
+        <div className="bg-muted rounded-lg p-3">
+          <p className="text-muted-foreground text-[10px] font-medium tracking-wide uppercase">
+            AI estimate
+          </p>
+          <p className="text-muted-foreground mt-1 text-xs">{entry.notes}</p>
+        </div>
+      )}
+
       {canEditQuantity && (
         <div className="space-y-1.5">
           <Label htmlFor="edit-entry-grams">Amount (g)</Label>

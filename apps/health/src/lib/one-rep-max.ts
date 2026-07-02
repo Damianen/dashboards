@@ -33,6 +33,18 @@ export function epleyE1rm(weightKg: number, reps: number): number {
 }
 
 /**
+ * Mean of the non-null RPEs, rounded to 1 dp; null when none carry one. Feeds the
+ * per-day avg-RPE series next to the e1RM chart — a subjective-effort overlay, so
+ * days without ratings stay honest gaps instead of zeros.
+ */
+export function averageRpe(rpes: (number | null)[]): number | null {
+  const rated = rpes.filter((r): r is number => r != null);
+  if (rated.length === 0) return null;
+  const mean = rated.reduce((a, b) => a + b, 0) / rated.length;
+  return Math.round(mean * 10) / 10;
+}
+
+/**
  * The best (max) e1RM across an exercise's WORKING sets — warmups never count, the
  * same guardrail volume uses. Returns the predicting set and its e1RM, or null when
  * the exercise had no scoreable working set. On a tie the earliest set wins.

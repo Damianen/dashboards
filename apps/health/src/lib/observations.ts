@@ -12,6 +12,19 @@ import { shiftDay } from "@/lib/dates";
  */
 export const MIN_PAIRED_DAYS = 8;
 
+/**
+ * Detector id → card title, in one place so the notified-observations history
+ * can label past pushes without re-running detectors. Ids are stable (they're
+ * also the notification dedupe keys); each detector references this map so the
+ * two can't drift (pinned by test).
+ */
+export const OBSERVATION_TITLES = {
+  "late-caffeine-sleep": "Late caffeine vs sleep",
+  "sleep-next-readiness": "Sleep vs next-day readiness",
+  "readiness-lifting": "Readiness vs lifting volume",
+  "weight-sleep": "Weight trend vs sleep",
+} as const satisfies Record<string, string>;
+
 /** A metric's value on one civil day ("YYYY-MM-DD", Europe/Amsterdam). */
 export interface DayValue {
   day: string;
@@ -178,7 +191,7 @@ export function lateCaffeineVsSleep(
 
   return {
     id: "late-caffeine-sleep",
-    title: "Late caffeine vs sleep",
+    title: OBSERVATION_TITLES["late-caffeine-sleep"],
     finding:
       `Sleep score tends to be ~${Math.abs(Math.round(diff))} ${word} on nights after ` +
       `caffeine logged at/after ${lateHour}:00 than on other nights (n=${n} nights). ` +
@@ -198,7 +211,7 @@ export function sleepVsNextDayReadiness(
 ): Observation | null {
   return correlate({
     id: "sleep-next-readiness",
-    title: "Sleep vs next-day readiness",
+    title: OBSERVATION_TITLES["sleep-next-readiness"],
     x: sleepScore,
     y: readiness,
     lagDays: 1,
@@ -217,7 +230,7 @@ export function readinessVsLiftingVolume(
 ): Observation | null {
   return correlate({
     id: "readiness-lifting",
-    title: "Readiness vs lifting volume",
+    title: OBSERVATION_TITLES["readiness-lifting"],
     x: readiness,
     y: liftingVolume,
     lagDays: 0,
@@ -240,7 +253,7 @@ export function weightTrendVsSleep(
 ): Observation | null {
   return correlate({
     id: "weight-sleep",
-    title: "Weight trend vs sleep",
+    title: OBSERVATION_TITLES["weight-sleep"],
     x: weight7dAvg,
     y: sleepScore,
     lagDays: 0,

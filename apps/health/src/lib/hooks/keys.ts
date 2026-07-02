@@ -4,7 +4,11 @@ import type { QueryClient } from "@tanstack/react-query";
 // invalidate exactly the same keys.
 export const queryKeys = {
   summary: (day: string) => ["summary", day] as const,
+  // Every cached day at once — for mutations that shift a target formula input
+  // (water base target) rather than one day's logs.
+  summaryPrefix: () => ["summary"] as const,
   water: (day: string) => ["water", day] as const,
+  waterPrefix: () => ["water"] as const,
   food: (day: string) => ["food", day] as const,
   // OFF product search results, debounced per query string. Lives under the
   // ["food"] namespace but never collides with ["food", <day>] — the second
@@ -66,6 +70,11 @@ export const queryKeys = {
   trends: (metric: string, days: number) => ["trends", metric, days] as const,
   workouts: (days: number) => ["workouts", days] as const,
   observations: (window: number) => ["observations", window] as const,
+  // Past notified observations. Same namespace trick as foodSearch: the second
+  // element is the literal "history", never a window number — and the
+  // ["observations"] sync-invalidation prefix harmlessly covers it.
+  observationHistory: (limit: number) =>
+    ["observations", "history", limit] as const,
   adherence: (day: string) => ["adherence", day] as const,
   // Every day's adherence at once — for mutations that shift the targets
   // themselves (protein g/kg, calorie target) rather than one day's logs.

@@ -188,6 +188,10 @@ export interface FoodEntryDTO {
   proteinG: string;
   carbG: string;
   fatG: string;
+  /** Detail macros — null when the source didn't report them (never coerced to 0). */
+  fiberG: string | null;
+  sugarG: string | null;
+  saltG: string | null;
   meal: MealSlot | null;
   /** Free-text note snapshotted at log time (e.g. AI-estimate assumptions). */
   notes: string | null;
@@ -214,6 +218,10 @@ export interface FoodEntryView {
   proteinG: number;
   carbG: number;
   fatG: number;
+  /** Detail macros — null when the source didn't report them. */
+  fiberG: number | null;
+  sugarG: number | null;
+  saltG: number | null;
   /** Free-text note snapshotted at log time (e.g. AI-estimate assumptions). */
   notes: string | null;
 }
@@ -245,7 +253,39 @@ export function toView(dto: FoodEntryDTO): FoodEntryView {
     proteinG: Number(dto.proteinG),
     carbG: Number(dto.carbG),
     fatG: Number(dto.fatG),
+    fiberG: dto.fiberG != null ? Number(dto.fiberG) : null,
+    sugarG: dto.sugarG != null ? Number(dto.sugarG) : null,
+    saltG: dto.saltG != null ? Number(dto.saltG) : null,
     notes: dto.notes,
+  };
+}
+
+/** Detail-macro totals for the day bar's expanded row. A field is null (shown
+ *  "—") only when NO entry carries it; otherwise nulls sum as 0. */
+export interface DetailTotals {
+  fiberG: number | null;
+  sugarG: number | null;
+  saltG: number | null;
+}
+
+/** Σ of the detail macros over a set of entries (see DetailTotals for null rules). */
+export function detailTotal(views: FoodEntryView[]): DetailTotals {
+  const sum = (pick: (v: FoodEntryView) => number | null): number | null => {
+    let total = 0;
+    let seen = false;
+    for (const v of views) {
+      const value = pick(v);
+      if (value != null) {
+        total += value;
+        seen = true;
+      }
+    }
+    return seen ? total : null;
+  };
+  return {
+    fiberG: sum((v) => v.fiberG),
+    sugarG: sum((v) => v.sugarG),
+    saltG: sum((v) => v.saltG),
   };
 }
 
