@@ -24,12 +24,13 @@ import {
   updateCustomFoodSchema,
 } from "@/lib/schemas/food";
 import {
+  imageDataUrlSchema,
   labelScanResultSchema,
   type MealEstimate,
   mealEstimateSchema,
 } from "@/lib/schemas/vision";
 import { prisma } from "@/server/db";
-import { NotFoundError } from "./errors";
+import { NotFoundError, UpstreamUnavailableError } from "./errors";
 import { fetchProduct } from "./off";
 import { analyzeImage } from "./vision";
 
@@ -38,8 +39,10 @@ const PRODUCT_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 /**
  * The cached product for `barcode`, refreshing from OFF if missing or older than
  * 30 days. Stale-while-revalidate: if the OFF fetch fails (network/timeout/parse)
- * we serve the cached row when we have one. Returns null only when the product is
- * both uncached and unknown to OFF. Never deletes — the local DB is the truth.
+ * we serve the cached row when we have one. Returns null only when OFF answered
+ * and genuinely doesn't know the barcode; an OFF outage with no cached row throws
+ * UpstreamUnavailableError instead — "OFF is down" must never be reported as
+ * "product not found". Never deletes — the local DB is the truth.
  */
 export async function getOrFetchProduct(
   barcode: string,
@@ -48,26 +51,31 @@ export async function getOrFetchProduct(
   if (cached && Date.now() - cached.fetchedAt.getTime() < PRODUCT_TTL_MS) {
     return cached;
   }
+
+  let off;
   try {
-    const off = await fetchProduct(barcode);
-    if (!off) return cached ?? null; // unknown to OFF — keep any stale row
-    const data = {
-      name: off.name,
-      brand: off.brand,
-      imageUrl: off.imageUrl,
-      per100g: off.per100g as unknown as Prisma.InputJsonValue,
-      servingG: off.servingG,
-      raw: off.raw as Prisma.InputJsonValue,
-      fetchedAt: new Date(),
-    };
-    return await prisma.foodProduct.upsert({
-      where: { barcode },
-      create: { barcode, ...data },
-      update: data,
-    });
-  } catch {
-    return cached ?? null; // OFF unreachable — serve stale, never delete
+    off = await fetchProduct(barcode);
+  } catch (err) {
+    if (cached) return cached; // OFF unreachable — serve stale, never delete
+    console.error(`[food] OFF lookup failed for barcode ${barcode}`, err);
+    throw new UpstreamUnavailableError("Open Food Facts");
   }
+
+  if (!off) return cached ?? null; // unknown to OFF — keep any stale row
+  const data = {
+    name: off.name,
+    brand: off.brand,
+    imageUrl: off.imageUrl,
+    per100g: off.per100g as unknown as Prisma.InputJsonValue,
+    servingG: off.servingG,
+    raw: off.raw as Prisma.InputJsonValue,
+    fetchedAt: new Date(),
+  };
+  return prisma.foodProduct.upsert({
+    where: { barcode },
+    create: { barcode, ...data },
+    update: data,
+  });
 }
 
 /** Read our normalized per-100g macros back off a per100g JSON column (a cached
@@ -169,8 +177,9 @@ function toPer100gInput(n: LabelNutrients): Per100g {
 export async function scanLabel(
   imageDataUrl: string,
 ): Promise<LabelScanResponse> {
+  const image = imageDataUrlSchema.parse(imageDataUrl);
   const read = await analyzeImage({
-    imageDataUrl,
+    imageDataUrl: image,
     instruction: LABEL_SCAN_INSTRUCTION,
     schema: labelScanResultSchema,
   });
@@ -213,8 +222,9 @@ const MEAL_ESTIMATE_INSTRUCTION =
 export async function estimateMeal(
   imageDataUrl: string,
 ): Promise<MealEstimate> {
+  const image = imageDataUrlSchema.parse(imageDataUrl);
   const read = await analyzeImage({
-    imageDataUrl,
+    imageDataUrl: image,
     instruction: MEAL_ESTIMATE_INSTRUCTION,
     schema: mealEstimateSchema,
     maxTokens: 1500,

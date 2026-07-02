@@ -20,9 +20,18 @@ export const labelScanResultSchema = z.object({
 });
 export type LabelScanResult = z.infer<typeof labelScanResultSchema>;
 
+/**
+ * A downscaled image as a data: URL — the one image-input rule, shared by the
+ * route bodies below, the MCP tool inputs, and the vision services' own parse
+ * (services are the enforcement point, so no caller can skip it).
+ */
+export const imageDataUrlSchema = z
+  .string()
+  .startsWith("data:image/", "expected an image data URL");
+
 /** Body for POST /api/food/scan-label: a downscaled image as a data: URL. */
 export const scanLabelInputSchema = z.strictObject({
-  imageDataUrl: z.string().startsWith("data:image/", "expected an image data URL"),
+  imageDataUrl: imageDataUrlSchema,
 });
 export type ScanLabelInput = z.infer<typeof scanLabelInputSchema>;
 
@@ -60,6 +69,6 @@ export type MealEstimate = z.infer<typeof mealEstimateSchema>;
 
 /** Body for POST /api/food/estimate-meal: a downscaled image as a data: URL. */
 export const estimateMealInputSchema = z.strictObject({
-  imageDataUrl: z.string().startsWith("data:image/", "expected an image data URL"),
+  imageDataUrl: imageDataUrlSchema,
 });
 export type EstimateMealInput = z.infer<typeof estimateMealInputSchema>;
