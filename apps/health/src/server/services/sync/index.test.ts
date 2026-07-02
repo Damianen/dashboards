@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { SyncSource } from "@/generated/prisma/client";
+import type { GuardedSyncResult } from "./guard";
 import {
   runSyncSequential,
   type SyncSourceConfig,
@@ -14,19 +15,28 @@ function cfg(
   return { source, cron: "* * * * *", cadence: "test", run };
 }
 
+// The injected runner in these tests stands in for runGuardedSync: it runs the
+// config and wraps the summary the way the guard does, without touching the DB.
+async function fakeGuard(c: SyncSourceConfig): Promise<GuardedSyncResult> {
+  return { ...(await c.run()), skipped: false, source: c.source };
+}
+
 describe("runSyncSequential", () => {
   it("runs sources in order and passes through each summary", async () => {
     const calls: SyncSource[] = [];
-    const results = await runSyncSequential([
-      cfg(SyncSource.OURA, async () => {
-        calls.push(SyncSource.OURA);
-        return { status: "OK", itemsUpserted: 3 };
-      }),
-      cfg(SyncSource.WITHINGS, async () => {
-        calls.push(SyncSource.WITHINGS);
-        return { status: "ERROR", itemsUpserted: 1, error: "boom" };
-      }),
-    ]);
+    const results = await runSyncSequential(
+      [
+        cfg(SyncSource.OURA, async () => {
+          calls.push(SyncSource.OURA);
+          return { status: "OK", itemsUpserted: 3 };
+        }),
+        cfg(SyncSource.WITHINGS, async () => {
+          calls.push(SyncSource.WITHINGS);
+          return { status: "ERROR", itemsUpserted: 1, error: "boom" };
+        }),
+      ],
+      fakeGuard,
+    );
 
     expect(calls).toEqual([SyncSource.OURA, SyncSource.WITHINGS]);
     expect(results).toEqual([
@@ -35,18 +45,44 @@ describe("runSyncSequential", () => {
     ]);
   });
 
+  it("records a guard-skipped source as SKIPPED and keeps going", async () => {
+    const results = await runSyncSequential(
+      [
+        cfg(SyncSource.OURA, async () => ({ status: "OK", itemsUpserted: 3 })),
+        cfg(SyncSource.WITHINGS, async () => ({ status: "OK", itemsUpserted: 5 })),
+      ],
+      async (c) =>
+        c.source === SyncSource.OURA
+          ? { skipped: true, source: c.source }
+          : fakeGuard(c),
+    );
+
+    expect(results).toEqual([
+      { source: SyncSource.OURA, status: "SKIPPED", itemsUpserted: 0 },
+      {
+        source: SyncSource.WITHINGS,
+        status: "OK",
+        itemsUpserted: 5,
+        error: undefined,
+      },
+    ]);
+  });
+
   it("continues past a thrown error, recording it as an ERROR result", async () => {
     const ran: SyncSource[] = [];
-    const results = await runSyncSequential([
-      cfg(SyncSource.OURA, async () => {
-        ran.push(SyncSource.OURA);
-        throw new Error("pre-flight failure");
-      }),
-      cfg(SyncSource.WITHINGS, async () => {
-        ran.push(SyncSource.WITHINGS);
-        return { status: "OK", itemsUpserted: 5 };
-      }),
-    ]);
+    const results = await runSyncSequential(
+      [
+        cfg(SyncSource.OURA, async () => {
+          ran.push(SyncSource.OURA);
+          throw new Error("pre-flight failure");
+        }),
+        cfg(SyncSource.WITHINGS, async () => {
+          ran.push(SyncSource.WITHINGS);
+          return { status: "OK", itemsUpserted: 5 };
+        }),
+      ],
+      fakeGuard,
+    );
 
     // The throwing source did not abort the run — the next source still executed.
     expect(ran).toEqual([SyncSource.OURA, SyncSource.WITHINGS]);
@@ -64,6 +100,6 @@ describe("runSyncSequential", () => {
   });
 
   it("returns an empty array for no sources", async () => {
-    expect(await runSyncSequential([])).toEqual([]);
+    expect(await runSyncSequential([], fakeGuard)).toEqual([]);
   });
 });

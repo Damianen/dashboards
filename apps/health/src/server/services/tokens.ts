@@ -69,18 +69,39 @@ export interface OauthTokens {
   scope: string | null;
 }
 
+/**
+ * A stored token exists but can't be decrypted (rotated TOKEN_ENCRYPTION_KEY, corrupted
+ * row) — only reconnecting the provider can fix it. Syncs map this to their stable
+ * re-auth marker so Settings shows "Reconnect" instead of an opaque crypto error.
+ */
+export class ReauthRequiredError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ReauthRequiredError";
+  }
+}
+
 /** The stored token set for `provider`, decrypted, or null if not connected. */
 export async function getTokens(
   provider: OauthProvider,
 ): Promise<OauthTokens | null> {
   const row = await prisma.oauthToken.findUnique({ where: { provider } });
   if (!row) return null;
-  return {
-    accessToken: decrypt(row.accessTokenEnc),
-    refreshToken: decrypt(row.refreshTokenEnc),
-    expiresAt: row.expiresAt,
-    scope: row.scope,
-  };
+  // A missing/malformed TOKEN_ENCRYPTION_KEY is a config error, not a re-auth case —
+  // surface it as-is before touching the row's ciphertext.
+  key();
+  try {
+    return {
+      accessToken: decrypt(row.accessTokenEnc),
+      refreshToken: decrypt(row.refreshTokenEnc),
+      expiresAt: row.expiresAt,
+      scope: row.scope,
+    };
+  } catch {
+    throw new ReauthRequiredError(
+      `stored ${provider} tokens cannot be decrypted (encryption key changed?) — reconnect in Settings`,
+    );
+  }
 }
 
 /**

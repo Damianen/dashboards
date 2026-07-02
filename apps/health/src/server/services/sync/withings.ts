@@ -7,6 +7,7 @@ import {
   type WithingsMeasureWindow,
   WithingsAuthError,
 } from "@/server/integrations/withings";
+import { ReauthRequiredError } from "@/server/services/tokens";
 import {
   failSyncRun,
   finishSyncRun,
@@ -116,7 +117,8 @@ export async function syncWithings(): Promise<WithingsSyncSummary> {
       upserted++;
     }
   } catch (err) {
-    const needsReauth = err instanceof WithingsAuthError;
+    const needsReauth =
+      err instanceof WithingsAuthError || err instanceof ReauthRequiredError;
     const message = needsReauth
       ? WITHINGS_REAUTH_MSG
       : err instanceof Error

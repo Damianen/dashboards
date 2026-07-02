@@ -7,13 +7,16 @@ import { dayOf, dayToDbDate, shiftDay } from "@/lib/dates";
 import { prisma } from "@/server/db";
 
 /**
- * The most recent sync run per source. Empty until a sync phase (Oura, Withings)
- * lands and writes its first run. The local DB is the source of
- * truth — this only reports the latest attempt per feed.
+ * The most recent sync run per given source. Callers pass the sources they care
+ * about (normally the SYNC_SOURCES registry) rather than this module iterating
+ * the whole SyncSource enum — an enum value whose sync hasn't landed yet must
+ * not silently appear here. A source that has never run is simply absent.
  */
-export async function latestRunsBySource(): Promise<SyncRun[]> {
+export async function latestRunsBySource(
+  sources: SyncSource[],
+): Promise<SyncRun[]> {
   const runs = await Promise.all(
-    Object.values(SyncSource).map((source) =>
+    sources.map((source) =>
       prisma.syncRun.findFirst({
         where: { source },
         orderBy: { startedAt: "desc" },

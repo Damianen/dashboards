@@ -8,11 +8,26 @@ import type {
   OuraSleepRecord,
 } from "@/server/integrations/oura";
 import {
+  rateLimitedClose,
   toDailyActivityData,
   toDailyReadinessData,
   toDailySleepData,
   toSleepSessionData,
 } from "./oura";
+
+describe("rateLimitedClose", () => {
+  it("closes an incremental run OK — the overlap re-covers the small gap", () => {
+    const close = rateLimitedClose(false);
+    expect(close.status).toBe("OK");
+    expect(close.note).toMatch(/re-covered/);
+  });
+
+  it("closes a backfill run ERROR so the watermark never advances past unfetched history", () => {
+    const close = rateLimitedClose(true);
+    expect(close.status).toBe("ERROR");
+    expect(close.note).toMatch(/backfill/);
+  });
+});
 
 function sleepRecord(over: Partial<OuraSleepRecord> = {}): OuraSleepRecord {
   return {

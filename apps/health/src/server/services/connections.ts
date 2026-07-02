@@ -5,6 +5,7 @@ import {
   type SyncStatus,
 } from "@/generated/prisma/client";
 import { prisma } from "@/server/db";
+import { SYNC_SOURCES } from "@/server/services/sync";
 import { OURA_REAUTH_MSG } from "@/server/services/sync/oura";
 import { latestRunsBySource } from "@/server/services/sync/runs";
 import { WITHINGS_REAUTH_MSG } from "@/server/services/sync/withings";
@@ -47,7 +48,7 @@ function toLastRun(run: SyncRun | undefined): ConnectionLastRun | null {
  * latest run failing with the stable re-auth marker, so no extra state is stored.
  */
 export async function getConnections(): Promise<Connection[]> {
-  const runs = await latestRunsBySource();
+  const runs = await latestRunsBySource(SYNC_SOURCES.map((c) => c.source));
   const runBySource = new Map(runs.map((r) => [r.source, r]));
 
   // select narrows the read to expiry — the encrypted tokens never leave the DB here.

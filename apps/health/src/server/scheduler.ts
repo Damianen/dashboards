@@ -1,7 +1,6 @@
 import { Cron } from "croner";
 
 import {
-  alertSyncFailure,
   observationDigest,
   recoveryHeadsUp,
   streakMilestones,
@@ -12,38 +11,27 @@ import {
   type SyncSourceConfig,
   SYNC_SOURCES,
 } from "@/server/services/sync";
-import { expireStaleRuns, hasActiveRun } from "@/server/services/sync/runs";
+import { runGuardedSync } from "@/server/services/sync/guard";
 
 const TIMEZONE = "Europe/Amsterdam";
-/** A RUNNING run older than this is presumed crashed and reaped before each tick. */
-const STALE_MS = 60 * 60_000;
-/** A RUNNING run younger than this means a sync is genuinely in flight — skip. */
-const ACTIVE_MS = 30 * 60_000;
 
 /**
- * Run one source's sync under the overlap/crash guard. Never throws: a guarded job that
- * blew up out of croner would take the whole scheduler down, so every path is caught and
- * logged. The guard first reaps stale RUNNING rows (crash recovery), then skips if a real
- * run is still in flight.
+ * Run one source's sync through the shared guard (see sync/guard.ts — the same
+ * path every manual trigger takes). Never throws: a job that blew up out of
+ * croner would take the whole scheduler down, so every path is caught and logged.
  */
 async function guarded(cfg: SyncSourceConfig): Promise<void> {
   const tag = `[scheduler] ${cfg.source}`;
   try {
-    const reaped = await expireStaleRuns(cfg.source, STALE_MS);
-    if (reaped > 0) console.log(`${tag}: reaped ${reaped} stale run(s)`);
-
-    if (await hasActiveRun(cfg.source, ACTIVE_MS)) {
+    console.log(`${tag}: sync started`);
+    const result = await runGuardedSync(cfg);
+    if (result.skipped) {
       console.log(`${tag}: skipped — a run is already in progress`);
       return;
     }
-
-    console.log(`${tag}: sync started`);
-    const result = await cfg.run();
     console.log(
       `${tag}: sync finished — ${result.status}, ${result.itemsUpserted} item(s)`,
     );
-    // Alert only when this run flips the feed OK→ERROR (transition, not every fail).
-    if (result.status === "ERROR") await alertSyncFailure(cfg.source);
   } catch (err) {
     console.error(`${tag}: sync crashed`, err);
   }
