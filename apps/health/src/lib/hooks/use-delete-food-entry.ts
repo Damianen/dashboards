@@ -59,6 +59,10 @@ export function useDeleteFoodEntry(day: string) {
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: foodKey });
       void qc.invalidateQueries({ queryKey: queryKeys.summary(day) });
+      // The deleted entry counted toward adherence, and its caffeine toward the
+      // water target — refresh both or Today's cards go stale.
+      void qc.invalidateQueries({ queryKey: queryKeys.adherence(day) });
+      void qc.invalidateQueries({ queryKey: queryKeys.water(day) });
     },
   });
 }

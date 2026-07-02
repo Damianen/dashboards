@@ -2,7 +2,7 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { Target } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -25,14 +25,24 @@ export function WeightGoalCard() {
   const qc = useQueryClient();
   const [value, setValue] = useState("");
   const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
+  // A failed load must NOT render as an empty "not set" field — saving over it
+  // would silently overwrite the real goal — so it gets an explicit Retry state.
+  const fetchGoal = useCallback(() => {
     void getJSON<{ goalKg: number | null }>("/api/settings/weight-goal")
       .then((d) => setValue(d.goalKg == null ? "" : String(d.goalKg)))
-      .catch(() => {})
+      .catch(() => setLoadError(true))
       .finally(() => setLoaded(true));
   }, []);
+  useEffect(fetchGoal, [fetchGoal]);
+
+  function retryLoad() {
+    setLoaded(false);
+    setLoadError(false);
+    fetchGoal();
+  }
 
   async function handleSave() {
     const parsed = weightGoalSchema.safeParse({ goalKg: value });
@@ -68,27 +78,38 @@ export function WeightGoalCard() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="flex items-end gap-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="weight-goal-kg">kg</Label>
-            <Input
-              id="weight-goal-kg"
-              type="number"
-              inputMode="decimal"
-              min={20}
-              max={500}
-              step={0.1}
-              placeholder="e.g. 75"
-              className="w-28"
-              value={value}
-              disabled={!loaded || saving}
-              onChange={(e) => setValue(e.target.value)}
-            />
+        {loadError ? (
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-muted-foreground text-sm">
+              Couldn&apos;t load the current goal.
+            </p>
+            <Button variant="outline" onClick={retryLoad}>
+              Retry
+            </Button>
           </div>
-          <Button onClick={() => void handleSave()} disabled={!loaded || saving}>
-            Save
-          </Button>
-        </div>
+        ) : (
+          <div className="flex items-end gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="weight-goal-kg">kg</Label>
+              <Input
+                id="weight-goal-kg"
+                type="number"
+                inputMode="decimal"
+                min={20}
+                max={500}
+                step={0.1}
+                placeholder="e.g. 75"
+                className="w-28"
+                value={value}
+                disabled={!loaded || saving}
+                onChange={(e) => setValue(e.target.value)}
+              />
+            </div>
+            <Button onClick={() => void handleSave()} disabled={!loaded || saving}>
+              Save
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

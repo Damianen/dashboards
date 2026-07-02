@@ -106,6 +106,10 @@ export function useLogMeal(day: string) {
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: foodKey });
       void qc.invalidateQueries({ queryKey: queryKeys.summary(day) });
+      // Today's intake/protein progress reads adherence, and a meal's caffeine
+      // moves the water target — refresh both or those cards go stale.
+      void qc.invalidateQueries({ queryKey: queryKeys.adherence(day) });
+      void qc.invalidateQueries({ queryKey: queryKeys.water(day) });
     },
   });
 }

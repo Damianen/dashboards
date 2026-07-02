@@ -2,7 +2,7 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { Flame } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getJSON, patchJSON } from "@/lib/fetcher";
+import { queryKeys } from "@/lib/hooks/keys";
 import { intakeTargetSchema } from "@/lib/schemas/settings";
 
 // Daily intake calorie target. An intake-ONLY goal shown against logged calories — never
@@ -25,14 +26,24 @@ export function CalorieTargetCard() {
   const qc = useQueryClient();
   const [value, setValue] = useState("");
   const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
+  // A failed load must NOT render as an empty "not set" field — saving over it
+  // would silently overwrite the real target — so it gets an explicit Retry state.
+  const fetchTarget = useCallback(() => {
     void getJSON<{ kcal: number | null }>("/api/settings/intake-target")
       .then((d) => setValue(d.kcal == null ? "" : String(d.kcal)))
-      .catch(() => {})
+      .catch(() => setLoadError(true))
       .finally(() => setLoaded(true));
   }, []);
+  useEffect(fetchTarget, [fetchTarget]);
+
+  function retryLoad() {
+    setLoaded(false);
+    setLoadError(false);
+    fetchTarget();
+  }
 
   async function handleSave() {
     const parsed = intakeTargetSchema.safeParse({ kcal: value });
@@ -47,7 +58,7 @@ export function CalorieTargetCard() {
         { kcal: parsed.data.kcal },
       );
       setValue(String(d.kcal));
-      await qc.invalidateQueries({ queryKey: ["adherence"] });
+      await qc.invalidateQueries({ queryKey: queryKeys.adherencePrefix() });
       toast.success("Calorie target updated");
     } catch {
       toast.error("Couldn't update calorie target");
@@ -68,27 +79,38 @@ export function CalorieTargetCard() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="flex items-end gap-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="intake-kcal-target">kcal</Label>
-            <Input
-              id="intake-kcal-target"
-              type="number"
-              inputMode="numeric"
-              min={500}
-              max={10000}
-              step={10}
-              placeholder="e.g. 2200"
-              className="w-28"
-              value={value}
-              disabled={!loaded || saving}
-              onChange={(e) => setValue(e.target.value)}
-            />
+        {loadError ? (
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-muted-foreground text-sm">
+              Couldn&apos;t load the current target.
+            </p>
+            <Button variant="outline" onClick={retryLoad}>
+              Retry
+            </Button>
           </div>
-          <Button onClick={() => void handleSave()} disabled={!loaded || saving}>
-            Save
-          </Button>
-        </div>
+        ) : (
+          <div className="flex items-end gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="intake-kcal-target">kcal</Label>
+              <Input
+                id="intake-kcal-target"
+                type="number"
+                inputMode="numeric"
+                min={500}
+                max={10000}
+                step={10}
+                placeholder="e.g. 2200"
+                className="w-28"
+                value={value}
+                disabled={!loaded || saving}
+                onChange={(e) => setValue(e.target.value)}
+              />
+            </div>
+            <Button onClick={() => void handleSave()} disabled={!loaded || saving}>
+              Save
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

@@ -93,9 +93,14 @@ export function MealBuilderSheet({
             </Drawer.Description>
 
             {!open ? null : detail.isError ? (
-              <p className="text-muted-foreground py-8 text-center text-sm">
-                Couldn&apos;t load this meal.
-              </p>
+              <div className="space-y-3 py-8 text-center">
+                <p className="text-muted-foreground text-sm">
+                  Couldn&apos;t load this meal.
+                </p>
+                <Button variant="outline" onClick={() => void detail.refetch()}>
+                  Retry
+                </Button>
+              </div>
             ) : initial == null ? (
               <div className="space-y-2">
                 {Array.from({ length: 4 }).map((_, i) => (

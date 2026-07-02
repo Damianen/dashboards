@@ -94,6 +94,11 @@ export function useLogFood(day: string) {
         proteinG: (s.proteinG ?? 0) + preview.macros.proteinG,
         carbG: (s.carbG ?? 0) + preview.macros.carbG,
         fatG: (s.fatG ?? 0) + preview.macros.fatG,
+        // Food caffeine feeds the unified daily total (and thus the water
+        // target, which the refetch recomputes server-side).
+        ...(input.caffeineMg
+          ? { caffeineMg: (s.caffeineMg ?? 0) + input.caffeineMg }
+          : {}),
       }));
 
       return { prevEntries, prevSummary };
@@ -111,6 +116,10 @@ export function useLogFood(day: string) {
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: foodKey });
       void qc.invalidateQueries({ queryKey: queryKeys.summary(day) });
+      // Today's intake/protein progress reads adherence, and any caffeine on the
+      // entry moves the water target — refresh both or those cards go stale.
+      void qc.invalidateQueries({ queryKey: queryKeys.adherence(day) });
+      void qc.invalidateQueries({ queryKey: queryKeys.water(day) });
     },
   });
 }
