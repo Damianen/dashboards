@@ -87,8 +87,10 @@ function useChecklistMutation<TVars>(
       void qc.invalidateQueries({ queryKey: key });
       void qc.invalidateQueries({ queryKey: queryKeys.summary(day) });
       // Checks feed the supplement streak (adherence) and any caffeine snapshot
-      // moves the water target — refresh both or Today's cards go stale.
-      void qc.invalidateQueries({ queryKey: queryKeys.adherence(day) });
+      // moves the water target — refresh both or Today's cards go stale. The
+      // whole adherence prefix, not just this day: checking YESTERDAY's list
+      // can extend today's streak.
+      void qc.invalidateQueries({ queryKey: queryKeys.adherencePrefix() });
       void qc.invalidateQueries({ queryKey: queryKeys.water(day) });
     },
   });

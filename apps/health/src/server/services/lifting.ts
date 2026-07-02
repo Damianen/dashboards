@@ -136,13 +136,17 @@ export async function deleteSet(id: string): Promise<void> {
   }
 }
 
-/** Mark a session finished (stamp endedAt) and return its full detail. Idempotent
- *  re-stamping is fine — finishing twice just updates the timestamp. */
-export async function finishSession(id: string): Promise<SessionDetail> {
+/** Mark a session finished (stamp endedAt) or reopen it (clear the stamp) and
+ *  return its full detail. Idempotent — re-finishing just updates the timestamp,
+ *  re-opening an open session is a no-op. */
+export async function setSessionFinished(
+  id: string,
+  finished: boolean,
+): Promise<SessionDetail> {
   try {
     await prisma.liftingSession.update({
       where: { id },
-      data: { endedAt: new Date() },
+      data: { endedAt: finished ? new Date() : null },
     });
   } catch (err) {
     if (
@@ -154,6 +158,23 @@ export async function finishSession(id: string): Promise<SessionDetail> {
     throw err;
   }
   return getSession(id);
+}
+
+/** Delete a session and, via cascade, its sets and plan snapshot. UI-only
+ *  (menu → confirm) — never exposed over MCP, like deleteSet/deleteEntry.
+ *  NotFound → 404. */
+export async function deleteSession(id: string): Promise<void> {
+  try {
+    await prisma.liftingSession.delete({ where: { id } });
+  } catch (err) {
+    if (
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      err.code === "P2025"
+    ) {
+      throw new NotFoundError("session", id);
+    }
+    throw err;
+  }
 }
 
 export interface SessionHistory {

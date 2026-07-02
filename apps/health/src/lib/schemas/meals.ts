@@ -75,3 +75,10 @@ export const logMealSchema = z.strictObject({
   eatenAt: z.iso.datetime({ offset: true }).optional(),
 });
 export type LogMealInput = z.infer<typeof logMealSchema>;
+
+// Archive route body: `archived` defaults true so a bare POST archives; pass
+// { archived: false } to restore a meal from the "show archived" view.
+export const archiveMealSchema = z.strictObject({
+  archived: z.boolean().default(true),
+});
+export type ArchiveMealInput = z.infer<typeof archiveMealSchema>;

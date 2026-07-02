@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Pencil, Plus } from "lucide-react";
+import { Archive, ArchiveRestore, Pencil, Plus } from "lucide-react";
 
 import { MealBuilderSheet } from "@/components/food/meals/meal-builder-sheet";
 import { MealLogSheet } from "@/components/food/meals/meal-log-sheet";
@@ -9,17 +9,23 @@ import { EmptyState } from "@/components/today/metric-card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatNumber } from "@/lib/format";
+import { useArchiveMeal } from "@/lib/hooks/use-archive-meal";
 import { useMeals } from "@/lib/hooks/use-meals";
+import { cn } from "@/lib/utils";
 import type { MealSummary } from "@/server/services/meals";
 
 /**
  * The "Meals" view inside the Food page: saved recipes with their per-portion kcal.
  * Tap a meal to log it (portion stepper); the pencil edits the recipe; "New meal"
- * opens the builder.
+ * opens the builder. "Show archived" reveals retired meals with a Restore button
+ * (the My Foods pattern).
  */
 export function MealsTab({ day }: { day: string }) {
-  const { data, isLoading, isError, isFetching, refetch } = useMeals();
+  const [showArchived, setShowArchived] = useState(false);
+  const { data, isLoading, isError, isFetching, refetch } =
+    useMeals(showArchived);
   const meals = data ?? [];
+  const archive = useArchiveMeal();
 
   const [builderOpen, setBuilderOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -40,6 +46,19 @@ export function MealsTab({ day }: { day: string }) {
         <Plus className="size-5" aria-hidden />
         New meal
       </Button>
+
+      <div className="flex items-center justify-between">
+        <span className="text-muted-foreground text-xs">
+          {meals.length} meal{meals.length === 1 ? "" : "s"}
+        </span>
+        <button
+          type="button"
+          onClick={() => setShowArchived((v) => !v)}
+          className="text-muted-foreground text-xs font-medium underline-offset-2 hover:underline"
+        >
+          {showArchived ? "Hide archived" : "Show archived"}
+        </button>
+      </div>
 
       {isLoading ? (
         <div className="space-y-2">
@@ -67,7 +86,10 @@ export function MealsTab({ day }: { day: string }) {
           {meals.map((meal) => (
             <li
               key={meal.id}
-              className="bg-card flex items-center gap-2 rounded-md border pr-2"
+              className={cn(
+                "bg-card flex items-center gap-1 rounded-md border pr-1",
+                meal.archived && "opacity-60",
+              )}
             >
               <button
                 type="button"
@@ -96,6 +118,21 @@ export function MealsTab({ day }: { day: string }) {
                 className="hover:bg-accent flex size-9 shrink-0 items-center justify-center rounded-md transition-colors"
               >
                 <Pencil className="size-4" aria-hidden />
+              </button>
+              <button
+                type="button"
+                aria-label={`${meal.archived ? "Restore" : "Archive"} ${meal.name}`}
+                onClick={() =>
+                  archive.mutate({ id: meal.id, archived: !meal.archived })
+                }
+                disabled={archive.isPending}
+                className="hover:bg-accent flex size-9 shrink-0 items-center justify-center rounded-md transition-colors"
+              >
+                {meal.archived ? (
+                  <ArchiveRestore className="size-4" aria-hidden />
+                ) : (
+                  <Archive className="size-4" aria-hidden />
+                )}
               </button>
             </li>
           ))}

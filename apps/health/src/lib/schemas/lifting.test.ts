@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   e1rmHistoryQuerySchema,
+  finishSessionSchema,
   historyQuerySchema,
   logSetSchema,
   muscleVolumeQuerySchema,
@@ -118,6 +119,25 @@ describe("query schemas: coercion and defaults", () => {
     expect(muscleVolumeQuerySchema.parse({}).weeks).toBe(12);
     expect(muscleVolumeQuerySchema.parse({ weeks: "8" }).weeks).toBe(8);
     expect(muscleVolumeQuerySchema.safeParse({ weeks: "53" }).success).toBe(
+      false,
+    );
+  });
+});
+
+describe("finishSessionSchema", () => {
+  it("defaults a bare body to finish (back-compat with the old route)", () => {
+    expect(finishSessionSchema.parse({})).toEqual({ finished: true });
+  });
+
+  it("accepts an explicit reopen", () => {
+    expect(finishSessionSchema.parse({ finished: false })).toEqual({
+      finished: false,
+    });
+  });
+
+  it("is strict and boolean-only", () => {
+    expect(finishSessionSchema.safeParse({ finished: "no" }).success).toBe(false);
+    expect(finishSessionSchema.safeParse({ finished: true, x: 1 }).success).toBe(
       false,
     );
   });

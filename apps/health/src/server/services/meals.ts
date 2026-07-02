@@ -376,12 +376,16 @@ export async function getMeal(id: string): Promise<MealDetail> {
   return serializeMealDetail(meal);
 }
 
-/** Archive a meal (hidden from the list; never deleted). 404s if it doesn't exist. */
-export async function archiveMeal(id: string): Promise<MealSummary> {
+/** Archive a meal (hidden from the list; never deleted) or restore it. 404s if
+ *  it doesn't exist. */
+export async function setMealArchived(
+  id: string,
+  archived: boolean,
+): Promise<MealSummary> {
   try {
     const meal = await prisma.meal.update({
       where: { id },
-      data: { archived: true },
+      data: { archived },
     });
     return serializeMealSummary(meal);
   } catch (err) {

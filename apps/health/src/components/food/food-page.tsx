@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 
 import { AddFoodSheet } from "@/components/food/add-food-sheet";
 import { DailyPlansTab } from "@/components/food/daily-plans/daily-plans-tab";
@@ -12,10 +12,10 @@ import { MealSection } from "@/components/food/meal-section";
 import { MealsTab } from "@/components/food/meals/meals-tab";
 import { EmptyState } from "@/components/today/metric-card";
 import { Button } from "@/components/ui/button";
+import { DayNav } from "@/components/ui/day-nav";
 import { Segmented } from "@/components/ui/segmented";
 import { Skeleton } from "@/components/ui/skeleton";
-import { shiftDay, todayLocal } from "@/lib/dates";
-import { dateLabel } from "@/lib/format";
+import { todayLocal } from "@/lib/dates";
 import {
   dayTotal,
   type FoodEntryView,
@@ -23,13 +23,6 @@ import {
   toView,
 } from "@/lib/food";
 import { useFoodEntries } from "@/lib/hooks/use-food-entries";
-
-function dayHeading(day: string): string {
-  const today = todayLocal();
-  if (day === today) return "Today";
-  if (day === shiftDay(today, -1)) return "Yesterday";
-  return dateLabel(day);
-}
 
 function PageSkeleton() {
   return (
@@ -66,34 +59,11 @@ export function FoodPage() {
   const groups = useMemo(() => groupByMeal(views), [views]);
   const total = useMemo(() => dayTotal(views), [views]);
 
-  const atToday = day === todayLocal();
-
   return (
     <div className="space-y-4">
       <header className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Food</h1>
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            aria-label="Previous day"
-            onClick={() => setDay((d) => shiftDay(d, -1))}
-            className="hover:bg-accent flex size-9 items-center justify-center rounded-md transition-colors"
-          >
-            <ChevronLeft className="size-5" aria-hidden />
-          </button>
-          <span className="min-w-24 text-center text-sm font-medium">
-            {dayHeading(day)}
-          </span>
-          <button
-            type="button"
-            aria-label="Next day"
-            onClick={() => setDay((d) => shiftDay(d, 1))}
-            disabled={atToday}
-            className="hover:bg-accent flex size-9 items-center justify-center rounded-md transition-colors disabled:pointer-events-none disabled:opacity-30"
-          >
-            <ChevronRight className="size-5" aria-hidden />
-          </button>
-        </div>
+        <DayNav day={day} onChange={setDay} />
       </header>
 
       <Segmented
