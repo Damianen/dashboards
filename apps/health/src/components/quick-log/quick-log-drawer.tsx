@@ -1,18 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { Drawer } from "vaul";
 
 import { StimulantForm } from "@/components/quick-log/stimulant-form";
 import { WaterForm } from "@/components/quick-log/water-form";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { Segmented, type SegmentedOption } from "@/components/ui/segmented";
 import { todayLocal } from "@/lib/dates";
-import { cn } from "@/lib/utils";
 
 type Segment = "water" | "stimulant";
 
-const SEGMENTS: { id: Segment; label: string }[] = [
-  { id: "water", label: "Water" },
-  { id: "stimulant", label: "Stimulant" },
+const SEGMENTS: SegmentedOption<Segment>[] = [
+  { value: "water", label: "Water" },
+  { value: "stimulant", label: "Stimulant" },
 ];
 
 export function QuickLogDrawer({
@@ -28,47 +28,24 @@ export function QuickLogDrawer({
   const close = () => onOpenChange(false);
 
   return (
-    <Drawer.Root open={open} onOpenChange={onOpenChange}>
-      <Drawer.Portal>
-        <Drawer.Overlay className="fixed inset-0 z-50 bg-black/60" />
-        <Drawer.Content
-          className="bg-card fixed inset-x-0 bottom-0 z-50 mt-24 flex max-h-[90dvh] flex-col rounded-t-2xl border-t outline-none"
-          style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
-        >
-          <div className="bg-muted mx-auto mt-3 h-1.5 w-10 shrink-0 rounded-full" />
-          <div className="mx-auto w-full max-w-md space-y-4 p-4">
-            <Drawer.Title className="text-base font-semibold">
-              Quick log
-            </Drawer.Title>
-            <Drawer.Description className="sr-only">
-              Log water or a stimulant.
-            </Drawer.Description>
+    <BottomSheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Quick log"
+      description="Log water or a stimulant."
+      showTitle
+      titleClassName="text-base font-semibold"
+      bodyClassName="space-y-4"
+    >
+      <Segmented<Segment>
+        value={segment}
+        onChange={setSegment}
+        options={SEGMENTS}
+        ariaLabel="What to log"
+      />
 
-            <div className="bg-muted grid grid-cols-2 gap-1 rounded-lg p-1">
-              {SEGMENTS.map((s) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => setSegment(s.id)}
-                  className={cn(
-                    "rounded-md py-2 text-sm font-medium transition-colors",
-                    segment === s.id
-                      ? "bg-background text-foreground shadow-sm"
-                      : "text-muted-foreground",
-                  )}
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
-
-            {segment === "water" && <WaterForm day={day} onLogged={close} />}
-            {segment === "stimulant" && (
-              <StimulantForm day={day} onLogged={close} />
-            )}
-          </div>
-        </Drawer.Content>
-      </Drawer.Portal>
-    </Drawer.Root>
+      {segment === "water" && <WaterForm day={day} onLogged={close} />}
+      {segment === "stimulant" && <StimulantForm day={day} onLogged={close} />}
+    </BottomSheet>
   );
 }

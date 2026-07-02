@@ -76,6 +76,9 @@ export function TemplatePreviewSheet({
   }
 
   return (
+    // Deliberately raw vaul (not ui/bottom-sheet): Title/Description are part of
+    // the custom header row + subline layout here, and BottomSheet's a11y
+    // guarantee owns their placement.
     <Drawer.Root open={open} onOpenChange={onOpenChange}>
       <Drawer.Portal>
         <Drawer.Overlay className="fixed inset-0 z-50 bg-black/60" />

@@ -3,12 +3,13 @@
 import { useState } from "react";
 import { Plus, X } from "lucide-react";
 import { toast } from "sonner";
-import { Drawer } from "vaul";
 
 import { DailyPlanItemPicker } from "@/components/food/daily-plans/daily-plan-item-picker";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Segmented } from "@/components/ui/segmented";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Stepper } from "@/components/ui/stepper";
 import {
@@ -24,7 +25,6 @@ import { useArchiveDailyPlan } from "@/lib/hooks/use-archive-daily-plan";
 import { useCreateDailyPlan } from "@/lib/hooks/use-create-daily-plan";
 import { useDailyPlan } from "@/lib/hooks/use-daily-plan";
 import { useUpdateDailyPlan } from "@/lib/hooks/use-update-daily-plan";
-import { cn } from "@/lib/utils";
 
 interface BuilderInitial {
   name: string;
@@ -71,50 +71,37 @@ export function DailyPlanBuilderSheet({
         : null;
 
   return (
-    <Drawer.Root open={open} onOpenChange={onOpenChange}>
-      <Drawer.Portal>
-        <Drawer.Overlay className="fixed inset-0 z-50 bg-black/60" />
-        <Drawer.Content
-          className="bg-card fixed inset-x-0 bottom-0 z-50 mt-24 flex max-h-[90dvh] flex-col rounded-t-2xl border-t outline-none"
-          style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
-        >
-          <div className="bg-muted mx-auto mt-3 h-1.5 w-10 shrink-0 rounded-full" />
-          <div className="mx-auto w-full max-w-md space-y-4 overflow-y-auto p-4">
-            <Drawer.Title className="sr-only">
-              {planId ? "Edit plan" : "New plan"}
-            </Drawer.Title>
-            <Drawer.Description className="sr-only">
-              Build a reusable set of food and meal items to apply to a day&apos;s
-              diary.
-            </Drawer.Description>
-
-            {!open ? null : detail.isError ? (
-              <div className="space-y-3 py-8 text-center">
-                <p className="text-muted-foreground text-sm">
-                  Couldn&apos;t load this plan.
-                </p>
-                <Button variant="outline" onClick={() => void detail.refetch()}>
-                  Retry
-                </Button>
-              </div>
-            ) : initial == null ? (
-              <div className="space-y-2">
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <Skeleton key={i} className="h-12 w-full rounded-md" />
-                ))}
-              </div>
-            ) : (
-              <DailyPlanBuilderForm
-                key={planId ?? "new"}
-                planId={planId}
-                initial={initial}
-                onDone={() => onOpenChange(false)}
-              />
-            )}
-          </div>
-        </Drawer.Content>
-      </Drawer.Portal>
-    </Drawer.Root>
+    <BottomSheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title={planId ? "Edit plan" : "New plan"}
+      description="Build a reusable set of food and meal items to apply to a day's diary."
+      bodyClassName="space-y-4 overflow-y-auto"
+    >
+      {!open ? null : detail.isError ? (
+        <div className="space-y-3 py-8 text-center">
+          <p className="text-muted-foreground text-sm">
+            Couldn&apos;t load this plan.
+          </p>
+          <Button variant="outline" onClick={() => void detail.refetch()}>
+            Retry
+          </Button>
+        </div>
+      ) : initial == null ? (
+        <div className="space-y-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-12 w-full rounded-md" />
+          ))}
+        </div>
+      ) : (
+        <DailyPlanBuilderForm
+          key={planId ?? "new"}
+          planId={planId}
+          initial={initial}
+          onDone={() => onOpenChange(false)}
+        />
+      )}
+    </BottomSheet>
   );
 }
 
@@ -330,7 +317,11 @@ function ItemRow({
   );
 }
 
-/** A 5-up slot picker for a plan item: "No slot" plus the four meal slots. */
+/**
+ * Slot picker for a plan item: "No slot" plus the four meal slots, wrapped 3+2
+ * so segments keep full touch height. Segmented needs a string union, so the
+ * null "no slot" case maps to a "none" sentinel at this boundary only.
+ */
 function ItemSlotPicker({
   value,
   onChange,
@@ -338,28 +329,20 @@ function ItemSlotPicker({
   value: MealSlot | null;
   onChange: (slot: MealSlot | null) => void;
 }) {
-  const options: { slot: MealSlot | null; label: string }[] = [
-    { slot: null, label: "—" },
-    ...MEAL_ORDER.map((slot) => ({ slot, label: MEAL_LABELS[slot] })),
-  ];
   return (
-    <div className="bg-muted grid grid-cols-5 gap-1 rounded-lg p-1">
-      {options.map((o) => (
-        <button
-          key={o.slot ?? "none"}
-          type="button"
-          aria-label={o.slot ? `Slot ${o.label}` : "No slot"}
-          onClick={() => onChange(o.slot)}
-          className={cn(
-            "rounded-md py-1.5 text-[11px] font-medium transition-colors",
-            value === o.slot
-              ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground",
-          )}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
+    <Segmented<MealSlot | "none">
+      value={value ?? "none"}
+      onChange={(v) => onChange(v === "none" ? null : v)}
+      columns={3}
+      ariaLabel="Meal slot"
+      options={[
+        { value: "none", label: "—", ariaLabel: "No slot" },
+        ...MEAL_ORDER.map((slot) => ({
+          value: slot,
+          label: MEAL_LABELS[slot],
+          ariaLabel: `Slot ${MEAL_LABELS[slot]}`,
+        })),
+      ]}
+    />
   );
 }
