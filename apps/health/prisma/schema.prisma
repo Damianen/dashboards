@@ -177,13 +177,15 @@ model FoodEntry {
   // Null when unknown (never 0). Feeds only the unified daily caffeine total /
   // water target — never any calorie column.
   caffeineMg     Decimal?     @map("caffeine_mg") @db.Decimal(7, 1)
-  micros         Json?
   meal           MealSlot?
   origin         EntryOrigin
   notes          String?
   createdAt      DateTime     @default(now()) @map("created_at")
 
   @@index([day])
+  @@index([customFoodId])
+  @@index([mealId])
+  @@index([productBarcode])
   @@map("food_entries")
 }
 
@@ -258,7 +260,7 @@ model MealItem {
   saltG          Decimal?     @map("salt_g") @db.Decimal(6, 2)
   caffeineMg     Decimal?     @map("caffeine_mg") @db.Decimal(7, 1)
 
-  @@index([mealId])
+  @@unique([mealId, position])
   @@index([childMealId])
   @@map("meal_items")
 }
@@ -300,7 +302,6 @@ model DailyPlanItem {
   mealSlot       MealSlot?    @map("meal_slot")
 
   @@unique([dailyPlanId, position])
-  @@index([dailyPlanId])
   @@map("daily_plan_items")
 }
 
@@ -344,6 +345,7 @@ model LiftingSet {
   loggedAt   DateTime       @default(now()) @map("logged_at") @db.Timestamptz(6)
   origin     EntryOrigin
 
+  @@index([sessionId])
   @@index([exerciseId, loggedAt])
   @@map("lifting_sets")
 }
@@ -405,7 +407,6 @@ model TemplateExercise {
   warmups           TemplateWarmupSet[]
 
   @@unique([templateId, position])
-  @@index([templateId])
   @@map("template_exercises")
 }
 
@@ -424,7 +425,6 @@ model TemplateWarmupSet {
   percentOfWorking   Decimal?         @map("percent_of_working") @db.Decimal(5, 2)
 
   @@unique([templateExerciseId, position])
-  @@index([templateExerciseId])
   @@map("template_warmup_sets")
 }
 
@@ -445,7 +445,6 @@ model SessionPlanItem {
   warmups           SessionPlanWarmup[]
 
   @@unique([sessionId, position])
-  @@index([sessionId])
   @@map("session_plan_items")
 }
 
@@ -463,7 +462,6 @@ model SessionPlanWarmup {
   percentOfWorking Decimal?         @map("percent_of_working") @db.Decimal(5, 2)
 
   @@unique([planItemId, position])
-  @@index([planItemId])
   @@map("session_plan_warmups")
 }
 

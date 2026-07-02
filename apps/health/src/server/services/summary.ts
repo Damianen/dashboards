@@ -80,48 +80,75 @@ function mapRow(r: RawSummaryRow): DailySummary {
   };
 }
 
+/**
+ * [sql expression in the view, camelCase alias] — one entry per daily_summary
+ * column, in DailySummary key order (NOT the view's column order: the view is
+ * append-only, so late additions like caffeine_mg sit at its end). This is the
+ * single list the raw SELECT is built from; summary-seam.test.ts pins it
+ * against the canonical view SQL (prisma/views/daily_summary.sql), and the
+ * types pin it against DailySummary.
+ */
+export const SUMMARY_COLUMNS = [
+  ["day::text", "day"],
+  ["weight_kg", "weightKg"],
+  ["weight_7d_avg", "weight7dAvg"],
+  ["sleep_score", "sleepScore"],
+  ["readiness_score", "readinessScore"],
+  ["total_sleep_min", "totalSleepMin"],
+  ["active_kcal", "activeKcal"],
+  ["steps", "steps"],
+  ["intake_kcal", "intakeKcal"],
+  ["protein_g", "proteinG"],
+  ["carb_g", "carbG"],
+  ["fat_g", "fatG"],
+  ["water_ml", "waterMl"],
+  ["water_target_ml", "waterTargetMl"],
+  ["stimulant_mg", "stimulantMg"],
+  ["caffeine_mg", "caffeineMg"],
+  ["lifting_volume_kg", "liftingVolumeKg"],
+  ["working_sets", "workingSets"],
+  ["supplements_taken", "supplementsTaken"],
+  ["body_fat_pct", "bodyFatPct"],
+  ["muscle_mass_kg", "muscleMassKg"],
+  ["deep_min", "deepMin"],
+  ["rem_min", "remMin"],
+  ["hrv_ms", "hrvMs"],
+  ["resting_hr_bpm", "restingHrBpm"],
+  ["fiber_g", "fiberG"],
+] as const satisfies ReadonlyArray<readonly [string, keyof DailySummary]>;
+
+// Compile-time: every DailySummary key has an alias (satisfies covers the reverse).
+type SummaryAlias = (typeof SUMMARY_COLUMNS)[number][1];
+type AssertAllKeysCovered = keyof DailySummary extends SummaryAlias
+  ? true
+  : never;
+const _allKeysCovered: AssertAllKeysCovered = true;
+void _allKeysCovered;
+
+// Constant, built from the list above — never user-controlled, safe for Prisma.raw.
+const SUMMARY_SELECT = SUMMARY_COLUMNS.map(
+  ([sql, alias]) => `${sql} AS "${alias}"`,
+).join(", ");
+
 /** The daily_summary row for a civil day, or null if no source data exists yet. */
 export async function getDailySummary(
   day: string = todayLocal(),
 ): Promise<DailySummary | null> {
-  const rows = await prisma.$queryRaw<RawSummaryRow[]>`
-    SELECT
-      day::text         AS "day",
-      weight_kg         AS "weightKg",
-      weight_7d_avg     AS "weight7dAvg",
-      sleep_score       AS "sleepScore",
-      readiness_score   AS "readinessScore",
-      total_sleep_min   AS "totalSleepMin",
-      active_kcal       AS "activeKcal",
-      steps             AS "steps",
-      intake_kcal       AS "intakeKcal",
-      protein_g         AS "proteinG",
-      carb_g            AS "carbG",
-      fat_g             AS "fatG",
-      water_ml          AS "waterMl",
-      water_target_ml   AS "waterTargetMl",
-      stimulant_mg      AS "stimulantMg",
-      caffeine_mg       AS "caffeineMg",
-      lifting_volume_kg AS "liftingVolumeKg",
-      working_sets      AS "workingSets",
-      supplements_taken AS "supplementsTaken",
-      body_fat_pct      AS "bodyFatPct",
-      muscle_mass_kg    AS "muscleMassKg",
-      deep_min          AS "deepMin",
-      rem_min           AS "remMin",
-      hrv_ms            AS "hrvMs",
-      resting_hr_bpm    AS "restingHrBpm",
-      fiber_g           AS "fiberG"
-    FROM daily_summary
-    WHERE day = ${day}::date
-  `;
+  const rows = await prisma.$queryRaw<RawSummaryRow[]>(
+    Prisma.sql`
+      SELECT ${Prisma.raw(SUMMARY_SELECT)}
+      FROM daily_summary
+      WHERE day = ${day}::date
+    `,
+  );
   const row = rows[0];
   return row ? mapRow(row) : null;
 }
 
 // Maps a validated trend metric to its daily_summary column. Constant + keyed by the
 // validated enum, so the value is never user-controlled — safe for Prisma.raw.
-const TREND_COLUMNS: Record<TrendMetric, string> = {
+// Exported for summary-seam.test.ts, which pins the values against the view SQL.
+export const TREND_COLUMNS: Record<TrendMetric, string> = {
   weight: "weight_kg",
   weight_7d_avg: "weight_7d_avg",
   sleep_score: "sleep_score",
