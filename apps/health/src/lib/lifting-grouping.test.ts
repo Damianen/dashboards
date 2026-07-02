@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   clampStep,
   groupSetsByExercise,
+  parseStepperInput,
   type PlainSet,
   sessionVolumeKg,
   sessionWorkingSets,
@@ -147,5 +148,35 @@ describe("clampStep", () => {
     // 0.1 + 0.2 would be 0.30000000000000004 without rounding.
     expect(clampStep(0.1, 1, 0.2, 0, 10)).toBe(0.3);
     expect(clampStep(8, 1, 0.5, 1, 10)).toBe(8.5);
+  });
+});
+
+describe("parseStepperInput", () => {
+  it("accepts a plain decimal weight", () => {
+    expect(parseStepperInput("62.5", 2.5, 0, 500)).toBe(62.5);
+  });
+
+  it("accepts the Europe/Amsterdam decimal comma", () => {
+    expect(parseStepperInput("62,5", 2.5, 0, 500)).toBe(62.5);
+    expect(parseStepperInput("17,5", 2.5, 0, 500)).toBe(17.5);
+  });
+
+  it("rounds to the step's decimal precision", () => {
+    expect(parseStepperInput("62.59", 2.5, 0, 500)).toBe(62.6); // 1-dp weight, up
+    expect(parseStepperInput("62.51", 2.5, 0, 500)).toBe(62.5); // 1-dp weight, down
+    expect(parseStepperInput("12.6", 1, 1, 100)).toBe(13); // whole reps
+    expect(parseStepperInput("8.21", 0.5, 1, 10)).toBe(8.2); // 1-dp RPE
+  });
+
+  it("clamps to [min, max]", () => {
+    expect(parseStepperInput("999", 2.5, 0, 500)).toBe(500);
+    expect(parseStepperInput("-5", 2.5, 0, 500)).toBe(0);
+  });
+
+  it("returns null for empty or non-numeric input", () => {
+    expect(parseStepperInput("", 2.5, 0, 500)).toBe(null);
+    expect(parseStepperInput("   ", 2.5, 0, 500)).toBe(null);
+    expect(parseStepperInput("abc", 2.5, 0, 500)).toBe(null);
+    expect(parseStepperInput(",", 2.5, 0, 500)).toBe(null);
   });
 });

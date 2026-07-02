@@ -194,12 +194,16 @@ model CustomFood {
   per100g   Json
   servingG  Decimal?    @map("serving_g") @db.Decimal(7, 1)
   source    String // "LABEL_SCAN" | "MANUAL" (enforced by Zod at the boundary)
+  // Retired from the active "My Foods" list without deleting it: past diary entries
+  // snapshot their macros, so an archived food never rewrites history.
+  archived  Boolean     @default(false)
   createdAt DateTime    @default(now()) @map("created_at")
   entries   FoodEntry[]
   mealItems MealItem[]
   dailyPlanItems DailyPlanItem[]
 
   @@index([name])
+  @@index([archived])
   @@map("custom_foods")
 }
 

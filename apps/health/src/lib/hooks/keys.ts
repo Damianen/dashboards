@@ -4,6 +4,12 @@ export const queryKeys = {
   summary: (day: string) => ["summary", day] as const,
   water: (day: string) => ["water", day] as const,
   food: (day: string) => ["food", day] as const,
+  // Saved custom foods nest under one ["custom-foods"] prefix so a single invalidate
+  // after any create/edit/archive refreshes the My Foods list (every q/filter) AND the
+  // meal builder's "Saved" picker.
+  customFoods: () => ["custom-foods"] as const,
+  customFoodList: (q: string, includeArchived: boolean) =>
+    ["custom-foods", "list", q, includeArchived] as const,
   // Supplements nest under one ["supplements"] prefix so a single invalidate after
   // any list mutation refreshes the manage list (both filters); the per-day
   // checklist is keyed on its own day.

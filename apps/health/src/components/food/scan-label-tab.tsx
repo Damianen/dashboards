@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { LoggableItem } from "@/lib/food";
+import { customFoodInputToLoggable, type LoggableItem } from "@/lib/food";
 import { postJSON } from "@/lib/fetcher";
 import { fileToDownscaledDataUrl } from "@/lib/image";
 import {
@@ -144,27 +144,6 @@ export function ScanLabelTab({
     return parsed.data;
   }
 
-  function toLoggable(input: CreateCustomFoodInput, id: string): LoggableItem {
-    const p = input.per100g;
-    return {
-      name: input.name,
-      brand: input.brand ?? null,
-      imageUrl: null,
-      per100g: {
-        kcal: p.kcal,
-        proteinG: p.proteinG,
-        carbG: p.carbG,
-        fatG: p.fatG,
-        fiberG: p.fiberG ?? null,
-        sugarG: p.sugarG ?? null,
-        saltG: p.saltG ?? null,
-        caffeineMg: p.caffeineMg ?? null,
-      },
-      servingG: input.servingG ?? null,
-      ref: { kind: "customFood", customFoodId: id },
-    };
-  }
-
   async function save(thenLog: boolean) {
     const input = buildInput();
     if (!input) return;
@@ -172,7 +151,7 @@ export function ScanLabelTab({
     try {
       const created = await postJSON<{ id: string }>("/api/food/custom", input);
       if (thenLog) {
-        onLog(toLoggable(input, created.id));
+        onLog(customFoodInputToLoggable(input, created.id));
       } else {
         toast.success("Food saved");
         onSaved();

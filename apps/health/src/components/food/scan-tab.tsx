@@ -37,12 +37,17 @@ export function ScanTab({
     let done = false;
 
     const start = async () => {
+      // getUserMedia is gated to secure contexts: over plain http on the LAN it's
+      // absent, so the camera can't start. That's a deployment fact (serve over
+      // https), not something to work around — the manual input below always works.
       if (
         typeof window === "undefined" ||
         !window.isSecureContext ||
         !navigator.mediaDevices?.getUserMedia
       ) {
-        setCameraError("Camera needs a secure (https) connection.");
+        setCameraError(
+          "Camera needs a secure (https) connection — enter the barcode below instead.",
+        );
         return;
       }
       const hints = new Map<DecodeHintType, BarcodeFormat[]>([
@@ -62,8 +67,17 @@ export function ScanTab({
           },
         );
         if (done) controls.stop();
-      } catch {
-        setCameraError("Couldn't start the camera.");
+      } catch (err) {
+        // Distinguish a denied permission / missing camera from a generic failure so
+        // the message is actionable; the manual input below is the fallback either way.
+        const name = err instanceof DOMException ? err.name : "";
+        setCameraError(
+          name === "NotAllowedError"
+            ? "Camera permission denied — enter the barcode below instead."
+            : name === "NotFoundError"
+              ? "No camera found — enter the barcode below instead."
+              : "Couldn't start the camera — enter the barcode below instead.",
+        );
       }
     };
 

@@ -45,6 +45,19 @@ export const createCustomFoodSchema = z.strictObject({
 });
 export type CreateCustomFoodInput = z.infer<typeof createCustomFoodSchema>;
 
+// Editing a saved food: same fields as create minus `source` (a food never changes
+// its origin) and `archived` (toggled via the archive route, not an edit). Past diary
+// entries snapshot their macros, so an edit never rewrites history.
+export const updateCustomFoodSchema = createCustomFoodSchema.omit({ source: true });
+export type UpdateCustomFoodInput = z.infer<typeof updateCustomFoodSchema>;
+
+// Archive route body: `archived` defaults true so a bare POST archives; pass
+// { archived: false } to restore a food from the "show archived" view.
+export const archiveCustomFoodSchema = z.strictObject({
+  archived: z.boolean().default(true),
+});
+export type ArchiveCustomFoodInput = z.infer<typeof archiveCustomFoodSchema>;
+
 export const logFoodSchema = z
   .strictObject({
     barcode: z
