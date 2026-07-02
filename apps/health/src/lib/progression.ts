@@ -3,6 +3,8 @@
 // set's reps/weight. The suggestion is only ever an editable default; logging
 // always uses whatever the user actually enters.
 
+import { round05 } from "@/lib/round";
+
 /** The same exercise + set position from the most recent prior session. */
 export interface LastSet {
   reps: number;
@@ -24,11 +26,6 @@ export interface SuggestedSet {
   weightKg: number | null;
   /** true only on the forced progressive-overload bump (top of range → +increment). */
   weightIncreased: boolean;
-}
-
-/** Round to the nearest 0.5 kg — every returned weight passes through here. */
-function round05(x: number): number {
-  return Math.round(x * 2) / 2;
 }
 
 /**

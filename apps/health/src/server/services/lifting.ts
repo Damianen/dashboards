@@ -14,6 +14,7 @@ import {
   sessionWorkingSets,
 } from "@/lib/lifting-grouping";
 import { bestE1rm, type E1rmSet } from "@/lib/one-rep-max";
+import { round1 } from "@/lib/round";
 import {
   type PlanProgress,
   type PlanTarget,
@@ -685,7 +686,7 @@ export async function getE1rmHistory(
     if (day >= start) {
       points.push({
         day,
-        e1rmKg: Math.round(best.e1rmKg * 10) / 10,
+        e1rmKg: round1(best.e1rmKg),
         reps: best.reps,
         weightKg: best.weightKg,
         isPr,

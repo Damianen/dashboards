@@ -3,15 +3,17 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { todayLocal } from "@/lib/dates";
 import { postJSON } from "@/lib/fetcher";
 import type { FoodEntryDTO, MacroTotals, MealSlot } from "@/lib/food";
 import { queryKeys } from "@/lib/hooks/keys";
 import {
-  applyOptimisticSummary,
-  type DailySummary,
-  rollbackSummary,
-} from "@/lib/hooks/optimistic-summary";
+  type DiaryCtx,
+  eatenAtForDay,
+  invalidateDiaryDay,
+  prependOptimisticEntry,
+  rollbackDiary,
+  tempId,
+} from "@/lib/hooks/optimistic-diary";
 import type { LogFoodInput } from "@/lib/schemas/food";
 
 /** Everything the diary needs to render the row optimistically, before the POST returns. */
@@ -29,29 +31,13 @@ export interface LogFoodArgs {
   preview: FoodPreview;
 }
 
-type Ctx = {
-  prevEntries: FoodEntryDTO[] | undefined;
-  prevSummary: DailySummary | null | undefined;
-};
-
-/** Logging while viewing a past day pins the entry to that day (UTC noon always
- *  lands inside the same Amsterdam civil day); today logs at "now". */
-function eatenAtForDay(day: string): string | undefined {
-  return day === todayLocal() ? undefined : `${day}T12:00:00.000Z`;
-}
-
-function tempId(): string {
-  return `optimistic-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
-
 /**
  * Log a food entry. Optimistically prepends the row to ["food", day] and bumps
  * the day's intake macros on the cached summary, rolls both back on error, and on
- * settle invalidates ["food", day] and ["summary", day].
+ * settle invalidates the day's diary-dependent reads plus the recents strip.
  */
 export function useLogFood(day: string) {
   const qc = useQueryClient();
-  const foodKey = queryKeys.food(day);
 
   return useMutation({
     mutationFn: ({ input }: LogFoodArgs) =>
@@ -59,10 +45,7 @@ export function useLogFood(day: string) {
         ...input,
         eatenAt: input.eatenAt ?? eatenAtForDay(day),
       }),
-    onMutate: async ({ input, preview }): Promise<Ctx> => {
-      await qc.cancelQueries({ queryKey: foodKey });
-      const prevEntries = qc.getQueryData<FoodEntryDTO[]>(foodKey);
-
+    onMutate: async ({ input, preview }): Promise<DiaryCtx> => {
       const optimistic: FoodEntryDTO = {
         id: tempId(),
         eatenAt: eatenAtForDay(day) ?? new Date().toISOString(),
@@ -83,43 +66,23 @@ export function useLogFood(day: string) {
           ? { name: preview.displayName, brand: null }
           : null,
       };
-      qc.setQueryData<FoodEntryDTO[]>(foodKey, (cur) => [
+      return prependOptimisticEntry(
+        qc,
+        day,
         optimistic,
-        ...(cur ?? []),
-      ]);
-
-      const prevSummary = await applyOptimisticSummary(qc, day, (s) => ({
-        ...s,
-        intakeKcal: (s.intakeKcal ?? 0) + preview.macros.kcal,
-        proteinG: (s.proteinG ?? 0) + preview.macros.proteinG,
-        carbG: (s.carbG ?? 0) + preview.macros.carbG,
-        fatG: (s.fatG ?? 0) + preview.macros.fatG,
-        // Food caffeine feeds the unified daily total (and thus the water
-        // target, which the refetch recomputes server-side).
-        ...(input.caffeineMg
-          ? { caffeineMg: (s.caffeineMg ?? 0) + input.caffeineMg }
-          : {}),
-      }));
-
-      return { prevEntries, prevSummary };
+        preview.macros,
+        input.caffeineMg,
+      );
     },
     onError: (_err, _args, ctx) => {
-      if (ctx?.prevEntries !== undefined) {
-        qc.setQueryData(foodKey, ctx.prevEntries);
-      }
-      rollbackSummary(qc, day, ctx?.prevSummary);
+      rollbackDiary(qc, day, ctx);
       toast.error("Couldn't log food");
     },
     onSuccess: () => {
       toast.success("Food logged");
     },
     onSettled: () => {
-      void qc.invalidateQueries({ queryKey: foodKey });
-      void qc.invalidateQueries({ queryKey: queryKeys.summary(day) });
-      // Today's intake/protein progress reads adherence, and any caffeine on the
-      // entry moves the water target — refresh both or those cards go stale.
-      void qc.invalidateQueries({ queryKey: queryKeys.adherence(day) });
-      void qc.invalidateQueries({ queryKey: queryKeys.water(day) });
+      invalidateDiaryDay(qc, day);
       // Logging changes the recents order and last-used quantity.
       void qc.invalidateQueries({ queryKey: queryKeys.foodRecentPrefix() });
     },

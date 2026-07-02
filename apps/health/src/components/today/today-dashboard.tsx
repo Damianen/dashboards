@@ -16,17 +16,10 @@ import {
 } from "@/components/today/cards";
 import { RecoveryCard } from "@/components/today/recovery-card";
 import { todayLocal } from "@/lib/dates";
+import { dateLabel } from "@/lib/format";
 import { useAdherence } from "@/lib/hooks/use-adherence";
 import { useRecovery } from "@/lib/hooks/use-recovery";
 import { useSummary } from "@/lib/hooks/use-summary";
-
-function dateLabel(day: string): string {
-  return new Date(`${day}T00:00:00`).toLocaleDateString("en-GB", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  });
-}
 
 function DashboardSkeleton() {
   return (

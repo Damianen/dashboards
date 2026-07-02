@@ -2,6 +2,7 @@
 // computeWaterTarget restates the daily_summary view's formula in TS for testing only;
 // the SQL view remains the single runtime source of truth for the water target.
 
+import { round1 } from "@/lib/round";
 import { DomainError } from "@/server/services/errors";
 
 /** Water target in mL: base intake plus a per-mg bump for the day's total caffeine
@@ -87,7 +88,6 @@ export interface MealTotals {
  * the parts with this so they always agree even when the model's own sums drift.
  */
 export function sumMealTotals(components: MealComponentMacros[]): MealTotals {
-  const round1 = (v: number): number => Math.round(v * 10) / 10;
   const sum = (pick: (c: MealComponentMacros) => number): number =>
     round1(components.reduce((t, c) => t + pick(c), 0));
   return {
@@ -124,6 +124,39 @@ export interface LabelReadout {
   perServing: LabelNutrients | null;
 }
 
+/** The per-macro override shape logFood accepts (all optional; `undefined` = omitted). */
+export interface MacroOverrides {
+  kcal?: number;
+  proteinG?: number;
+  carbG?: number;
+  fatG?: number;
+  fiberG?: number;
+  sugarG?: number;
+  saltG?: number;
+  caffeineMg?: number;
+}
+
+/**
+ * Merge explicit macro overrides onto computed base macros for the snapshot a
+ * FoodEntry stores. Explicit overrides win; `undefined` (omitted) keeps the
+ * computed value, so an intentional 0 is preserved (`!== undefined`, never
+ * `??`) and a null base stays null when nothing overrides it.
+ */
+export function mergeSnapshot(overrides: MacroOverrides, base: Macros): Macros {
+  const pick = (override: number | undefined, computed: number | null) =>
+    override !== undefined ? override : computed;
+  return {
+    kcal: pick(overrides.kcal, base.kcal),
+    proteinG: pick(overrides.proteinG, base.proteinG),
+    carbG: pick(overrides.carbG, base.carbG),
+    fatG: pick(overrides.fatG, base.fatG),
+    fiberG: pick(overrides.fiberG, base.fiberG),
+    sugarG: pick(overrides.sugarG, base.sugarG),
+    saltG: pick(overrides.saltG, base.saltG),
+    caffeineMg: pick(overrides.caffeineMg, base.caffeineMg),
+  };
+}
+
 /**
  * Reduce a label readout to per-100 g macros, the form a CustomFood stores. Prefers
  * an explicit per-100 g block; otherwise converts a per-serving block by × 100 /
@@ -135,15 +168,16 @@ export function normalizeToPer100g(r: LabelReadout): LabelNutrients | null {
   if (r.per100g) return r.per100g;
   if (r.perServing && r.servingSizeG != null && r.servingSizeG > 0) {
     const f = 100 / r.servingSizeG;
-    const round1 = (v: number): number => Math.round(v * f * 10) / 10;
+    // Factor-fused variant (scales then rounds) — deliberately not the shared round1.
+    const roundScaled = (v: number): number => Math.round(v * f * 10) / 10;
     const opt = (v: number | null | undefined): number | null =>
-      v == null ? null : round1(v);
+      v == null ? null : roundScaled(v);
     const p = r.perServing;
     return {
-      kcal: round1(p.kcal),
-      proteinG: round1(p.proteinG),
-      carbG: round1(p.carbG),
-      fatG: round1(p.fatG),
+      kcal: roundScaled(p.kcal),
+      proteinG: roundScaled(p.proteinG),
+      carbG: roundScaled(p.carbG),
+      fatG: roundScaled(p.fatG),
       fiberG: opt(p.fiberG),
       sugarG: opt(p.sugarG),
       saltG: opt(p.saltG),

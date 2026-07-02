@@ -3,6 +3,7 @@ import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 
 import { dayOf, todayLocal } from "@/lib/dates";
+import { MEAL_ORDER } from "@/lib/food";
 import { daySchema } from "@/lib/schemas/common";
 import {
   observationsWindowSchema,
@@ -23,8 +24,8 @@ import {
   estimateMeal,
   listRecentLoggables,
   logFood,
+  resolveCustomFoodByName,
   scanLabel,
-  searchCustomFoods,
   searchFoodLog,
 } from "@/server/services/food";
 import {
@@ -51,6 +52,7 @@ import {
 import { searchProducts } from "@/server/services/off";
 import {
   listTemplates,
+  resolveTemplateByName,
   startSessionFromTemplate,
 } from "@/server/services/templates";
 import { logStimulant } from "@/server/services/stimulants";
@@ -755,7 +757,7 @@ export function buildServer(): McpServer {
               "total + water target; never affects calories.",
           ),
         meal: z
-          .enum(["BREAKFAST", "LUNCH", "DINNER", "SNACK"])
+          .enum(MEAL_ORDER)
           .optional()
           .describe("Which meal this belongs to."),
       },
@@ -786,25 +788,14 @@ export function buildServer(): McpServer {
           return await logFood({ barcode, ...overrides }, "MCP");
         }
         if (custom_food_name != null) {
-          const matches = await searchCustomFoods(custom_food_name);
-          const exact = matches.filter(
-            (f) => f.name.toLowerCase() === custom_food_name.trim().toLowerCase(),
-          );
-          // Prefer an exact-name match (a `contains` search can return several);
-          // fall back to the sole result when the search itself is unambiguous.
-          const chosen =
-            exact.length === 1
-              ? exact[0]
-              : matches.length === 1
-                ? matches[0]
-                : null;
-          if (chosen) {
+          const resolved = await resolveCustomFoodByName(custom_food_name);
+          if ("food" in resolved) {
             return await logFood(
-              { customFoodId: chosen.id, ...overrides },
+              { customFoodId: resolved.food.id, ...overrides },
               "MCP",
             );
           }
-          if (matches.length === 0) {
+          if (resolved.candidates.length === 0) {
             throw new DomainError(
               `no custom food matches "${custom_food_name}"`,
             );
@@ -813,11 +804,7 @@ export function buildServer(): McpServer {
             logged: false,
             message:
               "Multiple custom foods match. Re-call log_food with an exact name.",
-            candidates: matches.map((c) => ({
-              id: c.id,
-              name: c.name,
-              brand: c.brand,
-            })),
+            candidates: resolved.candidates,
           };
         }
         if (name != null && kcal == null) {
@@ -858,7 +845,7 @@ export function buildServer(): McpServer {
           .number()
           .describe("Portions to log (positive; fractional allowed, e.g. 1.5)."),
         meal_slot: z
-          .enum(["BREAKFAST", "LUNCH", "DINNER", "SNACK"])
+          .enum(MEAL_ORDER)
           .optional()
           .describe("Which meal slot this belongs to."),
         eaten_at: z
@@ -1007,32 +994,19 @@ export function buildServer(): McpServer {
             resolvedItems.push({ barcode: it.barcode, quantityG: it.quantity_g });
           } else if (it.custom_food_name != null) {
             const cfn = it.custom_food_name;
-            const matches = await searchCustomFoods(cfn);
-            const exact = matches.filter(
-              (f) => f.name.toLowerCase() === cfn.trim().toLowerCase(),
-            );
-            const chosen =
-              exact.length === 1
-                ? exact[0]
-                : matches.length === 1
-                  ? matches[0]
-                  : null;
-            if (!chosen) {
+            const resolved = await resolveCustomFoodByName(cfn);
+            if (!("food" in resolved)) {
               return {
                 created: false,
                 message:
-                  matches.length === 0
+                  resolved.candidates.length === 0
                     ? `no custom food matches "${cfn}"`
                     : `multiple custom foods match "${cfn}"; use an exact name`,
-                candidates: matches.map((c) => ({
-                  id: c.id,
-                  name: c.name,
-                  brand: c.brand,
-                })),
+                candidates: resolved.candidates,
               };
             }
             resolvedItems.push({
-              customFoodId: chosen.id,
+              customFoodId: resolved.food.id,
               quantityG: it.quantity_g,
             });
           } else if (it.child_meal_name != null) {
@@ -1148,23 +1122,7 @@ export function buildServer(): McpServer {
     },
     ({ template }) =>
       run(async () => {
-        const templates = await listTemplates({ includeArchived: true });
-        const match = templates.find(
-          (t) => t.name.toLowerCase() === template.toLowerCase(),
-        );
-        if (!match) {
-          const available = templates
-            .filter((t) => !t.archived)
-            .map((t) => t.name);
-          throw new DomainError(
-            `no template named "${template}"; available: ${
-              available.length ? available.join(", ") : "(none)"
-            }`,
-          );
-        }
-        if (match.archived) {
-          throw new DomainError(`template "${match.name}" is archived`);
-        }
+        const match = await resolveTemplateByName(template);
         return startSessionFromTemplate({ templateId: match.id });
       }),
   );

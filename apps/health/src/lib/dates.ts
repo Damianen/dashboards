@@ -34,3 +34,10 @@ export function shiftDay(day: string, delta: number): string {
   at.setUTCDate(at.getUTCDate() + delta);
   return dayOf(at);
 }
+
+/** Civil date of a `@db.Date` column value: `day` is stored UTC-midnight (it IS
+ *  the civil date), so slicing the ISO date part is the exact inverse of
+ *  dayToDbDate() — no timezone shift. */
+export function civilDay(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}

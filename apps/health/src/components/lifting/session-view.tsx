@@ -8,6 +8,7 @@ import { AddSetSheet } from "@/components/lifting/add-set-sheet";
 import { ExerciseSetTable } from "@/components/lifting/exercise-set-table";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { dateLabel } from "@/lib/format";
 import { useFinishSession } from "@/lib/hooks/use-finish-session";
 import { useSession } from "@/lib/hooks/use-session";
 import { useTemplate } from "@/lib/hooks/use-templates";
@@ -56,14 +57,6 @@ function ElapsedTimer({ startedAt }: { startedAt: string }) {
       {label}
     </span>
   );
-}
-
-function dateLabel(day: string): string {
-  return new Date(`${day}T00:00:00`).toLocaleDateString("en-GB", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  });
 }
 
 export function SessionView({ id }: { id: string }) {

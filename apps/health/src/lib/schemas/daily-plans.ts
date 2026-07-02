@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { MEAL_ORDER } from "@/lib/food";
+
 import { daySchema } from "./common";
 import { barcodeSchema } from "./food";
 
@@ -18,7 +20,7 @@ export const dailyPlanItemSchema = z
     mealId: z.cuid().optional(),
     quantityG: z.number().gt(0).max(5000).optional(),
     portions: z.number().gt(0).max(9999).optional(),
-    mealSlot: z.enum(["BREAKFAST", "LUNCH", "DINNER", "SNACK"]).optional(),
+    mealSlot: z.enum(MEAL_ORDER).optional(),
   })
   .refine(
     (v) =>

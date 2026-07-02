@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type { Exercise } from "@/generated/prisma/client";
-import { getJSON } from "@/lib/fetcher";
+import { getJSON, HttpError, postJSON } from "@/lib/fetcher";
 import { queryKeys } from "@/lib/hooks/keys";
 import type { CreateExerciseInput } from "@/lib/schemas/exercise";
 
@@ -19,20 +19,18 @@ export function useExercises() {
 }
 
 /** POST a new exercise, surfacing the service's 400 `{ error }` message (e.g. a
- *  duplicate name) as the thrown Error — the shared postJSON discards the body. */
+ *  duplicate name) as a plain thrown Error — the picker renders err.message
+ *  verbatim, so a raw HttpError must never escape here. */
 async function postExercise(input: CreateExerciseInput): Promise<Exercise> {
-  const res = await fetch("/api/exercises", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
-  if (!res.ok) {
-    const body = (await res.json().catch(() => null)) as {
-      error?: string;
-    } | null;
-    throw new Error(body?.error ?? "Couldn't create exercise");
+  try {
+    return await postJSON<Exercise>("/api/exercises", input);
+  } catch (err) {
+    if (err instanceof HttpError) {
+      const body = err.body as { error?: string } | null;
+      throw new Error(body?.error ?? "Couldn't create exercise");
+    }
+    throw err; // network TypeError etc. — same propagation as before
   }
-  return res.json() as Promise<Exercise>;
 }
 
 /** Create a catalog exercise, then slot it into the cached list (kept name-sorted)

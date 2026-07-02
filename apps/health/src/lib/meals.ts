@@ -3,6 +3,7 @@
 // contribution and feeds these helpers. DomainError is a plain error class with no
 // server-only deps (same import as src/lib/rules.ts), so this module stays client-safe.
 
+import { round1 } from "@/lib/round";
 import type { Macros } from "@/lib/rules";
 import { DomainError } from "@/server/services/errors";
 
@@ -16,8 +17,6 @@ const MACRO_KEYS = [
   "saltG",
   "caffeineMg",
 ] as const satisfies readonly (keyof Macros)[];
-
-const round1 = (v: number): number => Math.round(v * 10) / 10;
 
 /**
  * Sum item macro contributions with SQL-style null semantics: a field is null only

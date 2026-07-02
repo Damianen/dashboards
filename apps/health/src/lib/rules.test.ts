@@ -4,8 +4,10 @@ import {
   type ActualSet,
   computeWaterTarget,
   type LabelNutrients,
+  type MacroOverrides,
   type Macros,
   type MealComponentMacros,
+  mergeSnapshot,
   normalizeToPer100g,
   type PlanTarget,
   scaleMacros,
@@ -390,5 +392,48 @@ describe("sumMealTotals", () => {
       totalCarbG: 62,
       totalFatG: 19,
     });
+  });
+});
+
+describe("mergeSnapshot", () => {
+  const base: Macros = {
+    kcal: 539,
+    proteinG: 6.3,
+    carbG: 57.5,
+    fatG: 30.9,
+    fiberG: null,
+    sugarG: 56.3,
+    saltG: 0.1,
+    caffeineMg: null,
+  };
+
+  it("lets an explicit override win over the computed value", () => {
+    const merged = mergeSnapshot({ kcal: 500, proteinG: 7 }, base);
+    expect(merged.kcal).toBe(500);
+    expect(merged.proteinG).toBe(7);
+  });
+
+  it("keeps every computed value when a field is omitted", () => {
+    expect(mergeSnapshot({}, base)).toEqual(base);
+    expect(mergeSnapshot({ kcal: 500 }, base).carbG).toBe(57.5);
+  });
+
+  it("preserves an intentional 0 override on a non-zero base (!== undefined, never ??)", () => {
+    const merged = mergeSnapshot({ sugarG: 0 }, base);
+    expect(merged.sugarG).toBe(0);
+    expect(merged.kcal).toBe(539); // untouched fields still computed
+  });
+
+  it("leaves a null base null when nothing overrides it — never coerced to 0", () => {
+    const merged = mergeSnapshot({ kcal: 500 }, base);
+    expect(merged.caffeineMg).toBeNull();
+    expect(merged.fiberG).toBeNull();
+  });
+
+  it("fills a null base from an override when one is present", () => {
+    const overrides: MacroOverrides = { caffeineMg: 80, fiberG: 2.5 };
+    const merged = mergeSnapshot(overrides, base);
+    expect(merged.caffeineMg).toBe(80);
+    expect(merged.fiberG).toBe(2.5);
   });
 });

@@ -1,5 +1,5 @@
 import { Prisma } from "@/generated/prisma/client";
-import { dayOf, dayToDbDate, todayLocal } from "@/lib/dates";
+import { shiftDay, todayLocal } from "@/lib/dates";
 import type { TrendMetric } from "@/lib/schemas/summary";
 import { prisma } from "@/server/db";
 
@@ -185,9 +185,7 @@ export async function getTrends(
 ): Promise<TrendPoint[]> {
   const column = Prisma.raw(TREND_COLUMNS[metric]);
   const end = todayLocal();
-  const start = dayOf(
-    new Date(dayToDbDate(end).getTime() - (days - 1) * 86_400_000),
-  );
+  const start = shiftDay(end, -(days - 1));
   const rows = await prisma.$queryRaw<{ day: string; value: unknown }[]>(
     Prisma.sql`
       SELECT day::text AS "day", ${column} AS "value"

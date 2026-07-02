@@ -282,6 +282,33 @@ export async function listTemplates({
   );
 }
 
+/**
+ * Resolve a template by exact case-insensitive name for MCP. Throws DomainError
+ * listing the available ACTIVE template names when nothing matches, and a
+ * distinct DomainError for an archived match — byte-identical to the inline
+ * logic this replaced in the MCP start_workout_from_template tool.
+ */
+export async function resolveTemplateByName(
+  name: string,
+): Promise<TemplateView> {
+  const templates = await listTemplates({ includeArchived: true });
+  const match = templates.find(
+    (t) => t.name.toLowerCase() === name.toLowerCase(),
+  );
+  if (!match) {
+    const available = templates.filter((t) => !t.archived).map((t) => t.name);
+    throw new DomainError(
+      `no template named "${name}"; available: ${
+        available.length ? available.join(", ") : "(none)"
+      }`,
+    );
+  }
+  if (match.archived) {
+    throw new DomainError(`template "${match.name}" is archived`);
+  }
+  return match;
+}
+
 export async function getTemplate(id: string): Promise<TemplateView> {
   const template = await prisma.workoutTemplate.findUnique({
     where: { id },

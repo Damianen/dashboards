@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { Camera, ImagePlus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
+import { CONFIDENCE, type Confidence } from "@/components/food/confidence";
 import { MealPicker } from "@/components/food/meal-picker";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,25 +15,11 @@ import { suggestMeal } from "@/lib/food";
 import { formatNumber } from "@/lib/format";
 import { fileToDownscaledDataUrl } from "@/lib/image";
 import { useLogFood } from "@/lib/hooks/use-log-food";
+import { round1 } from "@/lib/round";
 import type { LogFoodInput } from "@/lib/schemas/food";
 import type { MealEstimate } from "@/lib/schemas/vision";
 
-type Confidence = MealEstimate["confidence"];
 type Component = MealEstimate["components"][number];
-
-const CONFIDENCE: Record<
-  Confidence,
-  { label: string; variant: "default" | "secondary" | "destructive" }
-> = {
-  high: { label: "High confidence", variant: "default" },
-  medium: { label: "Medium confidence", variant: "secondary" },
-  low: { label: "Low confidence", variant: "destructive" },
-};
-
-/** Round to 1 dp — mirrors the server idiom so the saved per-100 g lines up. */
-function round1(v: number): number {
-  return Math.round(v * 10) / 10;
-}
 
 /**
  * Estimate a meal/plate photo into an editable AI-estimate draft — the restaurant /

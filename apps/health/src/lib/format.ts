@@ -52,6 +52,19 @@ export function formatLastPerformed(day: string | null, today: string): string {
 }
 
 /**
+ * Full weekday label for a civil day, e.g. "Thursday 2 July" (en-GB). Parses at
+ * LOCAL midnight on purpose — local midnight of `day` always prints as `day`,
+ * and pinning a zone here would change rendering for a non-Amsterdam browser.
+ */
+export function dateLabel(day: string): string {
+  return new Date(`${day}T00:00:00`).toLocaleDateString("en-GB", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+}
+
+/**
  * Coarse "time ago" label ("just now" / "5 min ago" / "3 h ago" / "2 d ago") relative to
  * `now` (defaults to the current time). Dates arrive over JSON as strings; both are
  * accepted. A future instant clamps to "just now". Pure when `now` is supplied.
