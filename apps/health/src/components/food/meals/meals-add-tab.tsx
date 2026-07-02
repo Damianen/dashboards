@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { MealLogStep } from "@/components/food/meals/meal-log-step";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatNumber } from "@/lib/format";
 import { useMeals } from "@/lib/hooks/use-meals";
@@ -20,7 +21,7 @@ export function MealsAddTab({
   day: string;
   onLogged: () => void;
 }) {
-  const { data, isLoading, isError } = useMeals();
+  const { data, isLoading, isError, refetch } = useMeals();
   const meals = data ?? [];
   const [selected, setSelected] = useState<MealSummary | null>(null);
 
@@ -42,9 +43,14 @@ export function MealsAddTab({
           <Skeleton key={i} className="h-14 w-full rounded-md" />
         ))
       ) : isError ? (
-        <p className="text-muted-foreground py-6 text-center text-sm">
-          Couldn&apos;t load meals.
-        </p>
+        <div className="space-y-3 py-6 text-center">
+          <p className="text-muted-foreground text-sm">
+            Couldn&apos;t load meals.
+          </p>
+          <Button variant="outline" onClick={() => void refetch()}>
+            Retry
+          </Button>
+        </div>
       ) : meals.length === 0 ? (
         <p className="text-muted-foreground py-6 text-center text-sm">
           No saved meals yet. Create one in the Meals tab.

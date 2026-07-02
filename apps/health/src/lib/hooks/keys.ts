@@ -1,9 +1,15 @@
+import type { QueryClient } from "@tanstack/react-query";
+
 // Central query-key factory so the dashboard reads and the quick-log mutations
 // invalidate exactly the same keys.
 export const queryKeys = {
   summary: (day: string) => ["summary", day] as const,
   water: (day: string) => ["water", day] as const,
   food: (day: string) => ["food", day] as const,
+  // OFF product search results, debounced per query string. Lives under the
+  // ["food"] namespace but never collides with ["food", <day>] — the second
+  // element is the literal "search", never a date.
+  foodSearch: (q: string) => ["food", "search", q] as const,
   // Saved custom foods nest under one ["custom-foods"] prefix so a single invalidate
   // after any create/edit/archive refreshes the My Foods list (every q/filter) AND the
   // meal builder's "Saved" picker.
@@ -57,8 +63,38 @@ export const queryKeys = {
   workouts: (days: number) => ["workouts", days] as const,
   observations: (window: number) => ["observations", window] as const,
   adherence: (day: string) => ["adherence", day] as const,
+  // Every day's adherence at once — for mutations that shift the targets
+  // themselves (protein g/kg, calorie target) rather than one day's logs.
+  adherencePrefix: () => ["adherence"] as const,
   tdee: (window: number) => ["tdee", window] as const,
+  // Every cached TDEE window at once — saving a new default window must also
+  // refresh tdee(0), the "server default" query.
+  tdeePrefix: () => ["tdee"] as const,
   recovery: (day: string, window: number) =>
     ["recovery", day, window] as const,
   weightGoal: () => ["weight-goal"] as const,
 };
+
+/**
+ * Every read that can change when a wearable sync lands new data — weight moves
+ * the summary, trends, protein target (adherence), goal ETA and TDEE; sleep/
+ * readiness/activity move the summary, trends, recovery and observations. One
+ * list so "sync Oura", "sync Withings" and "sync all" refresh the same caches.
+ */
+export const SYNC_AFFECTED_PREFIXES: readonly (readonly string[])[] = [
+  ["summary"],
+  ["trends"],
+  ["workouts"],
+  ["adherence"],
+  ["recovery"],
+  ["tdee"],
+  ["weight-goal"],
+  ["observations"],
+];
+
+/** Invalidate everything a landed sync may have changed (see SYNC_AFFECTED_PREFIXES). */
+export function invalidateAfterSync(qc: QueryClient): void {
+  for (const prefix of SYNC_AFFECTED_PREFIXES) {
+    void qc.invalidateQueries({ queryKey: prefix });
+  }
+}

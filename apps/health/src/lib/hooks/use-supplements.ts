@@ -86,6 +86,10 @@ function useChecklistMutation<TVars>(
       // Converge after any race (rapid taps), and refresh the day's summary count.
       void qc.invalidateQueries({ queryKey: key });
       void qc.invalidateQueries({ queryKey: queryKeys.summary(day) });
+      // Checks feed the supplement streak (adherence) and any caffeine snapshot
+      // moves the water target — refresh both or Today's cards go stale.
+      void qc.invalidateQueries({ queryKey: queryKeys.adherence(day) });
+      void qc.invalidateQueries({ queryKey: queryKeys.water(day) });
     },
   });
 }

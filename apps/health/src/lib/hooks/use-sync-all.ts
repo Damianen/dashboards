@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { postJSON } from "@/lib/fetcher";
-import { queryKeys } from "@/lib/hooks/keys";
+import { invalidateAfterSync, queryKeys } from "@/lib/hooks/keys";
 
 /** One entry per source from POST /api/sync/all (mirrors the service's SyncAllResult). */
 interface SyncAllResult {
@@ -45,6 +45,9 @@ export function useSyncAll() {
     onSettled: () => {
       qc.invalidateQueries({ queryKey: queryKeys.syncStatus() });
       qc.invalidateQueries({ queryKey: queryKeys.connections() });
+      // The sync may have landed new weight/sleep/activity — refresh every read
+      // derived from it, or Today/Trends keep showing pre-sync data.
+      invalidateAfterSync(qc);
     },
   });
 }

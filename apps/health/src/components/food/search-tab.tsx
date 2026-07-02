@@ -10,7 +10,7 @@ import { useFoodSearch } from "@/lib/hooks/use-food-search";
 /** Debounced OFF product search; picking a result hands its barcode up to the sheet. */
 export function SearchTab({ onBarcode }: { onBarcode: (barcode: string) => void }) {
   const [query, setQuery] = useState("");
-  const { data, isFetching, isError } = useFoodSearch(query);
+  const { data, isLoading, isError } = useFoodSearch(query);
   const results = data ?? [];
 
   return (
@@ -31,17 +31,19 @@ export function SearchTab({ onBarcode }: { onBarcode: (barcode: string) => void 
       </div>
 
       <div className="max-h-[55dvh] space-y-1 overflow-y-auto">
-        {isFetching ? (
+        {query.trim().length < 2 ? (
+          <p className="text-muted-foreground py-6 text-center text-sm">
+            Type to search Open Food Facts.
+          </p>
+        ) : isLoading ? (
+          // Only the FIRST load skeletons; while refining a query the previous
+          // results stay visible (keepPreviousData) instead of blanking per keystroke.
           Array.from({ length: 5 }).map((_, i) => (
             <Skeleton key={i} className="h-14 w-full rounded-md" />
           ))
         ) : isError ? (
           <p className="text-muted-foreground py-6 text-center text-sm">
             Search is unavailable right now.
-          </p>
-        ) : query.trim().length < 2 ? (
-          <p className="text-muted-foreground py-6 text-center text-sm">
-            Type to search Open Food Facts.
           </p>
         ) : results.length === 0 ? (
           <p className="text-muted-foreground py-6 text-center text-sm">
