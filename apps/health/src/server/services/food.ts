@@ -444,6 +444,13 @@ export async function logFood(
       where: { id: data.customFoodId },
     });
     if (!food) throw new NotFoundError("custom food", data.customFoodId);
+    // Write-path twin of the read-path exclusions (search/recents/resolvers):
+    // retired means not re-loggable, including by raw id over MCP.
+    if (food.archived) {
+      throw new DomainError(
+        `custom food "${food.name}" is archived — restore it before logging`,
+      );
+    }
     customFoodId = food.id;
     base = scaleMacros(macrosFromJson(food.per100g), data.quantityG);
   } else {
