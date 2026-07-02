@@ -76,6 +76,26 @@ export const archiveCustomFoodSchema = z.strictObject({
 });
 export type ArchiveCustomFoodInput = z.infer<typeof archiveCustomFoodSchema>;
 
+/**
+ * Editing a logged entry in place. `quantityG` rescales the entry's OWN stored
+ * totals (snapshot rule — the product cache is never re-read); `meal: null`
+ * moves the entry to the "Other" group; `notes: null` clears the note.
+ */
+export const updateFoodEntrySchema = z
+  .strictObject({
+    quantityG: z.number().gt(0).max(5000).optional(),
+    meal: z.enum(MEAL_ORDER).nullable().optional(),
+    notes: z.string().trim().min(1).nullable().optional(),
+  })
+  .refine(
+    (v) =>
+      v.quantityG !== undefined ||
+      v.meal !== undefined ||
+      v.notes !== undefined,
+    "provide at least one field to update",
+  );
+export type UpdateFoodEntryInput = z.infer<typeof updateFoodEntrySchema>;
+
 export const logFoodSchema = z
   .strictObject({
     barcode: z

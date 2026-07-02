@@ -1,9 +1,17 @@
 import { FoodEntryRow } from "@/components/food/food-entry-row";
-import type { MealGroup } from "@/lib/food";
+import type { FoodEntryView, MealGroup } from "@/lib/food";
 import { formatNumber } from "@/lib/format";
 
 /** One meal's heading + macro subtotal, with its swipeable entry rows. */
-export function MealSection({ group, day }: { group: MealGroup; day: string }) {
+export function MealSection({
+  group,
+  day,
+  onEdit,
+}: {
+  group: MealGroup;
+  day: string;
+  onEdit: (entry: FoodEntryView) => void;
+}) {
   const s = group.subtotal;
   return (
     <section className="space-y-1.5">
@@ -17,7 +25,7 @@ export function MealSection({ group, day }: { group: MealGroup; day: string }) {
       <ul className="space-y-1.5">
         {group.entries.map((entry) => (
           <li key={entry.id}>
-            <FoodEntryRow entry={entry} day={day} />
+            <FoodEntryRow entry={entry} day={day} onEdit={onEdit} />
           </li>
         ))}
       </ul>

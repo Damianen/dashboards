@@ -2,7 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 
-import { dayOf, todayLocal } from "@/lib/dates";
+import { civilDay, dayOf, todayLocal } from "@/lib/dates";
 import { MEAL_ORDER } from "@/lib/food";
 import { daySchema } from "@/lib/schemas/common";
 import {
@@ -18,6 +18,7 @@ import type { MealItemInput } from "@/lib/schemas/meals";
 import { trendMetricSchema } from "@/lib/schemas/summary";
 import { imageDataUrlSchema } from "@/lib/schemas/vision";
 import { supplementTimeGroupSchema } from "@/lib/schemas/supplement";
+import { logWeightSchema } from "@/lib/schemas/weight";
 import { DomainError, NotFoundError } from "@/server/services/errors";
 import {
   createCustomFood,
@@ -55,7 +56,11 @@ import {
   resolveTemplateByName,
   startSessionFromTemplate,
 } from "@/server/services/templates";
-import { logStimulant } from "@/server/services/stimulants";
+import {
+  deleteStimulantEntry,
+  listByDay as listStimulantsByDay,
+  logStimulant,
+} from "@/server/services/stimulants";
 import {
   check,
   checkGroup,
@@ -70,7 +75,13 @@ import { getTdeeEstimate } from "@/server/services/tdee";
 import { getWeightGoal } from "@/server/services/weight-goal";
 import { VisionError } from "@/server/services/vision";
 import { getSyncStatus, SYNC_SOURCES, syncSource } from "@/server/services/sync";
-import { getWaterStatus, logWater } from "@/server/services/water";
+import {
+  deleteWaterEntry,
+  getWaterStatus,
+  listWaterByDay,
+  logWater,
+} from "@/server/services/water";
+import { logWeight } from "@/server/services/weight";
 
 // The active_kcal honesty caveat (CLAUDE.md domain guardrail), shared verbatim by the
 // two tools that surface device energy expenditure.
@@ -280,6 +291,59 @@ export function buildServer(): McpServer {
       },
     },
     ({ day }) => run(() => getWaterStatus(day)),
+  );
+
+  server.registerTool(
+    "list_water_entries",
+    {
+      description:
+        "A day's individual water entries, newest first: { id, loggedAt, day, amountMl, " +
+        "origin }. Use the id with delete_water_entry to undo a mistaken log.",
+      inputSchema: {
+        day: daySchema
+          .optional()
+          .describe("Civil date YYYY-MM-DD. Defaults to today."),
+      },
+    },
+    ({ day }) =>
+      run(async () => {
+        const entries = await listWaterByDay(day);
+        return entries.map((e) => ({
+          id: e.id,
+          loggedAt: e.loggedAt.toISOString(),
+          day: civilDay(e.day),
+          amountMl: e.amountMl,
+          origin: e.origin,
+        }));
+      }),
+  );
+
+  server.registerTool(
+    "list_stimulant_entries",
+    {
+      description:
+        "A day's individual stimulant entries, newest first: { id, loggedAt, day, " +
+        "substance, amountMg, origin, notes }. Use the id with delete_stimulant_entry " +
+        "to undo a mistaken log.",
+      inputSchema: {
+        day: daySchema
+          .optional()
+          .describe("Civil date YYYY-MM-DD. Defaults to today."),
+      },
+    },
+    ({ day }) =>
+      run(async () => {
+        const entries = await listStimulantsByDay(day);
+        return entries.map((e) => ({
+          id: e.id,
+          loggedAt: e.loggedAt.toISOString(),
+          day: civilDay(e.day),
+          substance: e.substance,
+          amountMg: Number(e.amountMg),
+          origin: e.origin,
+          notes: e.notes,
+        }));
+      }),
   );
 
   server.registerTool(
@@ -565,11 +629,78 @@ export function buildServer(): McpServer {
     },
     ({ amount_mg, substance }) =>
       run(async () => {
-        const waterTargetMl = await logStimulant(
+        const { entry, waterTargetMl } = await logStimulant(
           { amountMg: amount_mg, substance },
           "MCP",
         );
-        return { loggedMg: amount_mg, substance, waterTargetMl };
+        return {
+          entry: {
+            id: entry.id,
+            day: civilDay(entry.day),
+            substance: entry.substance,
+            amountMg: Number(entry.amountMg),
+          },
+          waterTargetMl,
+        };
+      }),
+  );
+
+  server.registerTool(
+    "delete_water_entry",
+    {
+      description:
+        "Delete ONE water entry by id (undo a mistaken log — get ids from " +
+        "list_water_entries or the log_water response). Returns the entry's day so " +
+        "you can re-check that day's water status.",
+      inputSchema: {
+        id: z.cuid().describe("The water entry id to delete."),
+      },
+    },
+    ({ id }) => run(() => deleteWaterEntry(id)),
+  );
+
+  server.registerTool(
+    "delete_stimulant_entry",
+    {
+      description:
+        "Delete ONE stimulant entry by id (undo a mistaken log — get ids from " +
+        "list_stimulant_entries or the log_stimulant response). Lowers that day's " +
+        "water target; returns { id, day, waterTargetMl } with the recomputed target.",
+      inputSchema: {
+        id: z.cuid().describe("The stimulant entry id to delete."),
+      },
+    },
+    ({ id }) => run(() => deleteStimulantEntry(id)),
+  );
+
+  server.registerTool(
+    "log_weight",
+    {
+      description:
+        "Log a manual body-weight measurement in kilograms (stored with source MANUAL, " +
+        "never touched by wearable syncs). Moves the weight card, 7-day average, " +
+        "protein target and weight-goal ETA.",
+      inputSchema: {
+        weight_kg: logWeightSchema.shape.weightKg.describe(
+          "Body weight in kilograms (20–350).",
+        ),
+        measured_at: logWeightSchema.shape.measuredAt.describe(
+          "ISO timestamp with offset. Defaults to now.",
+        ),
+      },
+    },
+    ({ weight_kg, measured_at }) =>
+      run(async () => {
+        const m = await logWeight({
+          weightKg: weight_kg,
+          measuredAt: measured_at,
+        });
+        return {
+          id: m.id,
+          day: civilDay(m.day),
+          weightKg: Number(m.weightKg),
+          source: m.source,
+        };
       }),
   );
 

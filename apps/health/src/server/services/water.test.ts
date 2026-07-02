@@ -1,14 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { Prisma } from "@/generated/prisma/client";
 import { DEFAULT_BASE_TARGET_ML } from "@/lib/water-defaults";
+import { NotFoundError } from "./errors";
 import type { DailySummary } from "./summary";
-import { getWaterStatus } from "./water";
+import { deleteWaterEntry, getWaterStatus, listWaterByDay } from "./water";
 
 const getDailySummary =
   vi.fn<(day?: string) => Promise<DailySummary | null>>();
 const settingFindUnique =
   vi.fn<(args: unknown) => Promise<{ value: unknown } | null>>();
 const waterEntryCreate = vi.fn<(args: unknown) => Promise<unknown>>();
+const waterEntryFindMany = vi.fn<(args: unknown) => Promise<unknown[]>>();
+const waterEntryDelete = vi.fn<(args: unknown) => Promise<unknown>>();
 
 vi.mock("./summary", () => ({
   getDailySummary: (day?: string) => getDailySummary(day),
@@ -16,9 +20,21 @@ vi.mock("./summary", () => ({
 vi.mock("@/server/db", () => ({
   prisma: {
     setting: { findUnique: (args: unknown) => settingFindUnique(args) },
-    waterEntry: { create: (args: unknown) => waterEntryCreate(args) },
+    waterEntry: {
+      create: (args: unknown) => waterEntryCreate(args),
+      findMany: (args: unknown) => waterEntryFindMany(args),
+      delete: (args: unknown) => waterEntryDelete(args),
+    },
   },
 }));
+
+/** The P2025 ("record not found") error Prisma throws for a missing delete target. */
+function p2025(): Prisma.PrismaClientKnownRequestError {
+  return new Prisma.PrismaClientKnownRequestError("No record found", {
+    code: "P2025",
+    clientVersion: "test",
+  });
+}
 
 /** A full DailySummary (all metrics null) with the fields under test overridden. */
 function summaryRow(overrides: Partial<DailySummary>): DailySummary {
@@ -57,6 +73,42 @@ beforeEach(() => {
   vi.clearAllMocks();
   getDailySummary.mockResolvedValue(null);
   settingFindUnique.mockResolvedValue(null);
+  waterEntryFindMany.mockResolvedValue([]);
+});
+
+describe("listWaterByDay", () => {
+  it("filters on the day's UTC-midnight @db.Date value, newest first", async () => {
+    await listWaterByDay("2026-07-01");
+
+    expect(waterEntryFindMany).toHaveBeenCalledWith({
+      where: { day: new Date("2026-07-01T00:00:00.000Z") },
+      orderBy: { loggedAt: "desc" },
+    });
+  });
+});
+
+describe("deleteWaterEntry", () => {
+  it("deletes by id and returns the row's civil day", async () => {
+    waterEntryDelete.mockResolvedValue({
+      id: "w1",
+      day: new Date("2026-07-01T00:00:00.000Z"),
+      amountMl: 250,
+    });
+
+    await expect(deleteWaterEntry("w1")).resolves.toEqual({
+      id: "w1",
+      day: "2026-07-01",
+    });
+    expect(waterEntryDelete).toHaveBeenCalledWith({ where: { id: "w1" } });
+  });
+
+  it("maps Prisma's P2025 to NotFoundError", async () => {
+    waterEntryDelete.mockRejectedValue(p2025());
+
+    await expect(deleteWaterEntry("missing")).rejects.toBeInstanceOf(
+      NotFoundError,
+    );
+  });
 });
 
 describe("getWaterStatus", () => {

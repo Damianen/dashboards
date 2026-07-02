@@ -11,6 +11,7 @@ import {
   type CustomFoodDTO,
   type LoggableItem,
   type RecentLoggableDTO,
+  rescaleEntryTotals,
 } from "@/lib/food";
 import {
   type LabelNutrients,
@@ -28,6 +29,8 @@ import {
   type Per100g,
   type UpdateCustomFoodInput,
   updateCustomFoodSchema,
+  type UpdateFoodEntryInput,
+  updateFoodEntrySchema,
 } from "@/lib/schemas/food";
 import {
   imageDataUrlSchema,
@@ -36,7 +39,7 @@ import {
   mealEstimateSchema,
 } from "@/lib/schemas/vision";
 import { prisma } from "@/server/db";
-import { NotFoundError, UpstreamUnavailableError } from "./errors";
+import { DomainError, NotFoundError, UpstreamUnavailableError } from "./errors";
 import { fetchProduct } from "./off";
 import { analyzeImage } from "./vision";
 
@@ -609,6 +612,91 @@ export function searchFoodLog(
     },
     orderBy: { eatenAt: "desc" },
   });
+}
+
+// The rescaled snapshot must fit its Decimal columns — same bounds as the
+// logFoodSchema overrides (macroOverride/saltOverride), enforced here because a
+// quantity edit can scale far past them (stored 1 g → 5000 g is a ×5000 factor).
+const MAX_RESCALED_MACRO = 99999.9; // Decimal(6,1)-safe; kcal/caffeine are wider
+const MAX_RESCALED_SALT = 9999.99; // Decimal(6,2)
+
+/**
+ * Edit a diary entry IN PLACE. A quantity change rescales the entry's OWN stored
+ * totals (per-unit = totals ÷ stored quantity) — the product/custom-food cache
+ * is NEVER re-read, so history stays a snapshot even when the cache has since
+ * changed (CLAUDE.md guardrail). Entries measured in portions (meal-logged;
+ * quantityG null) refuse quantity edits. `meal`/`notes` update independently;
+ * null clears them.
+ */
+export async function updateFoodEntry(
+  id: string,
+  input: UpdateFoodEntryInput,
+): Promise<FoodEntry> {
+  const data = updateFoodEntrySchema.parse(input);
+  const row = await prisma.foodEntry.findUnique({ where: { id } });
+  if (!row) throw new NotFoundError("food entry", id);
+
+  const patch: Prisma.FoodEntryUncheckedUpdateInput = {};
+
+  if (data.quantityG !== undefined) {
+    if (row.quantityG == null) {
+      throw new DomainError(
+        "this entry is measured in portions — its quantity can't be edited",
+      );
+    }
+    const next = rescaleEntryTotals(
+      {
+        kcal: Number(row.kcal),
+        proteinG: Number(row.proteinG),
+        carbG: Number(row.carbG),
+        fatG: Number(row.fatG),
+        fiberG: row.fiberG == null ? null : Number(row.fiberG),
+        sugarG: row.sugarG == null ? null : Number(row.sugarG),
+        saltG: row.saltG == null ? null : Number(row.saltG),
+        caffeineMg: row.caffeineMg == null ? null : Number(row.caffeineMg),
+      },
+      Number(row.quantityG),
+      data.quantityG,
+    );
+    const overflows =
+      next.kcal > MAX_RESCALED_MACRO ||
+      next.proteinG > MAX_RESCALED_MACRO ||
+      next.carbG > MAX_RESCALED_MACRO ||
+      next.fatG > MAX_RESCALED_MACRO ||
+      (next.fiberG ?? 0) > MAX_RESCALED_MACRO ||
+      (next.sugarG ?? 0) > MAX_RESCALED_MACRO ||
+      (next.saltG ?? 0) > MAX_RESCALED_SALT ||
+      (next.caffeineMg ?? 0) > MAX_RESCALED_MACRO;
+    if (overflows) {
+      throw new DomainError(
+        "the rescaled macros are out of range — pick a smaller quantity",
+      );
+    }
+    patch.quantityG = data.quantityG;
+    patch.kcal = next.kcal;
+    patch.proteinG = next.proteinG;
+    patch.carbG = next.carbG;
+    patch.fatG = next.fatG;
+    patch.fiberG = next.fiberG;
+    patch.sugarG = next.sugarG;
+    patch.saltG = next.saltG;
+    patch.caffeineMg = next.caffeineMg;
+  }
+
+  if (data.meal !== undefined) patch.meal = data.meal;
+  if (data.notes !== undefined) patch.notes = data.notes;
+
+  try {
+    return await prisma.foodEntry.update({ where: { id }, data: patch });
+  } catch (err) {
+    if (
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      err.code === "P2025"
+    ) {
+      throw new NotFoundError("food entry", id);
+    }
+    throw err;
+  }
 }
 
 /** Delete an entry. UI-only — the MCP layer will not expose this. */

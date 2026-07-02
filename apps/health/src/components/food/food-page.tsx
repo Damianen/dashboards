@@ -7,6 +7,7 @@ import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { AddFoodSheet } from "@/components/food/add-food-sheet";
 import { DailyPlansTab } from "@/components/food/daily-plans/daily-plans-tab";
 import { DayTotalBar } from "@/components/food/day-total-bar";
+import { EditEntrySheet } from "@/components/food/edit-entry-sheet";
 import { MealSection } from "@/components/food/meal-section";
 import { MealsTab } from "@/components/food/meals/meals-tab";
 import { EmptyState } from "@/components/today/metric-card";
@@ -15,7 +16,12 @@ import { Segmented } from "@/components/ui/segmented";
 import { Skeleton } from "@/components/ui/skeleton";
 import { shiftDay, todayLocal } from "@/lib/dates";
 import { dateLabel } from "@/lib/format";
-import { dayTotal, groupByMeal, toView } from "@/lib/food";
+import {
+  dayTotal,
+  type FoodEntryView,
+  groupByMeal,
+  toView,
+} from "@/lib/food";
 import { useFoodEntries } from "@/lib/hooks/use-food-entries";
 
 function dayHeading(day: string): string {
@@ -44,6 +50,9 @@ export function FoodPage() {
   const [day, setDay] = useState(todayLocal());
   const [sheetOpen, setSheetOpen] = useState(() => fromShortcut);
   const [tab, setTab] = useState<"diary" | "meals" | "plans">("diary");
+  // Cleared on close (add-food-sheet's reset-on-close pattern) so reopening the
+  // same entry always starts from its logged values, never stale edits.
+  const [editing, setEditing] = useState<FoodEntryView | null>(null);
 
   // Consume the shortcut param so a reload/session-restore doesn't re-open a
   // sheet the user dismissed. URL cleanup only — no state updates.
@@ -136,12 +145,25 @@ export function FoodPage() {
           ) : (
             <div className="space-y-5">
               {groups.map((group) => (
-                <MealSection key={group.label} group={group} day={day} />
+                <MealSection
+                  key={group.label}
+                  group={group}
+                  day={day}
+                  onEdit={setEditing}
+                />
               ))}
             </div>
           )}
 
           <AddFoodSheet open={sheetOpen} onOpenChange={setSheetOpen} day={day} />
+          <EditEntrySheet
+            entry={editing}
+            day={day}
+            open={editing != null}
+            onOpenChange={(o) => {
+              if (!o) setEditing(null);
+            }}
+          />
         </>
       )}
     </div>

@@ -1,9 +1,14 @@
-import { EntryOrigin, type WaterEntry } from "@/generated/prisma/client";
-import { dayOf, dayToDbDate, todayLocal } from "@/lib/dates";
+import {
+  EntryOrigin,
+  Prisma,
+  type WaterEntry,
+} from "@/generated/prisma/client";
+import { civilDay, dayOf, dayToDbDate, todayLocal } from "@/lib/dates";
 import { logWaterSchema, type LogWaterInput } from "@/lib/schemas/water";
 // Matches the daily_summary view's COALESCE default — used only as the no-data fallback.
 import { DEFAULT_BASE_TARGET_ML } from "@/lib/water-defaults";
 import { prisma } from "@/server/db";
+import { NotFoundError } from "./errors";
 import { getDailySummary } from "./summary";
 
 export async function logWater(
@@ -20,6 +25,35 @@ export async function logWater(
       origin,
     },
   });
+}
+
+/** A day's water entries, newest first — the list the Undo/delete flow works from. */
+export function listWaterByDay(
+  day: string = todayLocal(),
+): Promise<WaterEntry[]> {
+  return prisma.waterEntry.findMany({
+    where: { day: dayToDbDate(day) },
+    orderBy: { loggedAt: "desc" },
+  });
+}
+
+/** Delete one water entry by id, returning the civil day it belonged to so
+ *  callers can refresh that day's caches. */
+export async function deleteWaterEntry(
+  id: string,
+): Promise<{ id: string; day: string }> {
+  try {
+    const row = await prisma.waterEntry.delete({ where: { id } });
+    return { id: row.id, day: civilDay(row.day) };
+  } catch (err) {
+    if (
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      err.code === "P2025"
+    ) {
+      throw new NotFoundError("water entry", id);
+    }
+    throw err;
+  }
 }
 
 export interface WaterStatus {
