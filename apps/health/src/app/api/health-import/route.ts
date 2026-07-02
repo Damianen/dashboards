@@ -21,20 +21,33 @@ export async function POST(req: Request): Promise<Response> {
     return Response.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const contentLength = Number(req.headers.get("content-length"));
-  if (Number.isFinite(contentLength) && contentLength > MAX_BODY_BYTES) {
-    return Response.json({ error: "payload too large" }, { status: 413 });
-  }
-
   try {
-    const payload = await req.json();
-    if (process.env.HEALTH_IMPORT_DEBUG === "true") {
-      // First-POST aid: confirm the real HAE shape, then tighten parseWorkouts.
-      console.log("[health-import] raw payload:", JSON.stringify(payload));
+    // Cap on the bytes actually received — a Content-Length header is client-supplied
+    // and a chunked sender has none, so the header alone can't bound memory.
+    const raw = await req.arrayBuffer();
+    if (raw.byteLength > MAX_BODY_BYTES) {
+      return Response.json({ error: "payload too large" }, { status: 413 });
     }
-    const result = await upsertWorkouts(parseWorkouts(payload));
+    const payload: unknown = JSON.parse(new TextDecoder().decode(raw));
+    const workouts = parseWorkouts(payload);
+    if (process.env.HEALTH_IMPORT_DEBUG === "true") {
+      // Shape-debugging aid: sizes and top-level keys only — the payload is health
+      // data and must never be logged raw.
+      const keys =
+        typeof payload === "object" && payload !== null
+          ? Object.keys(payload).join(", ")
+          : typeof payload;
+      console.log(
+        `[health-import] ${raw.byteLength} bytes, top-level keys: ${keys}, ` +
+          `${workouts.length} workout(s) parsed`,
+      );
+    }
+    const result = await upsertWorkouts(workouts);
     return Response.json(result);
   } catch (err) {
+    if (err instanceof SyntaxError) {
+      return Response.json({ error: "invalid JSON" }, { status: 400 });
+    }
     return jsonError(err);
   }
 }

@@ -9,8 +9,10 @@ import {
   recoveryWindowSchema,
   tdeeWindowSchema,
 } from "@/lib/schemas/insights";
+import { per100gSchema } from "@/lib/schemas/food";
 import type { MealItemInput } from "@/lib/schemas/meals";
 import { trendMetricSchema } from "@/lib/schemas/summary";
+import { imageDataUrlSchema } from "@/lib/schemas/vision";
 import { supplementTimeGroupSchema } from "@/lib/schemas/supplement";
 import { DomainError, NotFoundError } from "@/server/services/errors";
 import {
@@ -620,24 +622,14 @@ export function buildServer(): McpServer {
       inputSchema: {
         name: z.string().describe("Display name of the food."),
         brand: z.string().optional().describe("Brand, if any."),
-        per100g: z
-          .object({
-            kcal: z.number().describe("Calories per 100 g."),
-            protein_g: z.number().describe("Protein grams per 100 g."),
-            carb_g: z.number().describe("Carbohydrate grams per 100 g."),
-            fat_g: z.number().describe("Fat grams per 100 g."),
-            fiber_g: z.number().optional().describe("Fiber grams per 100 g."),
-            sugar_g: z.number().optional().describe("Sugar grams per 100 g."),
-            salt_g: z.number().optional().describe("Salt grams per 100 g."),
-            caffeine_mg: z
-              .number()
-              .optional()
-              .describe(
-                "Caffeine MILLIGRAMS per 100 g (not grams). Feeds the day's " +
-                  "caffeine total / water target when logged; never calories.",
-              ),
-          })
-          .describe("Macros per 100 g."),
+        // The canonical per-100g schema (camelCase keys), shared with the routes and
+        // matching the draft shape scan_nutrition_label returns — pass it through as-is.
+        per100g: per100gSchema.describe(
+          "Macros per 100 g, camelCase: kcal, proteinG, carbG, fatG required; " +
+            "fiberG, sugarG, saltG optional grams; caffeineMg optional caffeine in " +
+            "MILLIGRAMS per 100 g (feeds the day's caffeine total / water target " +
+            "when logged; never calories).",
+        ),
         serving_g: z
           .number()
           .optional()
@@ -649,16 +641,7 @@ export function buildServer(): McpServer {
         createCustomFood({
           name,
           brand,
-          per100g: {
-            kcal: per100g.kcal,
-            proteinG: per100g.protein_g,
-            carbG: per100g.carb_g,
-            fatG: per100g.fat_g,
-            fiberG: per100g.fiber_g,
-            sugarG: per100g.sugar_g,
-            saltG: per100g.salt_g,
-            caffeineMg: per100g.caffeine_mg,
-          },
+          per100g,
           servingG: serving_g,
           source: "MANUAL",
         }),
@@ -675,11 +658,9 @@ export function buildServer(): McpServer {
         "NOTHING: confirm the values with the user, then call create_custom_food (and " +
         "log_food) to save. Provide the image as a data: URL.",
       inputSchema: {
-        image_data_url: z
-          .string()
-          .describe(
-            "The label photo as a data: URL (base64; downscale before sending).",
-          ),
+        image_data_url: imageDataUrlSchema.describe(
+          "The label photo as a data: URL (base64; downscale before sending).",
+        ),
       },
     },
     ({ image_data_url }) => run(() => scanLabel(image_data_url)),
@@ -697,11 +678,9 @@ export function buildServer(): McpServer {
         "with the user, then log via log_food with custom_food_name '<description> " +
         "(AI estimate)' and the explicit kcal/macros. Provide the image as a data: URL.",
       inputSchema: {
-        image_data_url: z
-          .string()
-          .describe(
-            "The meal photo as a data: URL (base64; downscale before sending).",
-          ),
+        image_data_url: imageDataUrlSchema.describe(
+          "The meal photo as a data: URL (base64; downscale before sending).",
+        ),
       },
     },
     ({ image_data_url }) => run(() => estimateMeal(image_data_url)),

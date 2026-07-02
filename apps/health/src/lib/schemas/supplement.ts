@@ -33,7 +33,9 @@ export const SUPPLEMENT_UNITS = [
 /** Add a supplement to the managed list. Position is assigned server-side. */
 export const createSupplementSchema = z.strictObject({
   name: z.string().trim().min(1),
-  dose: z.number().gt(0),
+  // Max fits the Supplement/SupplementLog dose Decimal(8,2) columns — an
+  // over-limit dose 400s here instead of 500ing on the insert.
+  dose: z.number().gt(0).max(999999.99),
   unit: z.string().trim().min(1),
   // Caffeine per dose (mg), e.g. a pre-workout. Optional — most supplements have none.
   // Snapshotted onto each daily check; feeds the unified caffeine total / water target.

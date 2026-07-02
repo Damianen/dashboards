@@ -14,25 +14,35 @@ export type SearchQuery = z.infer<typeof searchQuerySchema>;
 
 // Optional explicit macro values. Kept .optional() (never .default(0)) so an omitted
 // field stays undefined (keep the computed value) while an explicit 0 overrides it.
+// Max fits the FoodEntry Decimal(7,1)/(6,1) snapshot columns.
 const macroOverride = z.number().min(0).max(99999.9).optional();
+// Salt snapshots into Decimal(6,2) — a tighter column than the other macros.
+const saltOverride = z.number().min(0).max(9999.99).optional();
 
 /**
  * Per-100 g macros for a saved CustomFood. Camel-cased to match the `Macros`
  * interface in src/lib/rules.ts and the JSON keys read back by macrosFromJson —
  * the four energy macros are required, the rest optional. Stored verbatim in the
  * CustomFood.per100g JSON column.
+ *
+ * The maxes are derived from the FoodEntry snapshot columns: logFood scales
+ * per-100g values by quantityG/100 (quantity capped at 5000 g, factor ≤ 50), so
+ * each bound × 50 must fit its Decimal column — kcal 9000×50 ≤ Decimal(7,1),
+ * gram macros 1000×50 ≤ Decimal(6,1), salt 100×50 ≤ Decimal(6,2), caffeine
+ * 19999.9×50 ≤ Decimal(7,1). All are far above any physically plausible food;
+ * without them an absurd per-100g value 400s here instead of 500ing at log time.
  */
 export const per100gSchema = z.strictObject({
-  kcal: z.number().min(0),
-  proteinG: z.number().min(0),
-  carbG: z.number().min(0),
-  fatG: z.number().min(0),
-  fiberG: z.number().min(0).optional(),
-  sugarG: z.number().min(0).optional(),
-  saltG: z.number().min(0).optional(),
+  kcal: z.number().min(0).max(9000),
+  proteinG: z.number().min(0).max(1000),
+  carbG: z.number().min(0).max(1000),
+  fatG: z.number().min(0).max(1000),
+  fiberG: z.number().min(0).max(1000).optional(),
+  sugarG: z.number().min(0).max(1000).optional(),
+  saltG: z.number().min(0).max(100).optional(),
   // Caffeine in MILLIGRAMS per 100 g (every other field is grams). Optional —
   // OFF rarely reports it, and it's hand-entered otherwise. Never enters calorie math.
-  caffeineMg: z.number().min(0).max(99999.9).optional(),
+  caffeineMg: z.number().min(0).max(19999.9).optional(),
 });
 export type Per100g = z.infer<typeof per100gSchema>;
 
@@ -40,7 +50,8 @@ export const createCustomFoodSchema = z.strictObject({
   name: z.string().trim().min(1),
   brand: z.string().trim().min(1).optional(),
   per100g: per100gSchema,
-  servingG: z.number().gt(0).optional(),
+  // Matches the logFood quantity cap — a serving is something you'd log in one go.
+  servingG: z.number().gt(0).max(5000).optional(),
   source: z.enum(["LABEL_SCAN", "MANUAL"]).default("MANUAL"),
 });
 export type CreateCustomFoodInput = z.infer<typeof createCustomFoodSchema>;
@@ -77,7 +88,7 @@ export const logFoodSchema = z
     fatG: macroOverride,
     fiberG: macroOverride,
     sugarG: macroOverride,
-    saltG: macroOverride,
+    saltG: saltOverride,
     // Caffeine (mg) for THIS entry, already scaled to quantity. Prefilled from the
     // product/custom food when known, always overridable. Snapshotted onto the row.
     caffeineMg: macroOverride,

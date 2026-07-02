@@ -43,6 +43,27 @@ describe("per100gSchema", () => {
       }).success,
     ).toBe(false);
   });
+
+  it("rejects per-100g values that could overflow a snapshot column", () => {
+    const base = { kcal: 1, proteinG: 1, carbG: 1, fatG: 1 };
+    expect(per100gSchema.safeParse({ ...base, kcal: 9001 }).success).toBe(false);
+    expect(per100gSchema.safeParse({ ...base, proteinG: 1001 }).success).toBe(false);
+    expect(per100gSchema.safeParse({ ...base, saltG: 101 }).success).toBe(false);
+    expect(per100gSchema.safeParse({ ...base, caffeineMg: 20000 }).success).toBe(
+      false,
+    );
+  });
+
+  it("guarantees max-bound values scaled by the max quantity fit the Decimal columns", () => {
+    // logFood snapshots per100g × quantityG/100; quantityG caps at 5000 (factor 50).
+    // Each schema max × 50 must fit its FoodEntry column, or a valid input could
+    // 500 at log time instead of 400ing at parse time.
+    const factor = 5000 / 100;
+    expect(9000 * factor).toBeLessThanOrEqual(999999.9); // kcal Decimal(7,1)
+    expect(1000 * factor).toBeLessThanOrEqual(99999.9); // gram macros Decimal(6,1)
+    expect(100 * factor).toBeLessThanOrEqual(9999.99); // saltG Decimal(6,2)
+    expect(19999.9 * factor).toBeLessThanOrEqual(999999.9); // caffeineMg Decimal(7,1)
+  });
 });
 
 describe("createCustomFoodSchema", () => {
@@ -139,5 +160,13 @@ describe("logFoodSchema sources", () => {
     expect(
       logFoodSchema.safeParse({ customFoodId: "nope", quantityG: 100 }).success,
     ).toBe(false);
+  });
+
+  it("caps the salt override at its tighter Decimal(6,2) column, not the shared macro max", () => {
+    const base = { barcode: "5449000000996", quantityG: 100 };
+    expect(logFoodSchema.safeParse({ ...base, saltG: 9999.99 }).success).toBe(true);
+    expect(logFoodSchema.safeParse({ ...base, saltG: 10000 }).success).toBe(false);
+    // The other overrides keep the wider Decimal(7,1)/(6,1)-derived cap.
+    expect(logFoodSchema.safeParse({ ...base, kcal: 99999.9 }).success).toBe(true);
   });
 });

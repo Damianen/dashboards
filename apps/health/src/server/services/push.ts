@@ -12,10 +12,13 @@ const MAX_FAILURES = 5;
 
 // Configure VAPID once at module load. Guarded on the env so importing this
 // module never throws when the keys aren't set (e.g. during build); push simply
-// no-ops until the keys are provided.
+// no-ops until the keys are provided. sendToAll checks the same flag — with no
+// VAPID config every send would throw locally, and those failures must never
+// count against the stored subscriptions.
 const subject = process.env.VAPID_SUBJECT;
 const publicKey = process.env.VAPID_PUBLIC_KEY;
 const privateKey = process.env.VAPID_PRIVATE_KEY;
+const pushConfigured = Boolean(subject && publicKey && privateKey);
 if (subject && publicKey && privateKey) {
   setVapidDetails(subject, publicKey, privateKey);
 } else {
@@ -52,14 +55,20 @@ export interface PushSendResult {
 }
 
 /**
- * Deliver one message to every stored subscription. Self-healing: a 404/410
- * (the browser dropped the subscription) prunes the row immediately; any other
- * send error bumps fail_count and prunes at MAX_FAILURES. Runs all sends with
- * allSettled so one bad endpoint can't block the rest, and never throws.
+ * Deliver one message to every stored subscription. Self-healing, but only on
+ * the push service's word: a 404/410 (the browser dropped the subscription)
+ * prunes the row immediately, and any other WebPushError bumps fail_count and
+ * prunes at MAX_FAILURES. A local/config failure (unset VAPID keys, a coding
+ * error) says nothing about the subscription, so it is logged and the row left
+ * untouched — a misconfigured env must never wipe subscriptions that would work
+ * fine once the config is fixed. Runs all sends with allSettled so one bad
+ * endpoint can't block the rest, and never throws.
  */
 export async function sendToAll(
   message: NotificationMessage,
 ): Promise<PushSendResult> {
+  if (!pushConfigured) return { sent: 0, removed: 0 };
+
   const subs = await prisma.pushSubscription.findMany();
   const payload = JSON.stringify(message);
   let sent = 0;
@@ -84,9 +93,11 @@ export async function sendToAll(
           });
         }
       } catch (err) {
-        const gone =
-          err instanceof WebPushError &&
-          (err.statusCode === 404 || err.statusCode === 410);
+        if (!(err instanceof WebPushError)) {
+          console.error("[push] send failed locally (subscription kept)", err);
+          return;
+        }
+        const gone = err.statusCode === 404 || err.statusCode === 410;
         if (gone || sub.failCount + 1 >= MAX_FAILURES) {
           await prisma.pushSubscription.deleteMany({
             where: { endpoint: sub.endpoint },

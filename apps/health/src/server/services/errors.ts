@@ -13,3 +13,15 @@ export class NotFoundError extends DomainError {
     super(id ? `${entity} not found: ${id}` : `${entity} not found`);
   }
 }
+
+/**
+ * An external feed (Open Food Facts, a vision provider) is unreachable or
+ * misbehaving — the same request may succeed later. Distinct from NotFoundError
+ * so an upstream outage is never reported as "not found": adapters map this to
+ * 502, telling the client to retry rather than treat the data as missing.
+ */
+export class UpstreamUnavailableError extends DomainError {
+  constructor(service: string, message?: string) {
+    super(message ?? `${service} is unavailable — try again later`);
+  }
+}
