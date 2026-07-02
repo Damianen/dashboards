@@ -7,9 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useLogStimulant } from "@/lib/hooks/use-log-stimulant";
+import { STIMULANT_PRESETS_MG } from "@/lib/quick-log-presets";
 import { logStimulantSchema } from "@/lib/schemas/stimulant";
-
-const PRESETS_MG = [100, 200] as const;
 
 export function StimulantForm({
   day,
@@ -37,7 +36,7 @@ export function StimulantForm({
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-2">
-        {PRESETS_MG.map((mg) => (
+        {STIMULANT_PRESETS_MG.map((mg) => (
           <Button
             key={mg}
             variant="secondary"

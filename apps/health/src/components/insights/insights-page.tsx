@@ -1,3 +1,4 @@
+import { ObservationHistoryCard } from "@/components/insights/observation-history-card";
 import { ObservationsCard } from "@/components/insights/observations-card";
 
 export function InsightsPage() {
@@ -10,6 +11,7 @@ export function InsightsPage() {
         </p>
       </header>
       <ObservationsCard />
+      <ObservationHistoryCard />
     </div>
   );
 }

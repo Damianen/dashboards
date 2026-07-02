@@ -129,7 +129,7 @@ export function ExerciseSetTable({
     warm++;
     warmupRows.push(
       <LoggedRow
-        key={`logged-${set.id}-${set.reps}-${set.weightKg}-${set.isWarmup}`}
+        key={`logged-${set.id}-${set.reps}-${set.weightKg}-${set.rpe}-${set.isWarmup}`}
         set={set}
         badge="W"
         previous={prevFor(true)}
@@ -182,7 +182,7 @@ export function ExerciseSetTable({
     working++;
     workingRows.push(
       <LoggedRow
-        key={`logged-${set.id}-${set.reps}-${set.weightKg}-${set.isWarmup}`}
+        key={`logged-${set.id}-${set.reps}-${set.weightKg}-${set.rpe}-${set.isWarmup}`}
         set={set}
         badge={String(working)}
         previous={prevFor(false)}
@@ -308,7 +308,7 @@ export function ExerciseSetTable({
         <span className="text-center">kg</span>
         <span className="text-center">Reps</span>
         <span />
-        <span />
+        <span className="text-center">RPE</span>
       </div>
 
       <div className="mt-1 space-y-1">{rows}</div>

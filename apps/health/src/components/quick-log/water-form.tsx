@@ -8,9 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useLogWater } from "@/lib/hooks/use-log-water";
 import { useWaterStatus } from "@/lib/hooks/use-water-status";
+import { WATER_PRESETS_ML } from "@/lib/quick-log-presets";
 import { logWaterSchema } from "@/lib/schemas/water";
-
-const PRESETS_ML = [250, 500, 750] as const;
 
 export function WaterForm({
   day,
@@ -42,7 +41,7 @@ export function WaterForm({
       )}
 
       <div className="grid grid-cols-3 gap-2">
-        {PRESETS_ML.map((ml) => (
+        {WATER_PRESETS_ML.map((ml) => (
           <Button
             key={ml}
             variant="secondary"

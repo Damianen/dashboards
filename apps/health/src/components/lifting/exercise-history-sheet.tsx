@@ -45,6 +45,9 @@ export function ExerciseHistorySheet({
                 {s.sets.map((set, i) => (
                   <p key={i}>
                     {formatNumber(Number(set.weightKg), 1)} kg × {set.reps}
+                    {set.rpe != null
+                      ? ` @ RPE ${formatNumber(Number(set.rpe), 1)}`
+                      : ""}
                     {set.isWarmup ? " (W)" : ""}
                   </p>
                 ))}

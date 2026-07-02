@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { bestE1rm, epleyE1rm } from "./one-rep-max";
+import { averageRpe, bestE1rm, epleyE1rm } from "./one-rep-max";
 
 describe("epleyE1rm", () => {
   it("returns the lifted weight unchanged at a true single", () => {
@@ -57,5 +57,21 @@ describe("bestE1rm", () => {
       { reps: 5, weightKg: 100, isWarmup: false },
     ]);
     expect(best).toEqual({ e1rmKg: epleyE1rm(100, 5), reps: 5, weightKg: 100 });
+  });
+});
+
+describe("averageRpe", () => {
+  it("is null for an empty or all-unrated day", () => {
+    expect(averageRpe([])).toBeNull();
+    expect(averageRpe([null, null])).toBeNull();
+  });
+
+  it("ignores unrated sets in the mean", () => {
+    expect(averageRpe([8, null, 9])).toBe(8.5);
+  });
+
+  it("rounds to one decimal", () => {
+    expect(averageRpe([8, 8, 9])).toBe(8.3);
+    expect(averageRpe([7.5, 8.5])).toBe(8);
   });
 });

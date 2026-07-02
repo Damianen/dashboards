@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   compareCustomFoodRecency,
   dayTotal,
+  detailTotal,
   type EntryTotals,
   type FoodEntryDTO,
   type FoodEntryView,
@@ -83,6 +84,9 @@ const dto = (over: Partial<FoodEntryDTO>): FoodEntryDTO => ({
   proteinG: "0",
   carbG: "0",
   fatG: "0",
+  fiberG: null,
+  sugarG: null,
+  saltG: null,
   meal: null,
   notes: null,
   product: null,
@@ -134,6 +138,13 @@ describe("toView", () => {
     expect(v.isCustom).toBe(false);
   });
 
+  it("coerces the detail-macro strings and preserves their nulls", () => {
+    const v = toView(dto({ fiberG: "3.5", sugarG: "8", saltG: null }));
+    expect(v.fiberG).toBe(3.5);
+    expect(v.sugarG).toBe(8);
+    expect(v.saltG).toBeNull();
+  });
+
   it("passes notes through untouched", () => {
     expect(toView(dto({ notes: "AI estimate: assumed whole milk" })).notes).toBe(
       "AI estimate: assumed whole milk",
@@ -170,6 +181,9 @@ const view = (over: Partial<FoodEntryView>): FoodEntryView => ({
   proteinG: 0,
   carbG: 0,
   fatG: 0,
+  fiberG: null,
+  sugarG: null,
+  saltG: null,
   notes: null,
   ...over,
 });
@@ -268,5 +282,31 @@ describe("groupByMeal", () => {
 
   it("returns no groups for an empty day", () => {
     expect(groupByMeal([])).toEqual([]);
+  });
+});
+
+describe("detailTotal", () => {
+  it("is all-null when no entry carries any detail macro", () => {
+    expect(detailTotal([view({}), view({})])).toEqual({
+      fiberG: null,
+      sugarG: null,
+      saltG: null,
+    });
+    expect(detailTotal([])).toEqual({ fiberG: null, sugarG: null, saltG: null });
+  });
+
+  it("sums per field, treating null as 0 once any entry reports it", () => {
+    const total = detailTotal([
+      view({ fiberG: 2, sugarG: 8.5, saltG: 0.6 }),
+      view({ fiberG: 3, sugarG: null, saltG: null }),
+    ]);
+    expect(total).toEqual({ fiberG: 5, sugarG: 8.5, saltG: 0.6 });
+  });
+
+  it("keeps a field null when only OTHER fields are reported", () => {
+    const total = detailTotal([view({ sugarG: 10 })]);
+    expect(total.sugarG).toBe(10);
+    expect(total.fiberG).toBeNull();
+    expect(total.saltG).toBeNull();
   });
 });

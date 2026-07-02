@@ -1,4 +1,4 @@
-import { shiftDay, todayLocal } from "@/lib/dates";
+import { civilDay, shiftDay, todayLocal } from "@/lib/dates";
 import {
   lateCaffeineVsSleep,
   readinessVsLiftingVolume,
@@ -7,6 +7,7 @@ import {
   type DayFlag,
   type DayValue,
   type Observation,
+  OBSERVATION_TITLES,
 } from "@/lib/observations";
 import { prisma } from "@/server/db";
 
@@ -145,4 +146,34 @@ export async function getObservations(window = 30): Promise<ObservationsResult> 
     .sort((a, b) => Math.abs(b.strength) - Math.abs(a.strength));
 
   return { windowDays, observations };
+}
+
+/** One past observation push, labeled for display without re-running detectors. */
+export interface NotifiedObservationView {
+  observationId: string;
+  /** From OBSERVATION_TITLES; falls back to the raw id for detectors since removed. */
+  title: string;
+  day: string;
+  notifiedAt: string;
+}
+
+/**
+ * The most recent notified observations, newest first — a read-only view over
+ * the digest's append-only dedupe table (notifications.ts writes it; nothing
+ * here mutates it).
+ */
+export async function listNotifiedObservations(
+  limit = 20,
+): Promise<NotifiedObservationView[]> {
+  const rows = await prisma.notifiedObservation.findMany({
+    orderBy: { notifiedAt: "desc" },
+    take: limit,
+  });
+  const titles: Record<string, string> = OBSERVATION_TITLES;
+  return rows.map((r) => ({
+    observationId: r.observationId,
+    title: titles[r.observationId] ?? r.observationId,
+    day: civilDay(r.day),
+    notifiedAt: r.notifiedAt.toISOString(),
+  }));
 }

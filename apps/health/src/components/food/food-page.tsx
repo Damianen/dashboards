@@ -18,6 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { todayLocal } from "@/lib/dates";
 import {
   dayTotal,
+  detailTotal,
   type FoodEntryView,
   groupByMeal,
   toView,
@@ -58,6 +59,7 @@ export function FoodPage() {
   const views = useMemo(() => (data ?? []).map(toView), [data]);
   const groups = useMemo(() => groupByMeal(views), [views]);
   const total = useMemo(() => dayTotal(views), [views]);
+  const details = useMemo(() => detailTotal(views), [views]);
 
   return (
     <div className="space-y-4">
@@ -83,7 +85,7 @@ export function FoodPage() {
         <DailyPlansTab day={day} />
       ) : (
         <>
-          <DayTotalBar total={total} />
+          <DayTotalBar total={total} details={details} />
 
           <Button
             className="h-12 w-full text-base"

@@ -2,8 +2,14 @@ import { tdeeWindowSchema, type TdeeWindow } from "@/lib/schemas/insights";
 import {
   intakeTargetSchema,
   proteinSettingSchema,
+  waterSettingsSchema,
+  type WaterSettings,
   weightGoalSchema,
 } from "@/lib/schemas/settings";
+import {
+  DEFAULT_BASE_TARGET_ML,
+  DEFAULT_ML_PER_MG_STIMULANT,
+} from "@/lib/water-defaults";
 import { prisma } from "@/server/db";
 
 /** The default protein factor (g/kg) when the setting has never been written. */
@@ -98,4 +104,46 @@ export async function setIntakeKcalTarget(kcal: number): Promise<number> {
     update: { value },
   });
   return value;
+}
+
+// The two water-target inputs. The formula stays solely in the daily_summary
+// view (base + Σ stimulant mg × mlPerMg), which reads these settings live —
+// writing them moves every day's target on the next read, no migration.
+const WATER_BASE_KEY = "water.baseTargetMl";
+const WATER_ML_PER_MG_KEY = "water.mlPerMgStimulant";
+
+/** The stored water-target inputs, with the view's COALESCE defaults when unset. */
+export async function getWaterSettings(): Promise<WaterSettings> {
+  const rows = await prisma.setting.findMany({
+    where: { key: { in: [WATER_BASE_KEY, WATER_ML_PER_MG_KEY] } },
+  });
+  const byKey = new Map(rows.map((r) => [r.key, r.value]));
+  const base = byKey.get(WATER_BASE_KEY);
+  const perMg = byKey.get(WATER_ML_PER_MG_KEY);
+  return {
+    baseTargetMl: base == null ? DEFAULT_BASE_TARGET_ML : Number(base),
+    mlPerMgStimulant:
+      perMg == null ? DEFAULT_ML_PER_MG_STIMULANT : Number(perMg),
+  };
+}
+
+/** Persist both water-target inputs atomically (one transaction — a partial
+ *  save can't leave the pair inconsistent). Validates against the schema. */
+export async function setWaterSettings(
+  input: WaterSettings,
+): Promise<WaterSettings> {
+  const data = waterSettingsSchema.parse(input);
+  await prisma.$transaction([
+    prisma.setting.upsert({
+      where: { key: WATER_BASE_KEY },
+      create: { key: WATER_BASE_KEY, value: data.baseTargetMl },
+      update: { value: data.baseTargetMl },
+    }),
+    prisma.setting.upsert({
+      where: { key: WATER_ML_PER_MG_KEY },
+      create: { key: WATER_ML_PER_MG_KEY, value: data.mlPerMgStimulant },
+      update: { value: data.mlPerMgStimulant },
+    }),
+  ]);
+  return data;
 }

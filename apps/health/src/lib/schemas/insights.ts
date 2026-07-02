@@ -16,6 +16,14 @@ export const observationsQuerySchema = z.strictObject({
 });
 export type ObservationsQuery = z.infer<typeof observationsQuerySchema>;
 
+/** GET /api/insights/observations/history query: how many past pushes to list. */
+export const observationHistoryQuerySchema = z.strictObject({
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+});
+export type ObservationHistoryQuery = z.infer<
+  typeof observationHistoryQuerySchema
+>;
+
 /**
  * The empirical-TDEE rolling window, in days. A small fixed set (not a free range):
  * shorter windows react faster but are noisier; 14 is the default. Single source of

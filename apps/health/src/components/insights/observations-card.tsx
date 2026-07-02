@@ -1,11 +1,19 @@
 "use client";
 
+import { useState } from "react";
+
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { Segmented } from "@/components/ui/segmented";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useInView } from "@/lib/hooks/use-in-view";
 import { useObservations } from "@/lib/hooks/use-observations";
 import type { Observation } from "@/lib/observations";
+
+// 14 is the smallest useful window: detectors need MIN_PAIRED_DAYS (8) pairs
+// and lag by a day, so a 7-day option could never produce an observation.
+const WINDOWS = ["14", "30", "90"] as const;
+type WindowChoice = (typeof WINDOWS)[number];
 
 function strengthLabel(strength: number): string {
   const a = Math.abs(strength);
@@ -28,18 +36,30 @@ function directionLabel(direction: Observation["direction"]): string {
  */
 export function ObservationsCard() {
   const [ref, inView] = useInView<HTMLDivElement>();
-  const { data, isLoading, isError } = useObservations(30, inView);
+  const [window, setWindow] = useState<WindowChoice>("30");
+  const { data, isLoading, isError } = useObservations(Number(window), inView);
 
   const loading = !inView || isLoading;
   const observations = data?.observations ?? [];
 
   return (
     <Card ref={ref} className="gap-3 p-4">
-      <div className="space-y-0.5">
-        <h2 className="text-sm leading-tight font-semibold">Observations</h2>
-        <p className="text-muted-foreground text-xs">
-          Patterns across your data over the last {data?.windowDays ?? 30} days
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div className="space-y-0.5">
+          <h2 className="text-sm leading-tight font-semibold">Observations</h2>
+          <p className="text-muted-foreground text-xs">
+            Patterns across your data over the last{" "}
+            {data?.windowDays ?? Number(window)} days
+          </p>
+        </div>
+        <Segmented<WindowChoice>
+          value={window}
+          onChange={setWindow}
+          size="sm"
+          ariaLabel="Observation window"
+          className="w-36 shrink-0"
+          options={WINDOWS.map((w) => ({ value: w, label: `${w}d` }))}
+        />
       </div>
 
       {loading ? (

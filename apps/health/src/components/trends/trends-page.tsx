@@ -762,6 +762,8 @@ function E1rmCard({ days }: { days: number }) {
       e1rm: p.e1rmKg,
       // Non-null only on PR days → Scatter renders a marker just there.
       pr: p.isPr ? p.e1rmKg : null,
+      // Mean RPE of the day's rated sets; unrated days stay honest gaps.
+      rpe: p.avgRpe,
     })) ?? [];
   const empty = !loading && (selected === null || points.length === 0);
 
@@ -773,7 +775,8 @@ function E1rmCard({ days }: { days: number }) {
             Exercise strength (e1RM)
           </h2>
           <p className="text-muted-foreground text-xs">
-            Best est. 1-rep-max per day · ◆ = PR — a trend, not a tested max
+            Best est. 1-rep-max per day · ◆ = PR · avg RPE — a trend, not a
+            tested max
           </p>
         </div>
         <Select value={selected ?? undefined} onValueChange={setPicked}>
@@ -805,11 +808,21 @@ function E1rmCard({ days }: { days: number }) {
               <XAxis {...xAxisProps} />
               <YAxis
                 {...yAxisProps}
+                yAxisId="e1rm"
                 width={44}
                 domain={["dataMin - 2", "dataMax + 2"]}
               />
+              <YAxis
+                {...yAxisProps}
+                yAxisId="rpe"
+                orientation="right"
+                width={28}
+                domain={[1, 10]}
+              />
               <Tooltip {...tooltipProps} />
+              <Legend {...legendProps} />
               <Line
+                yAxisId="e1rm"
                 dataKey="e1rm"
                 name="e1RM (kg)"
                 stroke={CHART.c1}
@@ -817,7 +830,17 @@ function E1rmCard({ days }: { days: number }) {
                 dot={false}
                 connectNulls
               />
-              <Scatter dataKey="pr" name="PR" fill={CHART.c4} />
+              <Scatter yAxisId="e1rm" dataKey="pr" name="PR" fill={CHART.c4} />
+              <Line
+                yAxisId="rpe"
+                dataKey="rpe"
+                name="avg RPE"
+                stroke={CHART.c3}
+                strokeWidth={1.5}
+                strokeDasharray="4 3"
+                dot={false}
+                connectNulls
+              />
             </ComposedChart>
           </ResponsiveContainer>
         )}
