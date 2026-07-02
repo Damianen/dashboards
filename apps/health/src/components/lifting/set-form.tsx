@@ -4,16 +4,16 @@ import { useState } from "react";
 import { ChevronLeft } from "lucide-react";
 import { toast } from "sonner";
 
+import { BumpPopup } from "@/components/lifting/bump-popup";
 import { LastTime } from "@/components/lifting/last-time";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Segmented } from "@/components/ui/segmented";
 import { Stepper } from "@/components/ui/stepper";
-import { formatNumber } from "@/lib/format";
 import { useExerciseHistory } from "@/lib/hooks/use-exercise-history";
 import type { SessionDetailDTO } from "@/lib/hooks/use-session";
 import { useLogSet } from "@/lib/hooks/use-log-set";
 import { logSetSchema } from "@/lib/schemas/lifting";
-import { cn } from "@/lib/utils";
 
 /** A progressive-overload prefill for one target set position. */
 type SetSuggestion =
@@ -171,36 +171,15 @@ export function SetForm({
       </div>
 
       {bump && (
-        <div className="border-primary/40 bg-primary/5 space-y-2 rounded-lg border p-3">
-          <p className="text-sm">
-            Hit the top of the range last time — bump to{" "}
-            <span className="font-medium">
-              {formatNumber(bump.weightKg, 1)} kg
-            </span>
-            ?
-          </p>
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              type="button"
-              variant="secondary"
-              className="h-11"
-              onClick={() => setShowBump(false)}
-            >
-              Keep editing
-            </Button>
-            <Button
-              type="button"
-              className="h-11"
-              onClick={() => {
-                setReps(bump.reps);
-                setWeight(bump.weightKg);
-                setShowBump(false);
-              }}
-            >
-              Accept
-            </Button>
-          </div>
-        </div>
+        <BumpPopup
+          weightKg={bump.weightKg}
+          onDismiss={() => setShowBump(false)}
+          onAccept={() => {
+            setReps(bump.reps);
+            setWeight(bump.weightKg);
+            setShowBump(false);
+          }}
+        />
       )}
 
       <div className="space-y-1.5">
@@ -242,26 +221,15 @@ export function SetForm({
         )}
       </div>
 
-      <div className="bg-muted grid grid-cols-2 gap-1 rounded-lg p-1">
-        {[
-          { warm: false, label: "Working" },
-          { warm: true, label: "Warmup" },
-        ].map((opt) => (
-          <button
-            key={opt.label}
-            type="button"
-            onClick={() => setWarmup(opt.warm)}
-            className={cn(
-              "rounded-md py-2 text-sm font-medium transition-colors",
-              warmup === opt.warm
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground",
-            )}
-          >
-            {opt.label}
-          </button>
-        ))}
-      </div>
+      <Segmented<"working" | "warmup">
+        value={warmup ? "warmup" : "working"}
+        onChange={(v) => setWarmup(v === "warmup")}
+        ariaLabel="Set type"
+        options={[
+          { value: "working", label: "Working" },
+          { value: "warmup", label: "Warmup" },
+        ]}
+      />
 
       <Button
         type="button"

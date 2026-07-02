@@ -11,9 +11,12 @@ import {
   Pencil,
   Play,
 } from "lucide-react";
-import { Drawer } from "vaul";
 
 import { TemplatePreviewSheet } from "@/components/lifting/template-preview-sheet";
+import {
+  BottomSheet,
+  BottomSheetAction,
+} from "@/components/ui/bottom-sheet";
 import { Card } from "@/components/ui/card";
 import { todayLocal } from "@/lib/dates";
 import { formatLastPerformed } from "@/lib/format";
@@ -23,31 +26,6 @@ import {
   useDuplicateTemplate,
   useStartFromTemplate,
 } from "@/lib/hooks/use-templates";
-
-function ActionItem({
-  icon,
-  label,
-  onClick,
-  destructive,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  onClick: () => void;
-  destructive?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`hover:bg-accent flex min-h-12 w-full items-center gap-3 rounded-md px-3 text-left text-base font-medium transition-colors ${
-        destructive ? "text-destructive" : ""
-      }`}
-    >
-      {icon}
-      {label}
-    </button>
-  );
-}
 
 /**
  * A template card in the 2-column grid: name, a greyed comma-separated exercise
@@ -109,8 +87,16 @@ export function TemplateCard({ template }: { template: TemplateDTO }) {
         </p>
       </button>
 
-      <Drawer.Root open={menuOpen} onOpenChange={setMenuOpen}>
-        <Drawer.Trigger asChild>
+      <BottomSheet
+        open={menuOpen}
+        onOpenChange={setMenuOpen}
+        variant="menu"
+        title={template.name}
+        description="Choose an action for this template."
+        showTitle
+        titleClassName="px-3 pb-1 font-semibold"
+        bodyClassName="space-y-1"
+        trigger={
           <button
             type="button"
             aria-label={`Actions for ${template.name}`}
@@ -118,57 +104,40 @@ export function TemplateCard({ template }: { template: TemplateDTO }) {
           >
             <MoreVertical className="size-5" aria-hidden />
           </button>
-        </Drawer.Trigger>
-        <Drawer.Portal>
-          <Drawer.Overlay className="fixed inset-0 z-50 bg-black/60" />
-          <Drawer.Content
-            className="bg-card fixed inset-x-0 bottom-0 z-50 flex flex-col rounded-t-2xl border-t outline-none"
-            style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
-          >
-            <div className="bg-muted mx-auto mt-3 h-1.5 w-10 shrink-0 rounded-full" />
-            <div className="mx-auto w-full max-w-md space-y-1 p-4">
-              <Drawer.Title className="px-3 pb-1 font-semibold">
-                {template.name}
-              </Drawer.Title>
-              <Drawer.Description className="sr-only">
-                Choose an action for this template.
-              </Drawer.Description>
-
-              {!template.archived && (
-                <ActionItem
-                  icon={<Play className="size-5" aria-hidden />}
-                  label="Start workout"
-                  onClick={startWorkout}
-                />
-              )}
-              <ActionItem
-                icon={<Pencil className="size-5" aria-hidden />}
-                label="Edit"
-                onClick={edit}
-              />
-              <ActionItem
-                icon={<Copy className="size-5" aria-hidden />}
-                label="Duplicate"
-                onClick={dup}
-              />
-              {template.archived ? (
-                <ActionItem
-                  icon={<ArchiveRestore className="size-5" aria-hidden />}
-                  label="Unarchive"
-                  onClick={toggleArchive}
-                />
-              ) : (
-                <ActionItem
-                  icon={<Archive className="size-5" aria-hidden />}
-                  label="Archive"
-                  onClick={toggleArchive}
-                  destructive
-                />
-              )}
-            </div>
-          </Drawer.Content>
-        </Drawer.Portal>
-      </Drawer.Root>
+        }
+      >
+        {!template.archived && (
+          <BottomSheetAction
+            icon={<Play className="size-5" aria-hidden />}
+            label="Start workout"
+            onClick={startWorkout}
+          />
+        )}
+        <BottomSheetAction
+          icon={<Pencil className="size-5" aria-hidden />}
+          label="Edit"
+          onClick={edit}
+        />
+        <BottomSheetAction
+          icon={<Copy className="size-5" aria-hidden />}
+          label="Duplicate"
+          onClick={dup}
+        />
+        {template.archived ? (
+          <BottomSheetAction
+            icon={<ArchiveRestore className="size-5" aria-hidden />}
+            label="Unarchive"
+            onClick={toggleArchive}
+          />
+        ) : (
+          <BottomSheetAction
+            icon={<Archive className="size-5" aria-hidden />}
+            label="Archive"
+            onClick={toggleArchive}
+            destructive
+          />
+        )}
+      </BottomSheet>
 
       <TemplatePreviewSheet
         template={template}

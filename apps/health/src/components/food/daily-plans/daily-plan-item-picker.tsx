@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { ScanTab } from "@/components/food/scan-tab";
 import { SearchTab } from "@/components/food/search-tab";
 import { Input } from "@/components/ui/input";
+import { Segmented, type SegmentedOption } from "@/components/ui/segmented";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   builderKey,
@@ -17,15 +18,14 @@ import { coerceMacros, type FoodProductDTO } from "@/lib/food";
 import { getJSON, HttpError } from "@/lib/fetcher";
 import { useMeals } from "@/lib/hooks/use-meals";
 import type { Macros } from "@/lib/rules";
-import { cn } from "@/lib/utils";
 
 type Tab = "search" | "scan" | "saved" | "meal";
 
-const TABS: { id: Tab; label: string }[] = [
-  { id: "search", label: "Search" },
-  { id: "scan", label: "Scan" },
-  { id: "saved", label: "Saved" },
-  { id: "meal", label: "Meal" },
+const TABS: SegmentedOption<Tab>[] = [
+  { value: "search", label: "Search" },
+  { value: "scan", label: "Scan" },
+  { value: "saved", label: "Saved" },
+  { value: "meal", label: "Meal" },
 ];
 
 interface SavedFood {
@@ -101,23 +101,13 @@ export function DailyPlanItemPicker({
       </div>
 
       {!looking && (
-        <div className="bg-muted grid grid-cols-4 gap-1 rounded-lg p-1">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setTab(t.id)}
-              className={cn(
-                "rounded-md py-2 text-xs font-medium transition-colors",
-                tab === t.id
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground",
-              )}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
+        <Segmented<Tab>
+          value={tab}
+          onChange={setTab}
+          options={TABS}
+          size="sm"
+          ariaLabel="Item source"
+        />
       )}
 
       {looking ? (

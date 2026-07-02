@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { Drawer } from "vaul";
 
 import { EstimatePhotoTab } from "@/components/food/estimate-photo-tab";
 import { MealsAddTab } from "@/components/food/meals/meals-add-tab";
@@ -12,23 +11,24 @@ import { QuantityStep } from "@/components/food/quantity-step";
 import { ScanLabelTab } from "@/components/food/scan-label-tab";
 import { ScanTab } from "@/components/food/scan-tab";
 import { SearchTab } from "@/components/food/search-tab";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { Segmented, type SegmentedOption } from "@/components/ui/segmented";
 import { getJSON, HttpError } from "@/lib/fetcher";
 import {
   type FoodProductDTO,
   type LoggableItem,
   productToLoggable,
 } from "@/lib/food";
-import { cn } from "@/lib/utils";
 
 type Tab = "scan" | "scanLabel" | "estimate" | "search" | "myFoods" | "meals";
 
-const TABS: { id: Tab; label: string }[] = [
-  { id: "scan", label: "Scan" },
-  { id: "scanLabel", label: "Scan label" },
-  { id: "estimate", label: "Estimate" },
-  { id: "search", label: "Search" },
-  { id: "myFoods", label: "My foods" },
-  { id: "meals", label: "Meals" },
+const TABS: SegmentedOption<Tab>[] = [
+  { value: "scan", label: "Scan" },
+  { value: "scanLabel", label: "Scan label" },
+  { value: "estimate", label: "Estimate" },
+  { value: "search", label: "Search" },
+  { value: "myFoods", label: "My foods" },
+  { value: "meals", label: "Meals" },
 ];
 
 /**
@@ -86,81 +86,61 @@ export function AddFoodSheet({
   const showTabs = !loggable && !looking;
 
   return (
-    <Drawer.Root open={open} onOpenChange={handleOpenChange}>
-      <Drawer.Portal>
-        <Drawer.Overlay className="fixed inset-0 z-50 bg-black/60" />
-        <Drawer.Content
-          className="bg-card fixed inset-x-0 bottom-0 z-50 mt-24 flex max-h-[90dvh] flex-col rounded-t-2xl border-t outline-none"
-          style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
-        >
-          <div className="bg-muted mx-auto mt-3 h-1.5 w-10 shrink-0 rounded-full" />
-          <div className="mx-auto w-full max-w-md space-y-4 overflow-y-auto p-4">
-            <Drawer.Title className="sr-only">Add food</Drawer.Title>
-            <Drawer.Description className="sr-only">
-              Scan a barcode, search Open Food Facts, or add a custom food.
-            </Drawer.Description>
+    <BottomSheet
+      open={open}
+      onOpenChange={handleOpenChange}
+      title="Add food"
+      description="Scan a barcode, search Open Food Facts, or add a custom food."
+      bodyClassName="space-y-4 overflow-y-auto"
+    >
+      {showTabs && (
+        <Segmented<Tab>
+          value={tab}
+          onChange={setTab}
+          options={TABS}
+          columns={3}
+          ariaLabel="Add food method"
+        />
+      )}
 
-            {showTabs && (
-              <div className="bg-muted grid grid-cols-6 gap-1 rounded-lg p-1">
-                {TABS.map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => setTab(t.id)}
-                    className={cn(
-                      "rounded-md py-2 text-xs font-medium transition-colors",
-                      tab === t.id
-                        ? "bg-background text-foreground shadow-sm"
-                        : "text-muted-foreground",
-                    )}
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {loggable ? (
-              <QuantityStep
-                item={loggable}
-                day={day}
-                onBack={() => setLoggable(null)}
-                onLogged={() => handleOpenChange(false)}
-              />
-            ) : looking ? (
-              <div className="text-muted-foreground flex items-center justify-center gap-2 py-12 text-sm">
-                <Loader2 className="size-4 animate-spin" aria-hidden />
-                Looking up product…
-              </div>
-            ) : tab === "scan" ? (
-              <ScanTab active={open && tab === "scan"} onBarcode={handleBarcode} />
-            ) : tab === "scanLabel" ? (
-              <ScanLabelTab
-                onLog={setLoggable}
-                onSaved={() => handleOpenChange(false)}
-                onFallback={() => setTab("myFoods")}
-              />
-            ) : tab === "estimate" ? (
-              <EstimatePhotoTab
-                day={day}
-                onLogged={() => handleOpenChange(false)}
-                onFallback={() => setTab("myFoods")}
-              />
-            ) : tab === "search" ? (
-              <SearchTab onBarcode={handleBarcode} />
-            ) : tab === "myFoods" ? (
-              <MyFoodsTab
-                day={day}
-                prefillName={prefillName}
-                onLog={setLoggable}
-                onLogged={() => handleOpenChange(false)}
-              />
-            ) : (
-              <MealsAddTab day={day} onLogged={() => handleOpenChange(false)} />
-            )}
-          </div>
-        </Drawer.Content>
-      </Drawer.Portal>
-    </Drawer.Root>
+      {loggable ? (
+        <QuantityStep
+          item={loggable}
+          day={day}
+          onBack={() => setLoggable(null)}
+          onLogged={() => handleOpenChange(false)}
+        />
+      ) : looking ? (
+        <div className="text-muted-foreground flex items-center justify-center gap-2 py-12 text-sm">
+          <Loader2 className="size-4 animate-spin" aria-hidden />
+          Looking up product…
+        </div>
+      ) : tab === "scan" ? (
+        <ScanTab active={open && tab === "scan"} onBarcode={handleBarcode} />
+      ) : tab === "scanLabel" ? (
+        <ScanLabelTab
+          onLog={setLoggable}
+          onSaved={() => handleOpenChange(false)}
+          onFallback={() => setTab("myFoods")}
+        />
+      ) : tab === "estimate" ? (
+        <EstimatePhotoTab
+          day={day}
+          onLogged={() => handleOpenChange(false)}
+          onFallback={() => setTab("myFoods")}
+        />
+      ) : tab === "search" ? (
+        <SearchTab onBarcode={handleBarcode} />
+      ) : tab === "myFoods" ? (
+        <MyFoodsTab
+          day={day}
+          prefillName={prefillName}
+          onLog={setLoggable}
+          onLogged={() => handleOpenChange(false)}
+        />
+      ) : (
+        <MealsAddTab day={day} onLogged={() => handleOpenChange(false)} />
+      )}
+    </BottomSheet>
   );
 }

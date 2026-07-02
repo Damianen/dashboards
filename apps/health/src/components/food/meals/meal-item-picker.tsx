@@ -9,6 +9,7 @@ import { SearchTab } from "@/components/food/search-tab";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Segmented, type SegmentedOption } from "@/components/ui/segmented";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getJSON, HttpError } from "@/lib/fetcher";
 import { coerceMacros, type FoodProductDTO } from "@/lib/food";
@@ -18,16 +19,15 @@ import {
 } from "@/lib/meal-builder";
 import { useCustomFoods } from "@/lib/hooks/use-custom-foods";
 import { useMeals } from "@/lib/hooks/use-meals";
-import { cn } from "@/lib/utils";
 
 type Tab = "search" | "scan" | "saved" | "manual" | "meal";
 
-const TABS: { id: Tab; label: string }[] = [
-  { id: "search", label: "Search" },
-  { id: "scan", label: "Scan" },
-  { id: "saved", label: "Saved" },
-  { id: "manual", label: "Manual" },
-  { id: "meal", label: "Meal" },
+const TABS: SegmentedOption<Tab>[] = [
+  { value: "search", label: "Search" },
+  { value: "scan", label: "Scan" },
+  { value: "saved", label: "Saved" },
+  { value: "manual", label: "Manual" },
+  { value: "meal", label: "Meal" },
 ];
 
 /**
@@ -89,23 +89,13 @@ export function MealItemPicker({
       </div>
 
       {!looking && (
-        <div className="bg-muted grid grid-cols-5 gap-1 rounded-lg p-1">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setTab(t.id)}
-              className={cn(
-                "rounded-md py-2 text-xs font-medium transition-colors",
-                tab === t.id
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground",
-              )}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
+        <Segmented<Tab>
+          value={tab}
+          onChange={setTab}
+          options={TABS}
+          size="sm"
+          ariaLabel="Ingredient source"
+        />
       )}
 
       {looking ? (

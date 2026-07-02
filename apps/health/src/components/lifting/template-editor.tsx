@@ -1,25 +1,22 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, Plus } from "lucide-react";
 import { toast } from "sonner";
-import { Drawer } from "vaul";
 
 import { ExercisePicker } from "@/components/lifting/exercise-picker";
 import {
   type EditorExercise,
   TemplateExerciseRow,
 } from "@/components/lifting/template-exercise-row";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Exercise } from "@/lib/hooks/use-exercises";
-import {
-  type SessionDTO,
-  useLiftingSessions,
-} from "@/lib/hooks/use-lifting-sessions";
+import { useRecentExerciseIds } from "@/lib/hooks/use-recent-exercise-ids";
 import {
   type TemplateDTO,
   type TemplateExerciseDTO,
@@ -29,17 +26,6 @@ import {
   useUpdateTemplate,
 } from "@/lib/hooks/use-templates";
 import type { CreateTemplateInput } from "@/lib/schemas/template";
-
-/** Exercise ids ordered by how recently they were last logged (newest first). */
-function recentExerciseIds(sessions: SessionDTO[] | undefined): string[] {
-  const ids: string[] = [];
-  for (const session of sessions ?? []) {
-    for (const group of session.exercises) {
-      if (!ids.includes(group.exerciseId)) ids.push(group.exerciseId);
-    }
-  }
-  return ids;
-}
 
 function newRow(ex: Exercise): EditorExercise {
   return {
@@ -155,8 +141,7 @@ export function TemplateEditor({ templateId }: { templateId?: string }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [seeded, setSeeded] = useState(false);
 
-  const { data: sessions } = useLiftingSessions();
-  const recentIds = useMemo(() => recentExerciseIds(sessions), [sessions]);
+  const recentIds = useRecentExerciseIds();
 
   // Seed once from the loaded template (render-time pattern, as in set-form).
   if (isEdit && !seeded && detail.data) {
@@ -333,28 +318,18 @@ export function TemplateEditor({ templateId }: { templateId?: string }) {
         </>
       )}
 
-      <Drawer.Root open={pickerOpen} onOpenChange={setPickerOpen}>
-        <Drawer.Portal>
-          <Drawer.Overlay className="fixed inset-0 z-50 bg-black/60" />
-          <Drawer.Content
-            className="bg-card fixed inset-x-0 bottom-0 z-50 mt-24 flex max-h-[90dvh] flex-col rounded-t-2xl border-t outline-none"
-            style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
-          >
-            <div className="bg-muted mx-auto mt-3 h-1.5 w-10 shrink-0 rounded-full" />
-            <div className="mx-auto w-full max-w-md p-4">
-              <Drawer.Title className="sr-only">Add an exercise</Drawer.Title>
-              <Drawer.Description className="sr-only">
-                Search and pick an exercise to add to this template.
-              </Drawer.Description>
-              <ExercisePicker
-                title="Add exercise"
-                recentIds={recentIds}
-                onPick={addExercise}
-              />
-            </div>
-          </Drawer.Content>
-        </Drawer.Portal>
-      </Drawer.Root>
+      <BottomSheet
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        title="Add an exercise"
+        description="Search and pick an exercise to add to this template."
+      >
+        <ExercisePicker
+          title="Add exercise"
+          recentIds={recentIds}
+          onPick={addExercise}
+        />
+      </BottomSheet>
     </div>
   );
 }
