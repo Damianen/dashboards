@@ -41,3 +41,28 @@ export function shiftDay(day: string, delta: number): string {
 export function civilDay(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
+
+// en-GB with h23 renders as zero-padded "HH:mm" (24h), so slot times compare
+// lexicographically ("07:30" < "21:00").
+const amsterdamTime = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Europe/Amsterdam",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
+/** Wall-clock "HH:mm" (24h) of the given instant in Europe/Amsterdam. */
+export function timeOfDay(date: Date): string {
+  return amsterdamTime.format(date);
+}
+
+/**
+ * Whole calendar days from `from` to `to` (both "YYYY-MM-DD"; negative when
+ * `to` is earlier). Exact integer arithmetic on UTC-midnight anchors — DST
+ * transitions between the two days can't skew the count.
+ */
+export function daysBetween(from: string, to: string): number {
+  return Math.round(
+    (dayToDbDate(to).getTime() - dayToDbDate(from).getTime()) / 86_400_000,
+  );
+}
