@@ -418,6 +418,7 @@ export interface SessionPlanItemView {
   targetWeightKg: number | null;
   weightIncrementKg: number | null;
   targetVolumeKg: number | null;
+  restSec: number | null;
 }
 
 export interface StartedSessionView {
@@ -465,6 +466,7 @@ export async function startSessionFromTemplate(
           targetWeightKg: e.targetWeightKg,
           weightIncrementKg: e.weightIncrementKg,
           targetVolumeKg: e.targetVolumeKg,
+          restSec: e.restSec,
           // Snapshot the warmup definitions so template edits never rewrite this
           // session. Decimals copy straight across (Decimal → Decimal).
           warmups: {
@@ -508,6 +510,7 @@ export async function startSessionFromTemplate(
       weightIncrementKg:
         p.weightIncrementKg == null ? null : Number(p.weightIncrementKg),
       targetVolumeKg: p.targetVolumeKg == null ? null : Number(p.targetVolumeKg),
+      restSec: p.restSec,
     })),
   };
 }

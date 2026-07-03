@@ -59,10 +59,14 @@ export function ExerciseSetTable({
   exercise,
   day,
   sessionId,
+  onSetLogged,
 }: {
   exercise: SessionExercise;
   day: string;
   sessionId: string;
+  /** Fires after any set (warmups included) logs successfully — the session
+   *  view starts this exercise's rest countdown from it. */
+  onSetLogged?: () => void;
 }) {
   const [extraRows, setExtraRows] = useState<
     { uid: string; warmup: boolean }[]
@@ -153,6 +157,7 @@ export function ExerciseSetTable({
         warmup
         badge="W"
         previous={prevFor(true)}
+        onSetLogged={onSetLogged}
       />,
     );
   }
@@ -172,6 +177,7 @@ export function ExerciseSetTable({
         badge="W"
         previous={prevFor(true)}
         onLogged={() => removeExtra(ex.uid)}
+        onSetLogged={onSetLogged}
         onRemove={() => removeExtra(ex.uid)}
       />,
     );
@@ -213,6 +219,7 @@ export function ExerciseSetTable({
         badge={String(working)}
         previous={prevFor(false)}
         suggestion={s}
+        onSetLogged={onSetLogged}
       />,
     );
   }
@@ -239,6 +246,7 @@ export function ExerciseSetTable({
         previous={prevFor(false)}
         suggestion={s}
         onLogged={() => removeExtra(ex.uid)}
+        onSetLogged={onSetLogged}
         onRemove={() => removeExtra(ex.uid)}
       />,
     );

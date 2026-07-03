@@ -375,6 +375,7 @@ export interface SessionPlanTargetView {
   targetWeightKg: number | null;
   weightIncrementKg: number | null;
   targetVolumeKg: number | null;
+  restSec: number | null;
 }
 
 /** A progressive-overload prefill for one target set position (never persisted —
@@ -577,6 +578,7 @@ export async function getSession(id: string): Promise<SessionDetail> {
           p.weightIncrementKg == null ? null : Number(p.weightIncrementKg),
         targetVolumeKg:
           p.targetVolumeKg == null ? null : Number(p.targetVolumeKg),
+        restSec: p.restSec,
       },
       sets: groupByExerciseId.get(p.exerciseId) ?? null,
       progress: progress[i] ?? null,

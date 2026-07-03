@@ -6,6 +6,7 @@ import { CheckCircle2, ChevronLeft, Plus, Timer } from "lucide-react";
 
 import { AddSetSheet } from "@/components/lifting/add-set-sheet";
 import { ExerciseSetTable } from "@/components/lifting/exercise-set-table";
+import { RestTimerBar } from "@/components/lifting/rest-timer-bar";
 import { SessionMenu } from "@/components/lifting/session-menu";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,6 +14,7 @@ import { dateLabel, timeLabel } from "@/lib/format";
 import { useFinishSession } from "@/lib/hooks/use-finish-session";
 import { useSession } from "@/lib/hooks/use-session";
 import { useTemplate } from "@/lib/hooks/use-templates";
+import { restEndsAt } from "@/lib/rest-timer";
 
 function ViewSkeleton() {
   return (
@@ -68,6 +70,13 @@ export function SessionView({ id }: { id: string }) {
   const { finish } = useFinishSession(id, session?.day ?? "");
 
   const [pickerOpen, setPickerOpen] = useState(false);
+  // The single active rest countdown, (re)started by each logged set of an
+  // exercise whose plan snapshot carries a rest — a new set REPLACES it.
+  const [restTimer, setRestTimer] = useState<{
+    exerciseName: string;
+    endsAt: number;
+    totalSec: number;
+  } | null>(null);
 
   if (isLoading) {
     return (
@@ -138,14 +147,29 @@ export function SessionView({ id }: { id: string }) {
       </header>
 
       <div className="space-y-3">
-        {session.exercises.map((e) => (
-          <ExerciseSetTable
-            key={e.exerciseId}
-            exercise={e}
-            day={session.day}
-            sessionId={session.sessionId}
-          />
-        ))}
+        {session.exercises.map((e) => {
+          // Rest comes from the session's plan snapshot; ad-hoc exercises
+          // (plan null) and plans without rest never start a countdown.
+          const restSec = e.plan?.restSec ?? null;
+          return (
+            <ExerciseSetTable
+              key={e.exerciseId}
+              exercise={e}
+              day={session.day}
+              sessionId={session.sessionId}
+              onSetLogged={
+                restSec != null && restSec > 0
+                  ? () =>
+                      setRestTimer({
+                        exerciseName: e.exerciseName,
+                        endsAt: restEndsAt(Date.now(), restSec),
+                        totalSec: restSec,
+                      })
+                  : undefined
+              }
+            />
+          );
+        })}
       </div>
 
       <Button
@@ -163,6 +187,19 @@ export function SessionView({ id }: { id: string }) {
         day={session.day}
         sessionId={session.sessionId}
       />
+
+      {/* Keyed by endsAt so replacing the timer remounts the bar with fresh
+          tick + one-shot-vibration state (each new log is later in wall time,
+          so endsAt strictly increases). Finishing the session drops it. */}
+      {restTimer != null && session.endedAt == null && (
+        <RestTimerBar
+          key={restTimer.endsAt}
+          exerciseName={restTimer.exerciseName}
+          endsAt={restTimer.endsAt}
+          totalSec={restTimer.totalSec}
+          onDismiss={() => setRestTimer(null)}
+        />
+      )}
     </div>
   );
 }

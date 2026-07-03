@@ -214,6 +214,7 @@ describe("buildExport serialization", () => {
             targetWeightKg: new Prisma.Decimal("100.00"),
             weightIncrementKg: new Prisma.Decimal("2.50"),
             targetVolumeKg: null,
+            restSec: 120,
             warmups: [
               {
                 id: "wu1",
@@ -272,6 +273,7 @@ describe("buildExport serialization", () => {
               targetWeightKg: 100,
               weightIncrementKg: 2.5,
               targetVolumeKg: null,
+              restSec: 120,
               warmups: [
                 {
                   id: "wu1",
