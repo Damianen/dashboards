@@ -75,6 +75,15 @@ describe("weeklySummaryMessage", () => {
     );
   });
 
+  it("deep-links into the weekly review on the Insights page", () => {
+    const msg = weeklySummaryMessage({
+      weight7dAvgDeltaKg: null,
+      totalLiftingVolumeKg: null,
+      avgSleepScore: null,
+    });
+    expect(msg.url).toBe("/insights?view=weekly");
+  });
+
   it("renders a positive delta with a plus sign", () => {
     const msg = weeklySummaryMessage({
       weight7dAvgDeltaKg: 0.2,

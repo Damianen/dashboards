@@ -85,6 +85,11 @@ export const queryKeys = {
   tdeePrefix: () => ["tdee"] as const,
   recovery: (day: string, window: number) =>
     ["recovery", day, window] as const,
+  // The weekly review, keyed by its (Monday) week start; undefined = the
+  // current week resolved server-side, cached separately so it refreshes as
+  // the week advances past midnight without a stale Monday key.
+  weeklyReview: (weekStart?: string) =>
+    ["weekly-review", weekStart ?? "current"] as const,
   weightGoal: () => ["weight-goal"] as const,
   // The composed daily briefing, keyed by requested mode ("auto" = resolve by
   // time of day server-side). One prefix so settings saves refresh every mode.
@@ -113,6 +118,8 @@ export const SYNC_AFFECTED_PREFIXES: readonly (readonly string[])[] = [
   ["observations"],
   // The briefing composes sleep/readiness/recovery/weight — all sync-movable.
   ["briefing"],
+  // The weekly review aggregates the summary view — every domain a sync can move.
+  ["weekly-review"],
 ];
 
 /** Invalidate everything a landed sync may have changed (see SYNC_AFFECTED_PREFIXES). */
