@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import {
   Apple,
   Coffee,
@@ -10,13 +13,17 @@ import {
   Scale,
 } from "lucide-react";
 
+import { SleepForm } from "@/components/quick-log/sleep-form";
 import { Badge } from "@/components/ui/badge";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { Button } from "@/components/ui/button";
 import {
   EmptyState,
   MetricCard,
   Progress,
   Stat,
 } from "@/components/today/metric-card";
+import { todayLocal } from "@/lib/dates";
 import { clampPercent, formatHm, formatKg, formatNumber } from "@/lib/format";
 import type { AdherenceResult } from "@/lib/hooks/use-adherence";
 import type { DailySummary } from "@/lib/hooks/use-summary";
@@ -83,10 +90,32 @@ export function SleepCard({ s }: Props) {
     (s.sleepScore != null ||
       s.readinessScore != null ||
       s.totalSleepMin != null);
+  // Manual-entry sheet, offered only while the day has NO sleep data — once
+  // anything (synced or manual) exists the card stays clean, and the service
+  // guard refuses Oura-covered days anyway.
+  const [logOpen, setLogOpen] = useState(false);
   return (
     <MetricCard title="Sleep & readiness" icon={Moon}>
       {!has ? (
-        <EmptyState>No sleep data yet.</EmptyState>
+        <div className="space-y-3">
+          <EmptyState>No sleep data yet.</EmptyState>
+          <BottomSheet
+            open={logOpen}
+            onOpenChange={setLogOpen}
+            title="Log sleep"
+            description="Manually log last night's sleep — the fallback for days Oura missed."
+            showTitle
+            titleClassName="text-base font-semibold"
+            bodyClassName="space-y-4"
+            trigger={
+              <Button variant="outline" className="h-11 w-full">
+                Log sleep
+              </Button>
+            }
+          >
+            <SleepForm day={todayLocal()} onLogged={() => setLogOpen(false)} />
+          </BottomSheet>
+        </div>
       ) : (
         <div className="grid grid-cols-3 gap-2">
           <Stat
