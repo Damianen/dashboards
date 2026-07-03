@@ -13,6 +13,7 @@ import {
   type OuraSleepRecord,
   OuraRateLimitError,
 } from "@/server/integrations/oura";
+import { toJsonValue } from "@/server/prisma-json";
 import { ReauthRequiredError } from "@/server/services/tokens";
 import {
   computeSyncWindow,
@@ -66,7 +67,7 @@ export function toSleepSessionData(
     avgHrvMs: r.average_hrv == null ? null : Math.round(r.average_hrv),
     lowestHrBpm: r.lowest_heart_rate,
     source: Source.OURA,
-    raw: r as unknown as Prisma.InputJsonValue,
+    raw: toJsonValue(r),
   };
 }
 
@@ -76,7 +77,7 @@ export function toDailySleepData(
   return {
     day: dayToDbDate(r.day),
     score: r.score,
-    raw: r as unknown as Prisma.InputJsonValue,
+    raw: toJsonValue(r),
   };
 }
 
@@ -94,7 +95,7 @@ export function toDailyReadinessData(
     temperatureDeviation: r.temperature_deviation,
     restingHrBpm: r.contributors?.resting_heart_rate ?? null,
     hrvBalance: r.contributors?.hrv_balance ?? null,
-    raw: r as unknown as Prisma.InputJsonValue,
+    raw: toJsonValue(r),
   };
 }
 
@@ -113,7 +114,7 @@ export function toDailyActivityData(
     totalKcal: r.total_calories,
     steps: r.steps,
     source: Source.OURA,
-    raw: r as unknown as Prisma.InputJsonValue,
+    raw: toJsonValue(r),
   };
 }
 

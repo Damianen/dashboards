@@ -39,6 +39,7 @@ import {
   mealEstimateSchema,
 } from "@/lib/schemas/vision";
 import { prisma } from "@/server/db";
+import { toJsonValue } from "@/server/prisma-json";
 import { DomainError, NotFoundError, UpstreamUnavailableError } from "./errors";
 import { fetchProduct } from "./off";
 import { analyzeImage } from "./vision";
@@ -75,9 +76,9 @@ export async function getOrFetchProduct(
     name: off.name,
     brand: off.brand,
     imageUrl: off.imageUrl,
-    per100g: off.per100g as unknown as Prisma.InputJsonValue,
+    per100g: toJsonValue(off.per100g),
     servingG: off.servingG,
-    raw: off.raw as Prisma.InputJsonValue,
+    raw: toJsonValue(off.raw),
     fetchedAt: new Date(),
   };
   return prisma.foodProduct.upsert({
@@ -127,7 +128,7 @@ export async function createCustomFood(
     data: {
       name: data.name,
       brand: data.brand ?? null,
-      per100g: data.per100g as unknown as Prisma.InputJsonValue,
+      per100g: toJsonValue(data.per100g),
       servingG: data.servingG ?? null,
       source: data.source,
     },
@@ -372,7 +373,7 @@ export async function updateCustomFood(
       data: {
         name: data.name,
         brand: data.brand ?? null,
-        per100g: data.per100g as unknown as Prisma.InputJsonValue,
+        per100g: toJsonValue(data.per100g),
         servingG: data.servingG ?? null,
       },
     });

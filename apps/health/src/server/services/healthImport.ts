@@ -1,6 +1,7 @@
 import { Prisma } from "@/generated/prisma/client";
 import { dayOf, dayToDbDate } from "@/lib/dates";
 import { prisma } from "@/server/db";
+import { toJsonValue } from "@/server/prisma-json";
 
 /**
  * Ingest of Apple Watch workouts pushed from the Health Auto Export (HAE) iOS app.
@@ -150,7 +151,7 @@ export function parseWorkouts(payload: unknown): NormalizedWorkout[] {
         energyKcalOf(item.activeEnergyBurned) ?? energyKcalOf(item.activeEnergy),
       avgHeartRate: roundOrNull(avgHeartRate),
       maxHeartRate: roundOrNull(maxHeartRate),
-      raw: item as unknown as Prisma.InputJsonValue,
+      raw: toJsonValue(item),
     });
   }
   return workouts;

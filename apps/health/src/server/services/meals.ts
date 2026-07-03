@@ -21,6 +21,7 @@ import {
   updateMealSchema,
 } from "@/lib/schemas/meals";
 import { prisma } from "@/server/db";
+import { toJsonValue } from "@/server/prisma-json";
 import { DomainError, NotFoundError } from "./errors";
 import {
   getOrFetchProduct,
@@ -320,7 +321,7 @@ export async function createMeal(input: CreateMealInput): Promise<MealDetail> {
       name: data.name,
       notes: data.notes ?? null,
       yieldPortions: data.yieldPortions,
-      perPortion: perPortion as unknown as Prisma.InputJsonValue,
+      perPortion: toJsonValue(perPortion),
       items: { create: resolved.map(toItemCreate) },
     },
     include: DETAIL_INCLUDE,
@@ -347,7 +348,7 @@ export async function updateMeal(
       name: data.name,
       notes: data.notes ?? null,
       yieldPortions: data.yieldPortions,
-      perPortion: perPortion as unknown as Prisma.InputJsonValue,
+      perPortion: toJsonValue(perPortion),
       items: { deleteMany: {}, create: resolved.map(toItemCreate) },
     },
     include: DETAIL_INCLUDE,
