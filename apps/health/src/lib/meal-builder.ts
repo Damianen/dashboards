@@ -55,6 +55,15 @@ export function builderTotals(
   );
 }
 
+/** Key-free projection of the items for change detection. `key` is minted fresh by
+ *  builderKey() on every mount (and on every edit-mode recompute of `initial`), so
+ *  any comparison that includes it would read an untouched form as changed. */
+export function builderSnapshot(items: BuilderItem[]): string {
+  return JSON.stringify(
+    items.map((it) => ({ name: it.name, amount: it.amount, source: it.source })),
+  );
+}
+
 /** Rebuild a BuilderItem from a saved item for edit mode, deriving the per-unit macros
  *  from the stored contribution snapshot so the preview and amount controls still work. */
 export function builderItemFromView(it: MealItemView): BuilderItem {

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   type BuilderItem,
   builderItemFromView,
+  builderSnapshot,
   builderTotals,
   itemContribution,
   toCreateMealInput,
@@ -287,5 +288,27 @@ describe("toCreateMealInput", () => {
     ]);
     expect(input.notes).toBe("freeze half");
     expect(input.items).toEqual([{ childMealId: CUID, childPortions: 2 }]);
+  });
+});
+
+describe("builderSnapshot (dirty detection)", () => {
+  it("ignores react keys, so an initial reminted per render compares equal", () => {
+    const reminted = { ...productItem, key: "totally-different-key" };
+    expect(builderSnapshot([reminted])).toBe(builderSnapshot([productItem]));
+  });
+
+  it("differs when an amount changes", () => {
+    expect(builderSnapshot([{ ...productItem, amount: 60 }])).not.toBe(
+      builderSnapshot([productItem]),
+    );
+  });
+
+  it("differs when an item is added, removed, or reordered", () => {
+    expect(builderSnapshot([productItem, childMealItem])).not.toBe(
+      builderSnapshot([productItem]),
+    );
+    expect(builderSnapshot([childMealItem, productItem])).not.toBe(
+      builderSnapshot([productItem, childMealItem]),
+    );
   });
 });

@@ -51,6 +51,20 @@ export function planTotal(items: PlanBuilderItem[]): Macros {
   return sumMacros(items.map(itemContribution));
 }
 
+/** Key-free projection of the items for change detection — the plan-builder sibling
+ *  of builderSnapshot (see meal-builder.ts): `key` is minted fresh per mount, so a
+ *  comparison including it would read an untouched form as changed. */
+export function planSnapshot(items: PlanBuilderItem[]): string {
+  return JSON.stringify(
+    items.map((it) => ({
+      name: it.name,
+      amount: it.amount,
+      mealSlot: it.mealSlot,
+      source: it.source,
+    })),
+  );
+}
+
 /** Rebuild a PlanBuilderItem from a saved item for edit mode, deriving the per-unit
  *  macros from the resolved contribution so the preview and amount controls work. */
 export function planItemFromView(it: DailyPlanItemView): PlanBuilderItem {
