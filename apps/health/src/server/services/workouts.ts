@@ -13,6 +13,10 @@ import type { TrendPoint } from "@/server/services/summary";
 
 const RECENT_LIMIT = 6;
 
+/** listWorkouts bounds — the take is clamped here as well as at the MCP edge. */
+const LIST_DEFAULT_LIMIT = 50;
+const LIST_MAX_LIMIT = 200;
+
 export interface WorkoutListItem {
   id: string;
   type: string;
@@ -23,6 +27,48 @@ export interface WorkoutListItem {
   activeEnergyKcal: number | null;
   avgHeartRate: number | null;
   maxHeartRate: number | null;
+}
+
+/** The workout columns every read here selects (day is the @db.Date column). */
+const WORKOUT_SELECT = {
+  id: true,
+  type: true,
+  startedAt: true,
+  day: true,
+  durationSeconds: true,
+  distance: true,
+  activeEnergyKcal: true,
+  avgHeartRate: true,
+  maxHeartRate: true,
+} as const;
+
+/** A selected workout row before serialization (dates still Date objects). */
+export interface WorkoutRow {
+  id: string;
+  type: string;
+  startedAt: Date;
+  day: Date;
+  durationSeconds: number | null;
+  distance: number | null;
+  activeEnergyKcal: number | null;
+  avgHeartRate: number | null;
+  maxHeartRate: number | null;
+}
+
+/** PURE: one selected row → the wire item (ISO instant + civil day). The single
+ *  serializer for every workout read. Unit-testable. */
+export function serializeWorkout(w: WorkoutRow): WorkoutListItem {
+  return {
+    id: w.id,
+    type: w.type,
+    startedAt: w.startedAt.toISOString(),
+    day: civilDay(w.day),
+    durationSeconds: w.durationSeconds,
+    distance: w.distance,
+    activeEnergyKcal: w.activeEnergyKcal,
+    avgHeartRate: w.avgHeartRate,
+    maxHeartRate: w.maxHeartRate,
+  };
 }
 
 export interface WorkoutTrends {
@@ -50,6 +96,27 @@ export function dailyWorkoutMinutes(
     .sort((a, b) => a.day.localeCompare(b.day));
 }
 
+/**
+ * The most recent Apple-Watch workouts over the last `days` days (ending today),
+ * newest first, capped at `limit` (default 50, max 200). Read side only — these
+ * rows are wearable-synced (upserted by external id) and never mutated here; their
+ * activeEnergyKcal stays a trend estimate, never fused into intake math.
+ */
+export async function listWorkouts(
+  days: number,
+  limit: number = LIST_DEFAULT_LIMIT,
+): Promise<WorkoutListItem[]> {
+  const end = todayLocal();
+  const start = shiftDay(end, -(days - 1));
+  const rows = await prisma.workout.findMany({
+    where: { day: { gte: dayToDbDate(start), lte: dayToDbDate(end) } },
+    orderBy: { startedAt: "desc" },
+    take: Math.min(Math.max(limit, 1), LIST_MAX_LIMIT),
+    select: WORKOUT_SELECT,
+  });
+  return rows.map(serializeWorkout);
+}
+
 /** Recent workouts + a daily-minutes series over the last `days` days (ending today). */
 export async function getWorkoutTrends(days: number): Promise<WorkoutTrends> {
   const end = todayLocal();
@@ -57,30 +124,12 @@ export async function getWorkoutTrends(days: number): Promise<WorkoutTrends> {
   const rows = await prisma.workout.findMany({
     where: { day: { gte: dayToDbDate(start), lte: dayToDbDate(end) } },
     orderBy: { startedAt: "desc" },
-    select: {
-      id: true,
-      type: true,
-      startedAt: true,
-      day: true,
-      durationSeconds: true,
-      distance: true,
-      activeEnergyKcal: true,
-      avgHeartRate: true,
-      maxHeartRate: true,
-    },
+    select: WORKOUT_SELECT,
   });
 
-  const recent: WorkoutListItem[] = rows.slice(0, RECENT_LIMIT).map((w) => ({
-    id: w.id,
-    type: w.type,
-    startedAt: w.startedAt.toISOString(),
-    day: civilDay(w.day),
-    durationSeconds: w.durationSeconds,
-    distance: w.distance,
-    activeEnergyKcal: w.activeEnergyKcal,
-    avgHeartRate: w.avgHeartRate,
-    maxHeartRate: w.maxHeartRate,
-  }));
+  const recent: WorkoutListItem[] = rows
+    .slice(0, RECENT_LIMIT)
+    .map(serializeWorkout);
 
   const dailyMinutes = dailyWorkoutMinutes(
     rows.map((w) => ({
