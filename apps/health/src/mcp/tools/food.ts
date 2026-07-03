@@ -1,6 +1,6 @@
 // Food tools: diary search, recents, saved meals and daily plans, custom
-// foods, the two vision draft tools, and the food/meal/plan write paths.
-// All writes are tagged origin "MCP".
+// foods, the two vision draft tools, the food/meal/plan write paths, and
+// single-entry diary corrections. All writes are tagged origin "MCP".
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
@@ -11,6 +11,7 @@ import { daySchema } from "@/lib/schemas/common";
 import {
   per100gSchema,
   recentLoggablesQuerySchema,
+  updateFoodEntrySchema,
 } from "@/lib/schemas/food";
 import type { MealItemInput } from "@/lib/schemas/meals";
 import { imageDataUrlSchema } from "@/lib/schemas/vision";
@@ -22,12 +23,14 @@ import {
 import { DomainError } from "@/server/services/errors";
 import {
   createCustomFood,
+  deleteEntry,
   estimateMeal,
   listRecentLoggables,
   logFood,
   resolveCustomFoodByName,
   scanLabel,
   searchFoodLog,
+  updateFoodEntry,
 } from "@/server/services/food";
 import {
   createMeal,
@@ -307,6 +310,57 @@ export function registerFoodTools(server: McpServer): void {
         throw new DomainError(
           "provide a barcode, a custom_food_name, or a name (optionally with kcal for a custom entry)",
         );
+      }),
+  );
+
+  server.registerTool(
+    "update_food_entry",
+    {
+      description:
+        "Correct a logged diary entry IN PLACE — get ids from search_food_log. " +
+        "quantity_g rescales the entry's OWN snapshotted macros proportionally " +
+        "(per-gram = stored totals ÷ stored quantity); the product/custom-food " +
+        "cache is NEVER re-read, so history stays a snapshot even if the source " +
+        "changed since. Entries logged from a saved meal are measured in PORTIONS " +
+        "(no gram quantity) and refuse quantity edits with an error — delete the " +
+        "entry and re-log via log_meal instead. meal: null moves the entry to the " +
+        "'Other' group; notes: null clears the note. Provide at least one field " +
+        "besides id. Returns the updated entry.",
+      inputSchema: {
+        id: z.cuid().describe("The food entry id to edit."),
+        // The canonical update schema's fields (single source of truth with the
+        // PATCH /api/food/entries/[id] route).
+        quantity_g: updateFoodEntrySchema.shape.quantityG.describe(
+          "New amount in grams (positive, ≤ 5000) — rescales the snapshot.",
+        ),
+        meal: updateFoodEntrySchema.shape.meal.describe(
+          "Move to this meal slot; null moves it to the 'Other' group.",
+        ),
+        notes: updateFoodEntrySchema.shape.notes.describe(
+          "Replace the note; null clears it.",
+        ),
+      },
+    },
+    ({ id, quantity_g, meal, notes }) =>
+      run(() => updateFoodEntry(id, { quantityG: quantity_g, meal, notes })),
+  );
+
+  server.registerTool(
+    "delete_food_entry",
+    {
+      description:
+        "Delete ONE mistaken food entry by id — get ids from search_food_log. " +
+        "Removes that entry's macros/caffeine from the day's totals. Single-entry " +
+        "correction only; there is deliberately no bulk delete. Not undoable — " +
+        "re-log via log_food/log_meal if deleted in error.",
+      inputSchema: {
+        id: z.cuid().describe("The food entry id to delete."),
+      },
+    },
+    ({ id }) =>
+      run(async () => {
+        await deleteEntry(id);
+        return { deleted: true, id };
       }),
   );
 

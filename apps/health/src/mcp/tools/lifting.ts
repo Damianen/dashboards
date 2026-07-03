@@ -6,16 +6,20 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import { dayOf } from "@/lib/dates";
+import { finishSessionSchema, updateSetSchema } from "@/lib/schemas/lifting";
 import { DomainError, NotFoundError } from "@/server/services/errors";
 import {
   createExercise,
+  deleteSet,
   getE1rmHistory,
   getHistory,
   getMuscleGroupWeeklyVolume,
   getSession,
   listSessions,
   logSet,
+  setSessionFinished,
   suggestExercises,
+  updateSet,
 } from "@/server/services/lifting";
 import {
   listTemplates,
@@ -215,6 +219,91 @@ export function registerLiftingTools(server: McpServer): void {
         return fail("internal error");
       }
     },
+  );
+
+  server.registerTool(
+    "update_lifting_set",
+    {
+      description:
+        "Correct one already-logged set IN PLACE — get set ids from " +
+        "get_session_progress (or get_lifting_history). Only the provided fields " +
+        "change; the set's session, exercise and set number are immutable. " +
+        "rpe: null clears a mistakenly-entered RPE. Provide at least one field " +
+        "besides id. Returns the updated set.",
+      inputSchema: {
+        id: z.cuid().describe("The set id to edit."),
+        // The canonical update-set schema's fields (shared with the PATCH route).
+        reps: updateSetSchema.shape.reps.describe("Repetitions (1–100)."),
+        weight_kg: updateSetSchema.shape.weightKg.describe(
+          "Weight in kilograms (0–500).",
+        ),
+        rpe: updateSetSchema.shape.rpe.describe(
+          "Rate of perceived exertion (1–10); null clears it.",
+        ),
+        is_warmup: updateSetSchema.shape.isWarmup.describe(
+          "Reclassify as warmup (true) or working set (false) — moves it in/out " +
+            "of volume and e1RM math.",
+        ),
+      },
+    },
+    ({ id, reps, weight_kg, rpe, is_warmup }) =>
+      run(() =>
+        updateSet(id, {
+          reps,
+          weightKg: weight_kg,
+          rpe,
+          isWarmup: is_warmup,
+        }),
+      ),
+  );
+
+  server.registerTool(
+    "delete_lifting_set",
+    {
+      description:
+        "Delete ONE mistaken set by id — get ids from get_session_progress. Set " +
+        "numbers are display-order only, so the gap this leaves is harmless. " +
+        "Single-set correction only; deleting a whole session (a bulk delete) is " +
+        "deliberately not available over MCP. Not undoable — re-log with " +
+        "log_lifting_set if deleted in error.",
+      inputSchema: {
+        id: z.cuid().describe("The set id to delete."),
+      },
+    },
+    ({ id }) =>
+      run(async () => {
+        await deleteSet(id);
+        return { deleted: true, id };
+      }),
+  );
+
+  server.registerTool(
+    "finish_workout_session",
+    {
+      description:
+        "Mark a lifting session finished (stamps its end time) — or reopen a " +
+        "mistakenly-finished one with finished: false. Without a session_id, " +
+        "targets today's most recent session (the same fallback " +
+        "get_session_progress uses); errors if there is none today. Idempotent — " +
+        "re-finishing just refreshes the timestamp, reopening an open session is " +
+        "a no-op. Returns the session's full detail (get_session_progress shape).",
+      inputSchema: {
+        session_id: z
+          .cuid()
+          .optional()
+          .describe("Session id; omit for the most recent session today."),
+        finished: finishSessionSchema.shape.finished.describe(
+          "true (default) finishes the session; false reopens it.",
+        ),
+      },
+    },
+    ({ session_id, finished }) =>
+      run(async () => {
+        if (session_id) return setSessionFinished(session_id, finished);
+        const [latest] = await listSessions(dayOf(new Date()));
+        if (!latest) throw new DomainError("no lifting session today");
+        return setSessionFinished(latest.sessionId, finished);
+      }),
   );
 
   server.registerTool(

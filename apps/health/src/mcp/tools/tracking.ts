@@ -19,6 +19,8 @@ import {
   checkGroup,
   getChecklist,
   resolveByName,
+  uncheck,
+  uncheckGroup,
 } from "@/server/services/supplements";
 import {
   deleteWaterEntry,
@@ -271,6 +273,49 @@ export function registerTrackingTools(server: McpServer): void {
   );
 
   server.registerTool(
+    "uncheck_supplement",
+    {
+      description:
+        "Untick a supplement (mark it NOT taken) for a day — the undo for a mistaken " +
+        "check_supplement. Resolves an ACTIVE supplement by case-insensitive name. " +
+        "Idempotent — unchecking an already-unchecked item changes nothing. If the " +
+        "name matches several active supplements, returns { ambiguous: true, " +
+        "candidates } WITHOUT changing anything — re-call with the exact name. " +
+        "Returns the day's refreshed checklist.",
+      inputSchema: {
+        name: z
+          .string()
+          .min(1)
+          .describe("Active supplement name (case-insensitive exact match)."),
+        day: daySchema
+          .optional()
+          .describe("Civil date YYYY-MM-DD. Defaults to today."),
+      },
+    },
+    ({ name, day }) =>
+      run(async () => {
+        const matches = await resolveByName(name);
+        const [only] = matches;
+        if (!only) {
+          throw new DomainError(`no active supplement named "${name}"`);
+        }
+        if (matches.length > 1) {
+          return {
+            ambiguous: true,
+            candidates: matches.map((m) => ({
+              id: m.id,
+              name: m.name,
+              dose: m.dose,
+              unit: m.unit,
+              timeGroup: m.timeGroup,
+            })),
+          };
+        }
+        return uncheck({ supplementId: only.id, day });
+      }),
+  );
+
+  server.registerTool(
     "check_supplement_group",
     {
       description:
@@ -287,5 +332,26 @@ export function registerTrackingTools(server: McpServer): void {
     },
     ({ time_group, day }) =>
       run(() => checkGroup({ timeGroup: time_group, day }, "MCP")),
+  );
+
+  server.registerTool(
+    "uncheck_supplement_group",
+    {
+      description:
+        "Untick EVERY checked active supplement in a time-group for a day — the undo " +
+        "for a mistaken check_supplement_group. Idempotent — re-running on an " +
+        "unchecked group changes nothing. Returns { unchecked (how many were " +
+        "removed), checklist } with the day's refreshed checklist.",
+      inputSchema: {
+        time_group: supplementTimeGroupSchema.describe(
+          "Which group: MORNING, EVENING, or PRE_WORKOUT.",
+        ),
+        day: daySchema
+          .optional()
+          .describe("Civil date YYYY-MM-DD. Defaults to today."),
+      },
+    },
+    ({ time_group, day }) =>
+      run(() => uncheckGroup({ timeGroup: time_group, day })),
   );
 }
