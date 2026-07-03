@@ -119,11 +119,15 @@ export async function setIntakeKcalTarget(kcal: number): Promise<number> {
 const WATER_BASE_KEY = "water.baseTargetMl";
 const WATER_ML_PER_MG_KEY = "water.mlPerMgStimulant";
 
-/** The stored water-target inputs, with the view's COALESCE defaults when unset. */
-export async function getWaterSettings(): Promise<WaterSettings> {
-  const rows = await prisma.setting.findMany({
-    where: { key: { in: [WATER_BASE_KEY, WATER_ML_PER_MG_KEY] } },
-  });
+/** A settings row as read from the DB (value is the raw JSON column). */
+interface SettingRow {
+  key: string;
+  value: unknown;
+}
+
+/** Pure rows→typed coercion for the water settings, with the view's COALESCE
+ *  defaults when a key is unset. */
+export function waterSettingsFromRows(rows: SettingRow[]): WaterSettings {
   const byKey = new Map(rows.map((r) => [r.key, r.value]));
   const base = byKey.get(WATER_BASE_KEY);
   const perMg = byKey.get(WATER_ML_PER_MG_KEY);
@@ -132,6 +136,14 @@ export async function getWaterSettings(): Promise<WaterSettings> {
     mlPerMgStimulant:
       perMg == null ? DEFAULT_ML_PER_MG_STIMULANT : Number(perMg),
   };
+}
+
+/** The stored water-target inputs, with the view's COALESCE defaults when unset. */
+export async function getWaterSettings(): Promise<WaterSettings> {
+  const rows = await prisma.setting.findMany({
+    where: { key: { in: [WATER_BASE_KEY, WATER_ML_PER_MG_KEY] } },
+  });
+  return waterSettingsFromRows(rows);
 }
 
 /** Persist both water-target inputs atomically (one transaction — a partial
@@ -170,14 +182,10 @@ export const BRIEFING_DEFAULTS: BriefingSettings = {
   thresholds: { goodMin: 75, moderateMin: 60 },
 };
 
-/** The stored briefing settings, each part falling back to its default when
- *  unset or somehow invalid (getTdeeWindowDays' safe-parse pattern). */
-export async function getBriefingSettings(): Promise<BriefingSettings> {
-  const rows = await prisma.setting.findMany({
-    where: {
-      key: { in: [BRIEFING_SCHEDULE_KEY, BRIEFING_CUTOFF_KEY, BRIEFING_THRESHOLDS_KEY] },
-    },
-  });
+/** Pure rows→typed coercion for the briefing settings, each part falling back to
+ *  its default when unset or somehow invalid (getTdeeWindowDays' safe-parse
+ *  pattern). */
+export function briefingSettingsFromRows(rows: SettingRow[]): BriefingSettings {
   const byKey = new Map(rows.map((r) => [r.key, r.value]));
 
   const schedule = briefingScheduleSchema.safeParse(byKey.get(BRIEFING_SCHEDULE_KEY));
@@ -192,6 +200,17 @@ export async function getBriefingSettings(): Promise<BriefingSettings> {
     modeCutoffHour: cutoff.success ? cutoff.data : BRIEFING_DEFAULTS.modeCutoffHour,
     thresholds: thresholds.success ? thresholds.data : BRIEFING_DEFAULTS.thresholds,
   };
+}
+
+/** The stored briefing settings, each part falling back to its default when
+ *  unset or somehow invalid. */
+export async function getBriefingSettings(): Promise<BriefingSettings> {
+  const rows = await prisma.setting.findMany({
+    where: {
+      key: { in: [BRIEFING_SCHEDULE_KEY, BRIEFING_CUTOFF_KEY, BRIEFING_THRESHOLDS_KEY] },
+    },
+  });
+  return briefingSettingsFromRows(rows);
 }
 
 /** Persist all briefing settings atomically (one transaction across the three
