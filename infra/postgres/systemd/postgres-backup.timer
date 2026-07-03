@@ -1,0 +1,10 @@
+[Unit]
+Description=Nightly dump of every service database at 03:30
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+# Catch up after the fact if the host was down at 03:30.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

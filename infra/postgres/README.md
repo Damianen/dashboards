@@ -40,7 +40,26 @@ warning.
 that mount defaults to `./backups` — repoint it in `compose.yaml` at the
 directory your nightly USB backup job already copies.
 
-Nightly at 03:30 (crontab -e):
+### Automated backups (systemd timer)
+
+Unit files live in `systemd/`. Install them **on the host that runs the
+postgres container** — the script drives `docker exec postgres`, so from any
+other machine there is nothing to exec into:
+
+```sh
+cd infra/postgres
+sudo cp systemd/postgres-backup.service systemd/postgres-backup.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now postgres-backup.timer
+systemctl list-timers postgres-backup.timer    # verify: NEXT shows 03:30
+```
+
+The timer fires nightly at 03:30 with `Persistent=true`, so a run missed
+while the host was down happens right after the next boot. Inspect runs with
+`journalctl -u postgres-backup.service`, or trigger one by hand with
+`sudo systemctl start postgres-backup.service`.
+
+Alternative — cron, same schedule (crontab -e):
 
 ```cron
 30 3 * * * /home/damian/dev/dashboards/infra/postgres/scripts/backup.sh >> /home/damian/dev/dashboards/infra/postgres/backup.log 2>&1
