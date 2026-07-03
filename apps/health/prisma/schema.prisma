@@ -94,7 +94,9 @@ model SleepSession {
   avgHrvMs      Int?     @map("avg_hrv_ms")
   lowestHrBpm   Int?     @map("lowest_hr_bpm")
   source        Source   @default(OURA)
-  externalId    String   @unique @map("external_id")
+  // Optional so MANUAL fallback entries can coexist with synced rows — the
+  // WeightMeasurement precedent. Oura upserts still key on it (always set).
+  externalId    String?  @unique @map("external_id")
   raw           Json?
   createdAt     DateTime @default(now()) @map("created_at")
 
