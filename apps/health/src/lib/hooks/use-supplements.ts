@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import { getJSON, postJSON, putJSON } from "@/lib/fetcher";
 import { queryKeys } from "@/lib/hooks/keys";
+import { useArchiveToggle } from "@/lib/hooks/use-archive-toggle";
 import type {
   CreateSupplementInput,
   SupplementTimeGroup,
@@ -182,35 +183,12 @@ export function useUpdateSupplement(id: string) {
   });
 }
 
-interface ArchiveVars {
-  id: string;
-  archived: boolean;
-}
-
 export function useArchiveSupplement() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, archived }: ArchiveVars) =>
+  return useArchiveToggle<SupplementDTO>({
+    prefix: queryKeys.supplements(),
+    request: ({ id, archived }) =>
       postJSON<SupplementDTO>(`/api/supplements/${id}/archive`, { archived }),
-    onMutate: async ({ id, archived }) => {
-      await qc.cancelQueries({ queryKey: queryKeys.supplements() });
-      const snapshots = qc.getQueriesData({ queryKey: queryKeys.supplements() });
-      for (const [key, data] of snapshots) {
-        if (!Array.isArray(data)) continue;
-        qc.setQueryData<SupplementDTO[]>(
-          key,
-          data.map((s) => (s.id === id ? { ...s, archived } : s)),
-        );
-      }
-      return { snapshots };
-    },
-    onError: (_err, _vars, ctx) => {
-      ctx?.snapshots.forEach(([key, data]) => qc.setQueryData(key, data));
-      toast.error("Couldn't update supplement");
-    },
-    onSettled: () => {
-      void qc.invalidateQueries({ queryKey: queryKeys.supplements() });
-    },
+    errorMessage: "Couldn't update supplement",
   });
 }
 

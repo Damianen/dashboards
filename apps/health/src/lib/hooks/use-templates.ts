@@ -9,6 +9,7 @@ import { toast } from "sonner";
 
 import { getJSON, HttpError, postJSON, putJSON } from "@/lib/fetcher";
 import { queryKeys } from "@/lib/hooks/keys";
+import { useArchiveToggle } from "@/lib/hooks/use-archive-toggle";
 import type { CreateTemplateInput } from "@/lib/schemas/template";
 // Type-only imports: erased at build time, so no server code is bundled.
 import type {
@@ -144,37 +145,12 @@ export function useDuplicateTemplate() {
   });
 }
 
-interface ArchiveVars {
-  id: string;
-  archived: boolean;
-}
-
 export function useArchiveTemplate() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, archived }: ArchiveVars) =>
+  return useArchiveToggle<TemplateDTO>({
+    prefix: queryKeys.templates(),
+    request: ({ id, archived }) =>
       postJSON<TemplateDTO>(`/api/lifting/templates/${id}/archive`, { archived }),
-    onMutate: async ({ id, archived }) => {
-      await qc.cancelQueries({ queryKey: queryKeys.templates() });
-      // Snapshot every cached list and flip the flag optimistically. Detail caches
-      // (single objects) are skipped via the Array guard.
-      const snapshots = qc.getQueriesData({ queryKey: queryKeys.templates() });
-      for (const [key, data] of snapshots) {
-        if (!Array.isArray(data)) continue;
-        qc.setQueryData<TemplateDTO[]>(
-          key,
-          data.map((t) => (t.id === id ? { ...t, archived } : t)),
-        );
-      }
-      return { snapshots };
-    },
-    onError: (_err, _vars, ctx) => {
-      ctx?.snapshots.forEach(([key, data]) => qc.setQueryData(key, data));
-      toast.error("Couldn't update template");
-    },
-    onSettled: () => {
-      void qc.invalidateQueries({ queryKey: queryKeys.templates() });
-    },
+    errorMessage: "Couldn't update template",
   });
 }
 
