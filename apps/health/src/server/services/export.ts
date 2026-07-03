@@ -464,6 +464,7 @@ function serializeSessionPlanItem(it: LiftingSessionRow["planItems"][number]) {
     targetWeightKg: numOrNull(it.targetWeightKg),
     weightIncrementKg: numOrNull(it.weightIncrementKg),
     targetVolumeKg: numOrNull(it.targetVolumeKg),
+    restSec: it.restSec,
     warmups: it.warmups.map((w) => ({
       id: w.id,
       planItemId: w.planItemId,

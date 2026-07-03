@@ -442,6 +442,7 @@ model SessionPlanItem {
   targetWeightKg    Decimal?            @map("target_weight_kg") @db.Decimal(5, 2)
   weightIncrementKg Decimal?            @map("weight_increment_kg") @db.Decimal(5, 2)
   targetVolumeKg    Decimal?            @map("target_volume_kg") @db.Decimal(7, 1)
+  restSec           Int?                @map("rest_sec")
   warmups           SessionPlanWarmup[]
 
   @@unique([sessionId, position])
