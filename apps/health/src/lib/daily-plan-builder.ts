@@ -5,7 +5,12 @@
 // logFood/logMeal — so a derived preview (edit mode) needn't be exact. Shares
 // builderKey with the meal builder so list keys never collide.
 
-import { type MealSlot } from "@/lib/food";
+import {
+  coerceMacros,
+  type MealSlot,
+  type PickedItem,
+  servingAmountG,
+} from "@/lib/food";
 import { builderKey } from "@/lib/meal-builder";
 import { scaleMacrosBy, sumMacros } from "@/lib/meals";
 import { type Macros, scaleMacros } from "@/lib/rules";
@@ -109,6 +114,52 @@ export function planItemFromView(it: DailyPlanItemView): PlanBuilderItem {
       perPortion: scaleMacrosBy(m, amount > 0 ? 1 / amount : 0),
     },
   };
+}
+
+/** Convert a picker selection into a fresh PlanBuilderItem (no slot yet): a
+ *  product/saved food starts at its serving size (else 100 g), a meal at 1 portion.
+ *  Plan items are pure references, so there is no "manual" case. */
+export function planItemFromPicked(
+  picked: Exclude<PickedItem, { kind: "manual" }>,
+): PlanBuilderItem {
+  switch (picked.kind) {
+    case "product":
+      return {
+        key: builderKey(),
+        name: picked.product.name,
+        amount: servingAmountG(picked.product.servingG),
+        mealSlot: null,
+        source: {
+          kind: "product",
+          barcode: picked.product.barcode,
+          per100g: picked.product.per100g,
+        },
+      };
+    case "customFood":
+      return {
+        key: builderKey(),
+        name: picked.food.name,
+        amount: servingAmountG(picked.food.servingG),
+        mealSlot: null,
+        source: {
+          kind: "customFood",
+          customFoodId: picked.food.id,
+          per100g: coerceMacros(picked.food.per100g),
+        },
+      };
+    case "meal":
+      return {
+        key: builderKey(),
+        name: picked.meal.name,
+        amount: 1,
+        mealSlot: null,
+        source: {
+          kind: "meal",
+          mealId: picked.meal.id,
+          perPortion: coerceMacros(picked.meal.perPortion),
+        },
+      };
+  }
 }
 
 /** Serialize a PlanBuilderItem to the createDailyPlan item input the server validates. */

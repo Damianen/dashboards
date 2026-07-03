@@ -3,14 +3,17 @@ import { describe, expect, it } from "vitest";
 import {
   itemContribution,
   type PlanBuilderItem,
+  planItemFromPicked,
   planItemFromView,
   planSnapshot,
   planTotal,
   toCreateDailyPlanInput,
   toDailyPlanItemInput,
 } from "./daily-plan-builder";
+import type { CustomFoodDTO, FoodProductDTO } from "./food";
 import type { Macros } from "./rules";
 import type { DailyPlanItemView } from "@/server/services/dailyPlans";
+import type { MealSummary } from "@/server/services/meals";
 
 const CUID = "cflx0a1b2c3d4e5f6g7h8i9j";
 
@@ -171,6 +174,93 @@ describe("planItemFromView (edit-mode round-trip)", () => {
     expect(item.amount).toBe(2);
     expect(itemContribution(item).kcal).toBe(600);
     expect(toDailyPlanItemInput(item)).toEqual({ mealId: CUID, portions: 2 });
+  });
+});
+
+// Picker DTO fixtures for planItemFromPicked. The per100g/perPortion partial casts
+// mirror the wire, where unreported detail macros are absent (undefined) — what
+// coerceMacros normalizes to nulls.
+const pickedProduct: FoodProductDTO = {
+  barcode: "5449000000996",
+  name: "Coke",
+  brand: "Coca-Cola",
+  imageUrl: null,
+  per100g: macros({ kcal: 42, sugarG: 10.6 }),
+  servingG: "330",
+};
+
+const pickedFood: CustomFoodDTO = {
+  id: CUID,
+  name: "Oats",
+  brand: null,
+  per100g: { kcal: 380, proteinG: 13.5 } as Macros,
+  servingG: 40,
+  source: "manual",
+  archived: false,
+  lastUsedAt: null,
+};
+
+const pickedMeal: MealSummary = {
+  id: CUID,
+  name: "Shake",
+  notes: null,
+  yieldPortions: 2,
+  perPortion: { kcal: 300, proteinG: 30 } as Macros,
+  perPortionKcal: 300,
+  archived: false,
+  createdAt: "2026-06-16T08:00:00.000Z",
+  updatedAt: "2026-06-16T08:00:00.000Z",
+};
+
+describe("planItemFromPicked", () => {
+  it("starts a product at its serving size (wire string), slotless, per-100 g verbatim", () => {
+    const item = planItemFromPicked({ kind: "product", product: pickedProduct });
+    expect(item.name).toBe("Coke");
+    expect(item.amount).toBe(330);
+    expect(item.mealSlot).toBeNull();
+    expect(item.source).toEqual({
+      kind: "product",
+      barcode: "5449000000996",
+      per100g: macros({ kcal: 42, sugarG: 10.6 }),
+    });
+  });
+
+  it("defaults a product without a serving size to 100 g", () => {
+    const item = planItemFromPicked({
+      kind: "product",
+      product: { ...pickedProduct, servingG: null },
+    });
+    expect(item.amount).toBe(100);
+  });
+
+  it("starts a saved food at its serving size, coercing partial per-100 g to full Macros", () => {
+    const item = planItemFromPicked({ kind: "customFood", food: pickedFood });
+    expect(item.name).toBe("Oats");
+    expect(item.amount).toBe(40);
+    expect(item.mealSlot).toBeNull();
+    expect(item.source).toEqual({
+      kind: "customFood",
+      customFoodId: CUID,
+      per100g: macros({ kcal: 380, proteinG: 13.5 }), // absent fields → null
+    });
+  });
+
+  it("starts a picked meal at 1 portion as a coerced meal source, slotless", () => {
+    const item = planItemFromPicked({ kind: "meal", meal: pickedMeal });
+    expect(item.name).toBe("Shake");
+    expect(item.amount).toBe(1);
+    expect(item.mealSlot).toBeNull();
+    expect(item.source).toEqual({
+      kind: "meal",
+      mealId: CUID,
+      perPortion: macros({ kcal: 300, proteinG: 30 }),
+    });
+  });
+
+  it("mints a distinct list key per conversion", () => {
+    const a = planItemFromPicked({ kind: "meal", meal: pickedMeal });
+    const b = planItemFromPicked({ kind: "meal", meal: pickedMeal });
+    expect(a.key).not.toBe(b.key);
   });
 });
 
