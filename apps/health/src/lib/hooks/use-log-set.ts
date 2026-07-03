@@ -3,7 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { postJSON } from "@/lib/fetcher";
+import { httpErrorMessage, postJSON } from "@/lib/fetcher";
 import { queryKeys } from "@/lib/hooks/keys";
 import {
   applyOptimisticSummary,
@@ -36,9 +36,9 @@ export function useLogSet(day: string, sessionId?: string) {
       }));
       return { previous };
     },
-    onError: (_err, _input, ctx) => {
+    onError: (err, _input, ctx) => {
       rollbackSummary(qc, day, ctx?.previous);
-      toast.error("Couldn't log set");
+      toast.error(httpErrorMessage(err, "Couldn't log set"));
     },
     onSuccess: () => {
       toast.success("Set logged");

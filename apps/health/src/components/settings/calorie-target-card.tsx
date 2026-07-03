@@ -1,117 +1,85 @@
 "use client";
 
-import { useQueryClient } from "@tanstack/react-query";
 import { Flame } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 
+import { SettingCard } from "@/components/settings/setting-card";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { getJSON, patchJSON } from "@/lib/fetcher";
 import { queryKeys } from "@/lib/hooks/keys";
+import { type SettingHandle, useSetting } from "@/lib/hooks/use-setting";
 import { intakeTargetSchema } from "@/lib/schemas/settings";
+
+interface IntakeTargetDTO {
+  kcal: number | null;
+}
 
 // Daily intake calorie target. An intake-ONLY goal shown against logged calories — never
 // a deficit or an expenditure figure (CLAUDE.md no-net-calories guardrail). Saving
 // invalidates adherence so Today's intake progress refreshes. Empty until set.
 export function CalorieTargetCard() {
-  const qc = useQueryClient();
-  const [value, setValue] = useState("");
-  const [loaded, setLoaded] = useState(false);
-  const [loadError, setLoadError] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const setting = useSetting<IntakeTargetDTO>({
+    key: queryKeys.setting("intake-target"),
+    url: "/api/settings/intake-target",
+    invalidateOnSave: [queryKeys.adherencePrefix()],
+    successMessage: "Calorie target updated",
+    errorMessage: "Couldn't update calorie target",
+  });
 
-  // A failed load must NOT render as an empty "not set" field — saving over it
-  // would silently overwrite the real target — so it gets an explicit Retry state.
-  const fetchTarget = useCallback(() => {
-    void getJSON<{ kcal: number | null }>("/api/settings/intake-target")
-      .then((d) => setValue(d.kcal == null ? "" : String(d.kcal)))
-      .catch(() => setLoadError(true))
-      .finally(() => setLoaded(true));
-  }, []);
-  useEffect(fetchTarget, [fetchTarget]);
+  return (
+    <SettingCard
+      icon={Flame}
+      title="Calorie target"
+      description="A daily intake goal, shown against the calories you log. It is never a deficit or expenditure target."
+      loadErrorLabel="the current target"
+      setting={setting}
+    >
+      {(data, s) => <CalorieTargetForm data={data} setting={s} />}
+    </SettingCard>
+  );
+}
 
-  function retryLoad() {
-    setLoaded(false);
-    setLoadError(false);
-    fetchTarget();
-  }
+function CalorieTargetForm({
+  data,
+  setting,
+}: {
+  data: IntakeTargetDTO;
+  setting: SettingHandle<IntakeTargetDTO>;
+}) {
+  const [value, setValue] = useState(data.kcal == null ? "" : String(data.kcal));
 
-  async function handleSave() {
+  function handleSave() {
     const parsed = intakeTargetSchema.safeParse({ kcal: value });
     if (!parsed.success) {
       toast.error("Enter a calorie target between 500 and 10000 kcal");
       return;
     }
-    setSaving(true);
-    try {
-      const d = await patchJSON<{ kcal: number }>(
-        "/api/settings/intake-target",
-        { kcal: parsed.data.kcal },
-      );
-      setValue(String(d.kcal));
-      await qc.invalidateQueries({ queryKey: queryKeys.adherencePrefix() });
-      toast.success("Calorie target updated");
-    } catch {
-      toast.error("Couldn't update calorie target");
-    } finally {
-      setSaving(false);
-    }
+    setting.save({ kcal: parsed.data.kcal });
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Flame className="size-4" /> Calorie target
-        </CardTitle>
-        <CardDescription>
-          A daily intake goal, shown against the calories you log. It is never a
-          deficit or expenditure target.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {loadError ? (
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-muted-foreground text-sm">
-              Couldn&apos;t load the current target.
-            </p>
-            <Button variant="outline" onClick={retryLoad}>
-              Retry
-            </Button>
-          </div>
-        ) : (
-          <div className="flex items-end gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="intake-kcal-target">kcal</Label>
-              <Input
-                id="intake-kcal-target"
-                type="number"
-                inputMode="numeric"
-                min={500}
-                max={10000}
-                step={10}
-                placeholder="e.g. 2200"
-                className="w-28"
-                value={value}
-                disabled={!loaded || saving}
-                onChange={(e) => setValue(e.target.value)}
-              />
-            </div>
-            <Button onClick={() => void handleSave()} disabled={!loaded || saving}>
-              Save
-            </Button>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+    <div className="flex items-end gap-3">
+      <div className="space-y-1.5">
+        <Label htmlFor="intake-kcal-target">kcal</Label>
+        <Input
+          id="intake-kcal-target"
+          type="number"
+          inputMode="numeric"
+          min={500}
+          max={10000}
+          step={10}
+          placeholder="e.g. 2200"
+          className="w-28"
+          value={value}
+          disabled={setting.saving}
+          onChange={(e) => setValue(e.target.value)}
+        />
+      </div>
+      <Button onClick={handleSave} disabled={setting.saving}>
+        Save
+      </Button>
+    </div>
   );
 }

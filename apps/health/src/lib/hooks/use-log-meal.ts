@@ -3,7 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { postJSON } from "@/lib/fetcher";
+import { httpErrorMessage, postJSON } from "@/lib/fetcher";
 import type { FoodEntryDTO, MacroTotals, MealSlot } from "@/lib/food";
 import {
   type DiaryCtx,
@@ -69,9 +69,9 @@ export function useLogMeal(day: string) {
       };
       return prependOptimisticEntry(qc, day, optimistic, macros);
     },
-    onError: (_err, _args, ctx) => {
+    onError: (err, _args, ctx) => {
       rollbackDiary(qc, day, ctx);
-      toast.error("Couldn't log meal");
+      toast.error(httpErrorMessage(err, "Couldn't log meal"));
     },
     onSuccess: () => {
       toast.success("Meal logged");

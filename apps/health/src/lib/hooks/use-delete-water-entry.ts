@@ -3,7 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { delJSON, HttpError } from "@/lib/fetcher";
+import { delJSON, HttpError, httpErrorMessage } from "@/lib/fetcher";
 import {
   applyOptimisticSummary,
   invalidateDay,
@@ -42,7 +42,7 @@ export function useDeleteWaterEntry() {
       // A raced double-undo 404s — the row is already gone, which is what the
       // user wanted; the settle refetch trues things up without an error toast.
       if (!(err instanceof HttpError && err.status === 404)) {
-        toast.error("Couldn't undo");
+        toast.error(httpErrorMessage(err, "Couldn't undo"));
       }
     },
     onSuccess: (_data, { amountMl }) => {

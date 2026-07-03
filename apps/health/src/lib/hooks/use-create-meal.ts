@@ -3,7 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { postJSON } from "@/lib/fetcher";
+import { httpErrorMessage, postJSON } from "@/lib/fetcher";
 import { queryKeys } from "@/lib/hooks/keys";
 import type { CreateMealInput } from "@/lib/schemas/meals";
 import type { MealDetail } from "@/server/services/meals";
@@ -15,7 +15,7 @@ export function useCreateMeal() {
     mutationFn: (input: CreateMealInput) =>
       postJSON<MealDetail>("/api/food/meals", input),
     onSuccess: () => toast.success("Meal saved"),
-    onError: () => toast.error("Couldn't save meal"),
+    onError: (err) => toast.error(httpErrorMessage(err, "Couldn't save meal")),
     onSettled: () => void qc.invalidateQueries({ queryKey: queryKeys.meals() }),
   });
 }

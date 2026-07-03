@@ -3,7 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { patchJSON } from "@/lib/fetcher";
+import { httpErrorMessage, patchJSON } from "@/lib/fetcher";
 import {
   type EntryTotals,
   type FoodEntryDTO,
@@ -104,9 +104,9 @@ export function useUpdateFoodEntry(day: string) {
 
       return { prevEntries, prevSummary };
     },
-    onError: (_err, _args, ctx) => {
+    onError: (err, _args, ctx) => {
       rollbackDiary(qc, day, ctx);
-      toast.error("Couldn't update entry");
+      toast.error(httpErrorMessage(err, "Couldn't update entry"));
     },
     onSuccess: () => {
       toast.success("Entry updated");

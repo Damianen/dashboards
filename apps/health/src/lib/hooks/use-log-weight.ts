@@ -3,7 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { postJSON } from "@/lib/fetcher";
+import { httpErrorMessage, postJSON } from "@/lib/fetcher";
 import { invalidateAfterSync } from "@/lib/hooks/keys";
 import {
   applyOptimisticSummary,
@@ -31,9 +31,9 @@ export function useLogWeight(day: string) {
       }));
       return { previous };
     },
-    onError: (_err, _input, ctx) => {
+    onError: (err, _input, ctx) => {
       rollbackSummary(qc, day, ctx?.previous);
-      toast.error("Couldn't log weight");
+      toast.error(httpErrorMessage(err, "Couldn't log weight"));
     },
     onSuccess: (_data, input) => {
       toast.success(`Logged ${input.weightKg} kg`);

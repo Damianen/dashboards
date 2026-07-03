@@ -3,7 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { postJSON } from "@/lib/fetcher";
+import { httpErrorMessage, postJSON } from "@/lib/fetcher";
 import { invalidateAfterSync, queryKeys } from "@/lib/hooks/keys";
 
 /** One entry per source from POST /api/sync/all (mirrors the service's SyncAllResult). */
@@ -41,7 +41,8 @@ export function useSyncAll() {
         );
       }
     },
-    onError: () => toast.error("Couldn't reach the server"),
+    onError: (err) =>
+      toast.error(httpErrorMessage(err, "Couldn't reach the server")),
     onSettled: () => {
       qc.invalidateQueries({ queryKey: queryKeys.syncStatus() });
       qc.invalidateQueries({ queryKey: queryKeys.connections() });

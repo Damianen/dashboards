@@ -3,7 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { postJSON } from "@/lib/fetcher";
+import { httpErrorMessage, postJSON } from "@/lib/fetcher";
 import {
   applyOptimisticSummary,
   invalidateDay,
@@ -30,9 +30,9 @@ export function useLogWater(day: string) {
       }));
       return { previous };
     },
-    onError: (_err, _input, ctx) => {
+    onError: (err, _input, ctx) => {
       rollbackSummary(qc, day, ctx?.previous);
-      toast.error("Couldn't log water");
+      toast.error(httpErrorMessage(err, "Couldn't log water"));
     },
     onSuccess: (entry, input) => {
       toast.success(`Logged ${input.amountMl} ml water`, {

@@ -3,7 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { delJSON, HttpError } from "@/lib/fetcher";
+import { delJSON, HttpError, httpErrorMessage } from "@/lib/fetcher";
 import { queryKeys } from "@/lib/hooks/keys";
 import {
   applyOptimisticSummary,
@@ -44,7 +44,7 @@ export function useDeleteStimulantEntry() {
     onError: (err, { day }, ctx) => {
       rollbackSummary(qc, day, ctx?.previous);
       if (!(err instanceof HttpError && err.status === 404)) {
-        toast.error("Couldn't undo");
+        toast.error(httpErrorMessage(err, "Couldn't undo"));
       }
     },
     onSuccess: ({ waterTargetMl }, { day, amountMg }) => {

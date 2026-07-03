@@ -297,7 +297,14 @@ export function LoggedRow({
           checked
           pending={del.isPending}
           disabled={del.isPending}
-          onClick={() => del.mutate(set.id)}
+          onClick={() =>
+            del.mutate({
+              id: set.id,
+              reps: set.reps,
+              weightKg: set.weightKg,
+              isWarmup: set.isWarmup,
+            })
+          }
           label="Remove set"
         />
       </div>

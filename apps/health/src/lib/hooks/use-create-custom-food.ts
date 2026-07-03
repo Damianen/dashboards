@@ -3,7 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { postJSON } from "@/lib/fetcher";
+import { httpErrorMessage, postJSON } from "@/lib/fetcher";
 import { queryKeys } from "@/lib/hooks/keys";
 import type { CreateCustomFoodInput } from "@/lib/schemas/food";
 
@@ -17,7 +17,8 @@ export function useCreateCustomFood() {
   return useMutation({
     mutationFn: (input: CreateCustomFoodInput) =>
       postJSON<{ id: string }>("/api/food/custom", input),
-    onError: () => toast.error("Couldn't save the food"),
+    onError: (err) =>
+      toast.error(httpErrorMessage(err, "Couldn't save the food")),
     onSettled: () =>
       void qc.invalidateQueries({ queryKey: queryKeys.customFoods() }),
   });

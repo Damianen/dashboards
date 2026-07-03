@@ -1,22 +1,15 @@
 "use client";
 
-import { useQueryClient } from "@tanstack/react-query";
 import { Droplets } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 
+import { SettingCard } from "@/components/settings/setting-card";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { getJSON, patchJSON } from "@/lib/fetcher";
 import { queryKeys } from "@/lib/hooks/keys";
+import { type SettingHandle, useSetting } from "@/lib/hooks/use-setting";
 import { waterSettingsSchema, type WaterSettings } from "@/lib/schemas/settings";
 
 // The two inputs of the deterministic water target (base + stimulant mg ×
@@ -24,33 +17,40 @@ import { waterSettingsSchema, type WaterSettings } from "@/lib/schemas/settings"
 // reads these settings live — so saving + invalidating summary/water moves
 // Today's target immediately, past days included.
 export function WaterSettingsCard() {
-  const qc = useQueryClient();
-  const [base, setBase] = useState("");
-  const [perMg, setPerMg] = useState("");
-  const [loaded, setLoaded] = useState(false);
-  const [loadError, setLoadError] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const setting = useSetting<WaterSettings>({
+    key: queryKeys.setting("water"),
+    url: "/api/settings/water",
+    // The view computes targets live from these settings — refresh every
+    // cached day's summary and water status.
+    invalidateOnSave: [queryKeys.summaryPrefix(), queryKeys.waterPrefix()],
+    successMessage: "Water target updated",
+    errorMessage: "Couldn't update water settings",
+  });
 
-  // A failed load must NOT render as defaults — saving over it would silently
-  // overwrite the real settings — so it gets an explicit Retry state.
-  const fetchSettings = useCallback(() => {
-    void getJSON<WaterSettings>("/api/settings/water")
-      .then((d) => {
-        setBase(String(d.baseTargetMl));
-        setPerMg(String(d.mlPerMgStimulant));
-      })
-      .catch(() => setLoadError(true))
-      .finally(() => setLoaded(true));
-  }, []);
-  useEffect(fetchSettings, [fetchSettings]);
+  return (
+    <SettingCard
+      icon={Droplets}
+      title="Water target"
+      description="Daily target = base + logged stimulant mg × the factor below. Set the factor to 0 to ignore stimulants."
+      loadErrorLabel="the current settings"
+      setting={setting}
+    >
+      {(data, s) => <WaterSettingsForm data={data} setting={s} />}
+    </SettingCard>
+  );
+}
 
-  function retryLoad() {
-    setLoaded(false);
-    setLoadError(false);
-    fetchSettings();
-  }
+function WaterSettingsForm({
+  data,
+  setting,
+}: {
+  data: WaterSettings;
+  setting: SettingHandle<WaterSettings>;
+}) {
+  const [base, setBase] = useState(String(data.baseTargetMl));
+  const [perMg, setPerMg] = useState(String(data.mlPerMgStimulant));
 
-  async function handleSave() {
+  function handleSave() {
     const parsed = waterSettingsSchema.safeParse({
       baseTargetMl: base,
       mlPerMgStimulant: perMg,
@@ -61,85 +61,44 @@ export function WaterSettingsCard() {
       );
       return;
     }
-    setSaving(true);
-    try {
-      const d = await patchJSON<WaterSettings>(
-        "/api/settings/water",
-        parsed.data,
-      );
-      setBase(String(d.baseTargetMl));
-      setPerMg(String(d.mlPerMgStimulant));
-      // The view computes targets live from these settings — refresh every
-      // cached day's summary and water status.
-      await qc.invalidateQueries({ queryKey: queryKeys.summaryPrefix() });
-      await qc.invalidateQueries({ queryKey: queryKeys.waterPrefix() });
-      toast.success("Water target updated");
-    } catch {
-      toast.error("Couldn't update water settings");
-    } finally {
-      setSaving(false);
-    }
+    setting.save(parsed.data);
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Droplets className="size-4" /> Water target
-        </CardTitle>
-        <CardDescription>
-          Daily target = base + logged stimulant mg × the factor below. Set the
-          factor to 0 to ignore stimulants.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {loadError ? (
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-muted-foreground text-sm">
-              Couldn&apos;t load the current settings.
-            </p>
-            <Button variant="outline" onClick={retryLoad}>
-              Retry
-            </Button>
-          </div>
-        ) : (
-          <div className="flex items-end gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="water-base-target">Base (ml)</Label>
-              <Input
-                id="water-base-target"
-                type="number"
-                inputMode="numeric"
-                min={500}
-                max={6000}
-                step={100}
-                className="w-24"
-                value={base}
-                disabled={!loaded || saving}
-                onChange={(e) => setBase(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="water-ml-per-mg">ml per mg</Label>
-              <Input
-                id="water-ml-per-mg"
-                type="number"
-                inputMode="decimal"
-                min={0}
-                max={5}
-                step={0.1}
-                className="w-24"
-                value={perMg}
-                disabled={!loaded || saving}
-                onChange={(e) => setPerMg(e.target.value)}
-              />
-            </div>
-            <Button onClick={() => void handleSave()} disabled={!loaded || saving}>
-              Save
-            </Button>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+    <div className="flex items-end gap-3">
+      <div className="space-y-1.5">
+        <Label htmlFor="water-base-target">Base (ml)</Label>
+        <Input
+          id="water-base-target"
+          type="number"
+          inputMode="numeric"
+          min={500}
+          max={6000}
+          step={100}
+          className="w-24"
+          value={base}
+          disabled={setting.saving}
+          onChange={(e) => setBase(e.target.value)}
+        />
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="water-ml-per-mg">ml per mg</Label>
+        <Input
+          id="water-ml-per-mg"
+          type="number"
+          inputMode="decimal"
+          min={0}
+          max={5}
+          step={0.1}
+          className="w-24"
+          value={perMg}
+          disabled={setting.saving}
+          onChange={(e) => setPerMg(e.target.value)}
+        />
+      </div>
+      <Button onClick={handleSave} disabled={setting.saving}>
+        Save
+      </Button>
+    </div>
   );
 }

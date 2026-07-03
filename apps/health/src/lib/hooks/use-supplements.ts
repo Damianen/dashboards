@@ -3,8 +3,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { getJSON, postJSON, putJSON } from "@/lib/fetcher";
+import { getJSON, httpErrorMessage, postJSON, putJSON } from "@/lib/fetcher";
 import { queryKeys } from "@/lib/hooks/keys";
+import { useArchiveToggle } from "@/lib/hooks/use-archive-toggle";
 import type {
   CreateSupplementInput,
   SupplementTimeGroup,
@@ -77,9 +78,9 @@ function useChecklistMutation<TVars>(
       if (previous) qc.setQueryData(key, opts.optimistic(previous, vars));
       return { previous };
     },
-    onError: (_err, _vars, ctx) => {
+    onError: (err, _vars, ctx) => {
       if (ctx?.previous) qc.setQueryData(key, ctx.previous);
-      toast.error(opts.errorMessage);
+      toast.error(httpErrorMessage(err, opts.errorMessage));
     },
     onSuccess: (groups) => qc.setQueryData(key, groups),
     onSettled: () => {
@@ -163,7 +164,8 @@ export function useCreateSupplement() {
   return useMutation({
     mutationFn: (input: CreateSupplementInput) =>
       postJSON<SupplementDTO>("/api/supplements", input),
-    onError: () => toast.error("Couldn't add supplement"),
+    onError: (err) =>
+      toast.error(httpErrorMessage(err, "Couldn't add supplement")),
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.supplements() });
     },
@@ -175,42 +177,20 @@ export function useUpdateSupplement(id: string) {
   return useMutation({
     mutationFn: (input: UpdateSupplementInput) =>
       putJSON<SupplementDTO>(`/api/supplements/${id}`, input),
-    onError: () => toast.error("Couldn't save supplement"),
+    onError: (err) =>
+      toast.error(httpErrorMessage(err, "Couldn't save supplement")),
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.supplements() });
     },
   });
 }
 
-interface ArchiveVars {
-  id: string;
-  archived: boolean;
-}
-
 export function useArchiveSupplement() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, archived }: ArchiveVars) =>
+  return useArchiveToggle<SupplementDTO>({
+    prefix: queryKeys.supplements(),
+    request: ({ id, archived }) =>
       postJSON<SupplementDTO>(`/api/supplements/${id}/archive`, { archived }),
-    onMutate: async ({ id, archived }) => {
-      await qc.cancelQueries({ queryKey: queryKeys.supplements() });
-      const snapshots = qc.getQueriesData({ queryKey: queryKeys.supplements() });
-      for (const [key, data] of snapshots) {
-        if (!Array.isArray(data)) continue;
-        qc.setQueryData<SupplementDTO[]>(
-          key,
-          data.map((s) => (s.id === id ? { ...s, archived } : s)),
-        );
-      }
-      return { snapshots };
-    },
-    onError: (_err, _vars, ctx) => {
-      ctx?.snapshots.forEach(([key, data]) => qc.setQueryData(key, data));
-      toast.error("Couldn't update supplement");
-    },
-    onSettled: () => {
-      void qc.invalidateQueries({ queryKey: queryKeys.supplements() });
-    },
+    errorMessage: "Couldn't update supplement",
   });
 }
 
@@ -247,9 +227,9 @@ export function useReorderSupplements() {
       }
       return { snapshots };
     },
-    onError: (_err, _vars, ctx) => {
+    onError: (err, _vars, ctx) => {
       ctx?.snapshots.forEach(([key, data]) => qc.setQueryData(key, data));
-      toast.error("Couldn't reorder");
+      toast.error(httpErrorMessage(err, "Couldn't reorder"));
     },
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.supplements() });
