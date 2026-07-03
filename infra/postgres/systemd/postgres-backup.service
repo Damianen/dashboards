@@ -1,0 +1,11 @@
+[Unit]
+Description=Dump every service database on the shared postgres server
+# backup.sh drives pg_dump through `docker exec postgres`, so the container
+# runtime must be up — and this unit only makes sense on the host running it.
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/damian/dev/dashboards/infra/postgres
+ExecStart=/home/damian/dev/dashboards/infra/postgres/scripts/backup.sh

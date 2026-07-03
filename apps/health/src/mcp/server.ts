@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import { registerAdminTools } from "./tools/admin";
+import { registerExportTools } from "./tools/export";
 import { registerFoodTools } from "./tools/food";
 import { registerInsightsTools } from "./tools/insights";
 import { registerLiftingTools } from "./tools/lifting";
@@ -23,6 +24,7 @@ export function buildServer(): McpServer {
   registerLiftingTools(server);
   registerWorkoutsTools(server);
   registerSettingsTools(server);
+  registerExportTools(server);
   registerAdminTools(server);
 
   return server;
