@@ -1,3 +1,10 @@
+import {
+  briefingScheduleSchema,
+  briefingSettingsSchema,
+  modeCutoffHourSchema,
+  suggestionThresholdsSchema,
+  type BriefingSettings,
+} from "@/lib/schemas/briefing";
 import { tdeeWindowSchema, type TdeeWindow } from "@/lib/schemas/insights";
 import {
   intakeTargetSchema,
@@ -143,6 +150,72 @@ export async function setWaterSettings(
       where: { key: WATER_ML_PER_MG_KEY },
       create: { key: WATER_ML_PER_MG_KEY, value: data.mlPerMgStimulant },
       update: { value: data.mlPerMgStimulant },
+    }),
+  ]);
+  return data;
+}
+
+// Daily-briefing configuration across three settings rows (additive — no
+// migration): the notification slots, the morning/evening mode cutoff, and the
+// readiness thresholds behind the session suggestion.
+const BRIEFING_SCHEDULE_KEY = "briefing.schedule";
+const BRIEFING_CUTOFF_KEY = "briefing.modeCutoffHour";
+const BRIEFING_THRESHOLDS_KEY = "briefing.thresholds";
+
+/** Defaults when a row has never been written (or fails validation). */
+export const BRIEFING_DEFAULTS: BriefingSettings = {
+  morning: { enabled: true, time: "07:30" },
+  evening: { enabled: true, time: "21:00" },
+  modeCutoffHour: 15,
+  thresholds: { goodMin: 75, moderateMin: 60 },
+};
+
+/** The stored briefing settings, each part falling back to its default when
+ *  unset or somehow invalid (getTdeeWindowDays' safe-parse pattern). */
+export async function getBriefingSettings(): Promise<BriefingSettings> {
+  const rows = await prisma.setting.findMany({
+    where: {
+      key: { in: [BRIEFING_SCHEDULE_KEY, BRIEFING_CUTOFF_KEY, BRIEFING_THRESHOLDS_KEY] },
+    },
+  });
+  const byKey = new Map(rows.map((r) => [r.key, r.value]));
+
+  const schedule = briefingScheduleSchema.safeParse(byKey.get(BRIEFING_SCHEDULE_KEY));
+  const cutoff = modeCutoffHourSchema.safeParse(byKey.get(BRIEFING_CUTOFF_KEY));
+  const thresholds = suggestionThresholdsSchema.safeParse(
+    byKey.get(BRIEFING_THRESHOLDS_KEY),
+  );
+
+  return {
+    morning: schedule.success ? schedule.data.morning : BRIEFING_DEFAULTS.morning,
+    evening: schedule.success ? schedule.data.evening : BRIEFING_DEFAULTS.evening,
+    modeCutoffHour: cutoff.success ? cutoff.data : BRIEFING_DEFAULTS.modeCutoffHour,
+    thresholds: thresholds.success ? thresholds.data : BRIEFING_DEFAULTS.thresholds,
+  };
+}
+
+/** Persist all briefing settings atomically (one transaction across the three
+ *  rows — a partial save can't leave them inconsistent). */
+export async function setBriefingSettings(
+  input: BriefingSettings,
+): Promise<BriefingSettings> {
+  const data = briefingSettingsSchema.parse(input);
+  const schedule = { morning: data.morning, evening: data.evening };
+  await prisma.$transaction([
+    prisma.setting.upsert({
+      where: { key: BRIEFING_SCHEDULE_KEY },
+      create: { key: BRIEFING_SCHEDULE_KEY, value: schedule },
+      update: { value: schedule },
+    }),
+    prisma.setting.upsert({
+      where: { key: BRIEFING_CUTOFF_KEY },
+      create: { key: BRIEFING_CUTOFF_KEY, value: data.modeCutoffHour },
+      update: { value: data.modeCutoffHour },
+    }),
+    prisma.setting.upsert({
+      where: { key: BRIEFING_THRESHOLDS_KEY },
+      create: { key: BRIEFING_THRESHOLDS_KEY, value: data.thresholds },
+      update: { value: data.thresholds },
     }),
   ]);
   return data;

@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import { SyncStatus } from "@/generated/prisma/client";
 import {
+  eveningBriefingMessage,
   formatLiters,
   isOkToErrorTransition,
+  morningBriefingMessage,
   recoveryHeadsUpMessage,
   streakMilestoneMessage,
   waterNudgeMessage,
@@ -127,5 +129,55 @@ describe("recoveryHeadsUpMessage", () => {
 
   it("returns null when nothing is off baseline", () => {
     expect(recoveryHeadsUpMessage([])).toBeNull();
+  });
+});
+
+describe("morningBriefingMessage", () => {
+  it("carries the headline and the morning deep link", () => {
+    const msg = morningBriefingMessage("Readiness 82 · Push #2 · 2.7 L target");
+    expect(msg.title).toBe("Morning briefing");
+    expect(msg.body).toBe("Readiness 82 · Push #2 · 2.7 L target");
+    expect(msg.url).toBe("/?briefing=morning");
+  });
+
+  it("falls back to a sane body when the headline is empty", () => {
+    expect(morningBriefingMessage("").body).toBe("Your day's plan is ready.");
+  });
+});
+
+describe("eveningBriefingMessage", () => {
+  it("carries the headline and the evening deep link", () => {
+    const msg = eveningBriefingMessage("Water 2.1/2.7 L · Trained ✓");
+    expect(msg.title).toBe("Evening briefing");
+    expect(msg.body).toBe("Water 2.1/2.7 L · Trained ✓");
+    expect(msg.url).toBe("/?briefing=evening");
+  });
+
+  it("mentions unchecked supplements and the water shortfall", () => {
+    const msg = eveningBriefingMessage("Water 2.1/2.7 L", {
+      supplementGroups: [{ remaining: 2 }, { remaining: 1 }],
+      waterShortfallMl: 600,
+    });
+    expect(msg.body).toBe("Water 2.1/2.7 L · 3 supplements and 0.6 L water still open");
+  });
+
+  it("uses the singular for one open supplement and skips a zero shortfall", () => {
+    const msg = eveningBriefingMessage("Recap", {
+      supplementGroups: [{ remaining: 1 }],
+      waterShortfallMl: null,
+    });
+    expect(msg.body).toBe("Recap · 1 supplement still open");
+  });
+
+  it("skips the unfinished mention when everything is done", () => {
+    const msg = eveningBriefingMessage("All good", {
+      supplementGroups: [],
+      waterShortfallMl: null,
+    });
+    expect(msg.body).toBe("All good");
+  });
+
+  it("falls back to a sane body when the headline is empty and nothing is open", () => {
+    expect(eveningBriefingMessage("").body).toBe("Your day's recap is ready.");
   });
 });

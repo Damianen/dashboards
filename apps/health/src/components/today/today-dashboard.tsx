@@ -1,7 +1,13 @@
 "use client";
 
+import { Suspense } from "react";
+
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  BriefingCard,
+  BriefingCardFallback,
+} from "@/components/today/briefing-card";
 import { ApplyPlanCard } from "@/components/today/apply-plan-card";
 import {
   ActivityCard,
@@ -43,6 +49,13 @@ export function TodayDashboard() {
         <h1 className="text-xl font-semibold">Today</h1>
         <p className="text-muted-foreground text-sm">{dateLabel(day)}</p>
       </header>
+
+      {/* Above the summary gate: the briefing has its own query and must not
+          wait for (or fall with) the summary. Suspense because useSearchParams
+          suspends in the prerendered shell (QuickLogFab pattern). */}
+      <Suspense fallback={<BriefingCardFallback />}>
+        <BriefingCard />
+      </Suspense>
 
       {isLoading ? (
         <DashboardSkeleton />

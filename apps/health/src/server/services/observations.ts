@@ -148,6 +148,34 @@ export async function getObservations(window = 30): Promise<ObservationsResult> 
   return { windowDays, observations };
 }
 
+// A surfaced observation must clear both bars: a moderate correlation (|r| ≥ 0.4) over a
+// real sample (n ≥ 12). Below this it's noise we don't interrupt the day for.
+const NOTEWORTHY_STRENGTH = 0.4;
+const NOTEWORTHY_MIN_N = 12;
+
+/**
+ * The strongest noteworthy observation that has never been pushed, or null.
+ * Read-only over the digest's append-only dedupe table — recording stays with
+ * the notification digest (notifications.ts); surfacing one here (briefing)
+ * never uses it up.
+ */
+export async function getFreshObservation(): Promise<Observation | null> {
+  const { observations } = await getObservations();
+  const noteworthy = observations.filter(
+    (o) => Math.abs(o.strength) >= NOTEWORTHY_STRENGTH && o.n >= NOTEWORTHY_MIN_N,
+  );
+  if (noteworthy.length === 0) return null;
+
+  // Drop any observation already pushed, then take the strongest remaining
+  // (observations arrive ranked by |strength|).
+  const seen = await prisma.notifiedObservation.findMany({
+    where: { observationId: { in: noteworthy.map((o) => o.id) } },
+    select: { observationId: true },
+  });
+  const seenIds = new Set(seen.map((s) => s.observationId));
+  return noteworthy.find((o) => !seenIds.has(o.id)) ?? null;
+}
+
 /** One past observation push, labeled for display without re-running detectors. */
 export interface NotifiedObservationView {
   observationId: string;

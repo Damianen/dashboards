@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { civilDay, dayOf, todayLocal } from "@/lib/dates";
 import { MEAL_ORDER } from "@/lib/food";
+import { briefingModeSchema } from "@/lib/schemas/briefing";
 import { daySchema } from "@/lib/schemas/common";
 import {
   observationsWindowSchema,
@@ -68,6 +69,7 @@ import {
   resolveByName,
 } from "@/server/services/supplements";
 import { getAdherence } from "@/server/services/adherence";
+import { getBriefing } from "@/server/services/briefing";
 import { getRecovery } from "@/server/services/recovery";
 import { getObservations } from "@/server/services/observations";
 import { getDailySummary, getTrends } from "@/server/services/summary";
@@ -147,6 +149,31 @@ export function buildServer(): McpServer {
       },
     },
     ({ day }) => run(() => getDailySummary(day)),
+  );
+
+  server.registerTool(
+    "get_daily_briefing",
+    {
+      description:
+        "The composed daily briefing: mode 'morning' plans the day (sleep/recovery, " +
+        "targets, suggested session, morning supplements, weight trend, newest " +
+        "observation); 'evening' recaps it (water/protein/calories/training vs targets, " +
+        "unfinished items) and plans tomorrow. Mode auto-selects by Amsterdam time when " +
+        "omitted. Returns { day, mode, generatedAt, headline, sections } where EVERY " +
+        "section is optional — an absent section means that data or feature is " +
+        "unavailable; never fill gaps by guessing. sections.sleep may carry an earlier " +
+        "day with isStale=true (report it as that day's data). The session suggestion " +
+        "is an ADVISORY HEURISTIC banded from the user's own recovery/readiness trend — " +
+        "not health or medical advice; it never blocks starting any workout and never " +
+        "logs or modifies anything (tomorrow's suggestion necessarily uses today's " +
+        "signal). Read-only.",
+      inputSchema: {
+        mode: briefingModeSchema
+          .optional()
+          .describe("morning | evening; omit to auto-select by time of day."),
+      },
+    },
+    ({ mode }) => run(() => getBriefing(mode)),
   );
 
   server.registerTool(
