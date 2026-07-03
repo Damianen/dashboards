@@ -18,6 +18,7 @@ import { prisma } from "@/server/db";
 import { DomainError, NotFoundError } from "./errors";
 import { getOrFetchProduct, logFood, macrosFromJson } from "./food";
 import { logMeal } from "./meals";
+import { resolveUniqueByName } from "./resolve-name";
 
 // ----- Wire shapes (Decimal/JSON → numbers, the one coercion chokepoint) -----
 
@@ -316,22 +317,14 @@ export async function setDailyPlanArchived(
 export async function resolveDailyPlanByName(
   name: string,
 ): Promise<{ plan: DailyPlan } | { candidates: DailyPlanCandidate[] }> {
-  const q = name.trim();
-  const exact = await prisma.dailyPlan.findMany({
-    where: { archived: false, name: { equals: q, mode: "insensitive" } },
-    orderBy: { name: "asc" },
-  });
-  const first = exact[0];
-  if (exact.length === 1 && first) return { plan: first };
-  if (exact.length > 1) {
-    return { candidates: exact.map((p) => ({ id: p.id, name: p.name })) };
-  }
-  const fuzzy = await prisma.dailyPlan.findMany({
-    where: { archived: false, name: { contains: q, mode: "insensitive" } },
-    orderBy: { name: "asc" },
-    take: 10,
-  });
-  return { candidates: fuzzy.map((p) => ({ id: p.id, name: p.name })) };
+  const resolved = await resolveUniqueByName(name, (filter, take) =>
+    prisma.dailyPlan.findMany({
+      where: { archived: false, name: filter },
+      orderBy: { name: "asc" },
+      take,
+    }),
+  );
+  return "match" in resolved ? { plan: resolved.match } : resolved;
 }
 
 /**
