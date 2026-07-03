@@ -1,12 +1,18 @@
 // Lifting tools: history, strength and volume reads, the exercise catalog,
-// templates, session progress, and the set/session write paths. All writes
-// are tagged origin "MCP".
+// template management (create/edit/duplicate/archive), session progress, and
+// the set/session write and correction paths. All writes are tagged origin "MCP".
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
 
 import { dayOf } from "@/lib/dates";
 import { finishSessionSchema, updateSetSchema } from "@/lib/schemas/lifting";
+import {
+  archiveTemplateSchema,
+  createTemplateSchema,
+  updateTemplateSchema,
+} from "@/lib/schemas/template";
 import { DomainError, NotFoundError } from "@/server/services/errors";
 import {
   createExercise,
@@ -17,17 +23,179 @@ import {
   getSession,
   listSessions,
   logSet,
+  resolveExerciseByName,
   setSessionFinished,
   suggestExercises,
   updateSet,
 } from "@/server/services/lifting";
 import {
+  createTemplate,
+  duplicateTemplate,
   listTemplates,
   resolveTemplateByName,
+  setArchived as setTemplateArchived,
   startSessionFromTemplate,
+  updateTemplate,
 } from "@/server/services/templates";
 
 import { fail, ok, run } from "./shared";
+
+// ----- template tool helpers --------------------------------------------------
+
+/** One pre-defined warmup set as the agent supplies it. The canonical
+ *  warmupSetInputSchema (a weight_mode-discriminated union) re-validates after
+ *  the snake→camel mapping. */
+const warmupToolSchema = z.object({
+  weight_mode: z
+    .enum(["ABSOLUTE", "PERCENT"])
+    .describe("ABSOLUTE: a fixed weight_kg; PERCENT: percent_of_working."),
+  reps: z.number().int().describe("Warmup repetitions (1–100)."),
+  weight_kg: z
+    .number()
+    .optional()
+    .describe("ABSOLUTE mode: the fixed weight in kg (required then)."),
+  percent_of_working: z
+    .number()
+    .optional()
+    .describe("PERCENT mode: 1–100% of the working weight (required then)."),
+});
+
+/** One template exercise as the agent supplies it — by exercise NAME, with the
+ *  canonical target fields (templateExerciseInputSchema re-validates the
+ *  REPS/VOLUME discrimination after mapping). Shared by create/update. */
+const templateExerciseToolSchema = z.object({
+  exercise: z
+    .string()
+    .min(1)
+    .describe(
+      "Exercise name (must already exist in the catalog; case-insensitive — " +
+        "never auto-created).",
+    ),
+  target_type: z
+    .enum(["REPS", "VOLUME"])
+    .describe(
+      "REPS: N sets in a rep range. VOLUME: a single Σ reps×weight goal.",
+    ),
+  target_sets: z
+    .number()
+    .int()
+    .optional()
+    .describe("REPS mode: working sets, 1–20 (required for REPS)."),
+  rep_min: z
+    .number()
+    .int()
+    .optional()
+    .describe("REPS mode: bottom of the rep range, 1–100 (required for REPS)."),
+  rep_max: z
+    .number()
+    .int()
+    .optional()
+    .describe("REPS mode: top of the rep range, 1–100 (required for REPS)."),
+  target_weight_kg: z
+    .number()
+    .optional()
+    .describe("REPS mode: optional working weight in kg."),
+  weight_increment_kg: z
+    .number()
+    .optional()
+    .describe("REPS mode: optional progression increment in kg."),
+  target_volume_kg: z
+    .number()
+    .optional()
+    .describe(
+      "VOLUME mode: the Σ reps×weight goal in kg (required for VOLUME).",
+    ),
+  rest_sec: z
+    .number()
+    .int()
+    .optional()
+    .describe("Rest between sets in seconds (0–3600)."),
+  notes: z.string().optional().describe("Per-exercise notes."),
+  warmups: z
+    .array(warmupToolSchema)
+    .optional()
+    .describe("Ordered warmup definitions, rendered before the working sets."),
+});
+type TemplateExerciseToolInput = z.infer<typeof templateExerciseToolSchema>;
+
+/** Map tool-level exercises (names, snake_case) to canonical-schema-shaped rows
+ *  (ids, camelCase) WITHOUT writing. An unknown exercise name aborts the whole
+ *  save so a template is never half-resolved. */
+async function resolveTemplateExercises(
+  exercises: TemplateExerciseToolInput[],
+): Promise<
+  { exercises: unknown[] } | { unknownExercise: string; error: NotFoundError }
+> {
+  const out: unknown[] = [];
+  for (const e of exercises) {
+    let exerciseId: string;
+    try {
+      exerciseId = (await resolveExerciseByName(e.exercise)).id;
+    } catch (err) {
+      if (err instanceof NotFoundError) {
+        return { unknownExercise: e.exercise, error: err };
+      }
+      throw err;
+    }
+    out.push({
+      exerciseId,
+      targetType: e.target_type,
+      targetSets: e.target_sets,
+      repMin: e.rep_min,
+      repMax: e.rep_max,
+      targetWeightKg: e.target_weight_kg,
+      weightIncrementKg: e.weight_increment_kg,
+      targetVolumeKg: e.target_volume_kg,
+      restSec: e.rest_sec,
+      notes: e.notes,
+      warmups: (e.warmups ?? []).map((w) => ({
+        weightMode: w.weight_mode,
+        reps: w.reps,
+        weightKg: w.weight_kg,
+        percentOfWorking: w.percent_of_working,
+      })),
+    });
+  }
+  return { exercises: out };
+}
+
+/** Shared body of create/update_workout_template: resolve exercise names to
+ *  catalog ids — an unknown name fails with nearestMatches, the same UX as
+ *  log_lifting_set, and nothing is written — then run the save through the
+ *  standard error translation. */
+async function runTemplateSave(
+  exercises: TemplateExerciseToolInput[],
+  save: (resolved: unknown[]) => Promise<unknown>,
+): Promise<CallToolResult> {
+  try {
+    const resolved = await resolveTemplateExercises(exercises);
+    if ("unknownExercise" in resolved) {
+      const matches = await suggestExercises(resolved.unknownExercise);
+      return fail(resolved.error.message, {
+        nearestMatches: matches.map((m) => m.name),
+      });
+    }
+    return await run(() => save(resolved.exercises));
+  } catch (err) {
+    console.error(err);
+    return fail("internal error");
+  }
+}
+
+/** The target template id from an id-XOR-name selector. Name resolution
+ *  (resolveTemplateByName) errors on unknown names, listing the active
+ *  templates, and REFUSES archived matches — so archived templates are id-only
+ *  (ids from list_workout_templates with include_archived: true). */
+async function resolveTemplateId(
+  id: string | undefined,
+  template: string | undefined,
+): Promise<string> {
+  if (id != null && template == null) return id;
+  if (id == null && template != null) {
+    return (await resolveTemplateByName(template)).id;
+  }
+  throw new DomainError("provide exactly one of id or template");
+}
 
 export function registerLiftingTools(server: McpServer): void {
   server.registerTool(
@@ -327,5 +495,144 @@ export function registerLiftingTools(server: McpServer): void {
         const match = await resolveTemplateByName(template);
         return startSessionFromTemplate({ templateId: match.id });
       }),
+  );
+
+  server.registerTool(
+    "create_workout_template",
+    {
+      description:
+        "Create a workout template — a reusable session plan of ordered " +
+        "exercises, each with a target: REPS (target_sets sets of rep_min–" +
+        "rep_max, optional target_weight_kg and weight_increment_kg for " +
+        "progression suggestions) or VOLUME (target_volume_kg, a Σ reps×weight " +
+        "goal). Optional per-exercise rest_sec, notes and ordered warmups " +
+        "(ABSOLUTE weight_kg or PERCENT percent_of_working). Exercises are " +
+        "referenced by NAME and must already exist — an unknown name errors " +
+        "with nearestMatches and creates NOTHING (add one first with " +
+        "create_exercise). Template names are unique. Creates the plan only — " +
+        "start_workout_from_template begins a session from it.",
+      inputSchema: {
+        name: z.string().min(1).describe("Template name (must be unique)."),
+        notes: z.string().optional().describe("Optional notes."),
+        exercises: z
+          .array(templateExerciseToolSchema)
+          .min(1)
+          .describe("The plan's exercises, in order."),
+      },
+    },
+    ({ name, notes, exercises }) =>
+      runTemplateSave(exercises, (resolved) =>
+        createTemplate(
+          createTemplateSchema.parse({ name, notes, exercises: resolved }),
+        ),
+      ),
+  );
+
+  server.registerTool(
+    "update_workout_template",
+    {
+      description:
+        "FULL REPLACE of a workout template — read the current definition first " +
+        "(list_workout_templates), then send the COMPLETE new name, notes and " +
+        "exercise list (anything omitted is gone). Target exactly one of id / " +
+        "template; name resolution refuses archived templates, so edit those by " +
+        "id (from list_workout_templates with include_archived: true). Template " +
+        "edits NEVER rewrite past or in-progress sessions — every session " +
+        "carries its own plan snapshot from start time; the new plan applies " +
+        "from the next start_workout_from_template. Unknown exercise names " +
+        "error with nearestMatches and change NOTHING.",
+      inputSchema: {
+        id: z
+          .cuid()
+          .optional()
+          .describe("Template id (exactly one of id / template)."),
+        template: z
+          .string()
+          .min(1)
+          .optional()
+          .describe(
+            "Template name (case-insensitive; active templates only).",
+          ),
+        name: z
+          .string()
+          .min(1)
+          .describe("The template's name — send even if unchanged (full replace)."),
+        notes: z
+          .string()
+          .optional()
+          .describe("Notes; omitting clears them (full replace)."),
+        exercises: z
+          .array(templateExerciseToolSchema)
+          .min(1)
+          .describe("The COMPLETE new exercise list, in order."),
+      },
+    },
+    ({ id, template, name, notes, exercises }) =>
+      runTemplateSave(exercises, async (resolved) =>
+        updateTemplate(
+          await resolveTemplateId(id, template),
+          updateTemplateSchema.parse({ name, notes, exercises: resolved }),
+        ),
+      ),
+  );
+
+  server.registerTool(
+    "duplicate_workout_template",
+    {
+      description:
+        'Duplicate a workout template as "<name> (copy)" — the safe way to ' +
+        "iterate on a plan without touching the original (then reshape the copy " +
+        "with update_workout_template). Copies exercises, targets, warmups and " +
+        "notes; the copy starts unarchived and has no session history. Target " +
+        "exactly one of id / template (name resolution refuses archived " +
+        "templates — duplicate those by id).",
+      inputSchema: {
+        id: z
+          .cuid()
+          .optional()
+          .describe("Template id (exactly one of id / template)."),
+        template: z
+          .string()
+          .min(1)
+          .optional()
+          .describe("Template name (case-insensitive; active templates only)."),
+      },
+    },
+    ({ id, template }) =>
+      run(async () => duplicateTemplate(await resolveTemplateId(id, template))),
+  );
+
+  server.registerTool(
+    "archive_workout_template",
+    {
+      description:
+        "Archive a workout template (hidden from list_workout_templates and " +
+        "refused by start_workout_from_template — never deletes; past sessions " +
+        "keep their plan snapshots and any rotation slot referencing it is " +
+        "flagged, not removed), or restore it with archived: false. Target " +
+        "exactly one of id / template. Restoring is id-ONLY: name resolution " +
+        "refuses archived templates, so get the id from list_workout_templates " +
+        "with include_archived: true.",
+      inputSchema: {
+        id: z
+          .cuid()
+          .optional()
+          .describe("Template id (exactly one of id / template)."),
+        template: z
+          .string()
+          .min(1)
+          .optional()
+          .describe("Template name (case-insensitive; active templates only)."),
+        // The route's archive schema has no default; the MCP edge defaults to
+        // archiving so a bare call retires the template.
+        archived: archiveTemplateSchema.shape.archived
+          .default(true)
+          .describe("true (default) archives; false restores (requires id)."),
+      },
+    },
+    ({ id, template, archived }) =>
+      run(async () =>
+        setTemplateArchived(await resolveTemplateId(id, template), archived),
+      ),
   );
 }
