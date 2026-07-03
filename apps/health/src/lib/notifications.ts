@@ -102,6 +102,50 @@ export function recoveryHeadsUpMessage(
   };
 }
 
+/**
+ * The morning-briefing push: the card's collapsed headline as the body, deep
+ * link into Today with the card expanded in morning mode.
+ */
+export function morningBriefingMessage(headline: string): NotificationMessage {
+  return {
+    title: "Morning briefing",
+    body: headline === "" ? "Your day's plan is ready." : headline,
+    url: "/?briefing=morning",
+  };
+}
+
+/**
+ * The evening-briefing push: the recap headline plus a "still open" mention of
+ * unfinished items (unchecked supplement groups, water shortfall) when any.
+ * The `unfinished` shape mirrors the briefing's UnfinishedSection structurally,
+ * keeping this module free of imports beyond the prisma enum.
+ */
+export function eveningBriefingMessage(
+  headline: string,
+  unfinished?: {
+    supplementGroups: { remaining: number }[];
+    waterShortfallMl: number | null;
+  },
+): NotificationMessage {
+  const open: string[] = [];
+  const supplementsLeft =
+    unfinished?.supplementGroups.reduce((sum, g) => sum + g.remaining, 0) ?? 0;
+  if (supplementsLeft > 0) {
+    open.push(`${supplementsLeft} supplement${supplementsLeft === 1 ? "" : "s"}`);
+  }
+  if (unfinished?.waterShortfallMl != null && unfinished.waterShortfallMl > 0) {
+    open.push(`${formatLiters(unfinished.waterShortfallMl)} water`);
+  }
+  const parts = [headline];
+  if (open.length > 0) parts.push(`${joinList(open)} still open`);
+  const body = parts.filter((p) => p !== "").join(" · ");
+  return {
+    title: "Evening briefing",
+    body: body === "" ? "Your day's recap is ready." : body,
+    url: "/?briefing=evening",
+  };
+}
+
 /** Which adherence streak a milestone celebration is for. */
 export type StreakKind = "food" | "supplements";
 

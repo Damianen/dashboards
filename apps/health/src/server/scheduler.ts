@@ -1,6 +1,7 @@
 import { Cron } from "croner";
 
 import {
+  briefingDispatch,
   observationDigest,
   recoveryHeadsUp,
   streakMilestones,
@@ -83,8 +84,16 @@ export function startScheduler(): void {
   new Cron("0 11 * * *", { timezone: TIMEZONE, name: "recovery-headsup" }, () =>
     runNotificationJob("recovery-headsup", recoveryHeadsUp),
   );
+  // Every minute — the briefing dispatcher fires each slot once per day at its
+  // settings-configured time (see briefingDispatch). `protect` skips a tick
+  // while the previous one still runs (the morning tick can wait ~60s on Oura).
+  new Cron(
+    "* * * * *",
+    { timezone: TIMEZONE, name: "briefing-dispatch", protect: true },
+    () => runNotificationJob("briefing-dispatch", briefingDispatch),
+  );
 
   console.log(
-    `[scheduler] started ${SYNC_SOURCES.length + 5} job(s) (${TIMEZONE})`,
+    `[scheduler] started ${SYNC_SOURCES.length + 6} job(s) (${TIMEZONE})`,
   );
 }

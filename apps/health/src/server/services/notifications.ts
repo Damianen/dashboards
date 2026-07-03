@@ -1,7 +1,9 @@
 import { SyncSource } from "@/generated/prisma/client";
-import { dayToDbDate, shiftDay, todayLocal } from "@/lib/dates";
+import { dayToDbDate, shiftDay, timeOfDay, todayLocal } from "@/lib/dates";
 import {
+  eveningBriefingMessage,
   isOkToErrorTransition,
+  morningBriefingMessage,
   recoveryHeadsUpMessage,
   type StreakKind,
   streakMilestoneMessage,
@@ -10,10 +12,13 @@ import {
 } from "@/lib/notifications";
 import { prisma } from "@/server/db";
 import { getAdherence } from "@/server/services/adherence";
+import { getBriefing } from "@/server/services/briefing";
 import { getFreshObservation } from "@/server/services/observations";
 import { getRecovery } from "@/server/services/recovery";
 import { sendToAll } from "@/server/services/push";
+import { getBriefingSettings } from "@/server/services/settings";
 import { getDailySummary, getTrends } from "@/server/services/summary";
+import { syncSource } from "@/server/services/sync";
 import { getWaterStatus } from "@/server/services/water";
 
 // Server-side source labels for notification copy. Kept here (not imported from
@@ -209,5 +214,66 @@ export async function streakMilestones(): Promise<void> {
       data: fresh.map((milestone) => ({ streakType: type, milestone, startDay: dbStartDay })),
       skipDuplicates: true,
     });
+  }
+}
+
+// Per-slot last-sent day, persisted as settings rows (additive — no migration).
+const BRIEFING_LAST_SENT_KEYS = {
+  morning: "briefing.lastSentMorning",
+  evening: "briefing.lastSentEvening",
+} as const;
+
+// How long the morning dispatch waits for a fresh Oura pull before composing anyway.
+const OURA_SYNC_TIMEOUT_MS = 60_000;
+
+/**
+ * Minute-tick dispatcher for the two briefing pushes. A slot fires when its
+ * configured Amsterdam wall-clock time has passed, it's enabled, and it hasn't
+ * fired today — send times stay settings-editable without cron re-registration,
+ * and a restart catches up later the same day.
+ *
+ * The last-sent day is CLAIMED before compose/send — the opposite of the
+ * notified-* record-after-sent convention, deliberately: on a minute tick,
+ * recording only after a successful send would recompose and retry every
+ * minute all day whenever push is unconfigured. At-most-once per slot per day;
+ * a crash mid-compose skips that day's push (accepted).
+ */
+export async function briefingDispatch(): Promise<void> {
+  const settings = await getBriefingSettings();
+  const today = todayLocal();
+  const now = timeOfDay(new Date());
+
+  for (const slot of ["morning", "evening"] as const) {
+    if (!settings[slot].enabled) continue;
+    // Both sides are zero-padded "HH:mm", so lexicographic order is time order.
+    if (now < settings[slot].time) continue;
+
+    const key = BRIEFING_LAST_SENT_KEYS[slot];
+    const lastSent = await prisma.setting.findUnique({ where: { key } });
+    if (lastSent != null && String(lastSent.value) === today) continue;
+    await prisma.setting.upsert({
+      where: { key },
+      create: { key, value: today },
+      update: { value: today },
+    });
+
+    if (slot === "morning") {
+      // Best-effort freshness: give the Oura sync up to 60s, then compose with
+      // the latest available data regardless (stale readings get labeled with
+      // their day). The sync guard makes overlap with the 2-hourly cron safe.
+      await Promise.race([
+        syncSource(SyncSource.OURA).catch((err) =>
+          console.error("[briefing] oura sync failed", err),
+        ),
+        new Promise((resolve) => setTimeout(resolve, OURA_SYNC_TIMEOUT_MS)),
+      ]);
+    }
+
+    const briefing = await getBriefing(slot, today);
+    const message =
+      slot === "morning"
+        ? morningBriefingMessage(briefing.headline)
+        : eveningBriefingMessage(briefing.headline, briefing.sections.unfinished);
+    await sendToAll(message);
   }
 }
