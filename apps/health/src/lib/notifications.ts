@@ -70,7 +70,8 @@ export function weeklySummaryMessage(input: {
   return {
     title: "Weekly summary",
     body: `Weight ${weight} vs last week · Lifting ${lifting} · Sleep ${sleep} avg`,
-    url: "/",
+    // Deep link into the full weekly review on the Insights page.
+    url: "/insights?view=weekly",
   };
 }
 

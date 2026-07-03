@@ -49,6 +49,17 @@ export const setTdeeWindowSchema = z.strictObject({
 export type SetTdeeWindowInput = z.infer<typeof setTdeeWindowSchema>;
 
 /**
+ * GET /api/insights/weekly-review query: any civil day is accepted — the service
+ * normalizes it to that day's Monday (friendlier for agents than demanding an
+ * exact week start). Omitted = the current (partial) week. Single source of
+ * truth reused by the route query and the MCP tool input.
+ */
+export const weeklyReviewQuerySchema = z.strictObject({
+  weekStart: daySchema.optional(),
+});
+export type WeeklyReviewQuery = z.infer<typeof weeklyReviewQuerySchema>;
+
+/**
  * The recovery rolling-baseline window, in days. 14–90 — long enough for a stable per-metric
  * mean/stddev, capped so the query stays a cheap bounded scan. Single source of truth reused
  * by the route query and the MCP tool input.

@@ -79,6 +79,24 @@ export function dayLabelShort(day: string): string {
   });
 }
 
+/**
+ * Compact label for a civil-day range (a week pager's center label): "22–28 Jun"
+ * within one month, "29 Jun – 5 Jul" across months (and "29 Dec – 4 Jan" across
+ * years). Same LOCAL-midnight parse as dateLabel — local midnight of a civil day
+ * always prints as that day in any browser zone.
+ */
+export function weekRangeLabel(start: string, end: string): string {
+  const dayMonth = (day: string) =>
+    new Date(`${day}T00:00:00`).toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "short",
+    });
+  if (start.slice(0, 7) === end.slice(0, 7)) {
+    return `${Number(start.slice(8, 10))}–${dayMonth(end)}`;
+  }
+  return `${dayMonth(start)} – ${dayMonth(end)}`;
+}
+
 /** Wall-clock "HH:MM" (en-GB, 24h) of an ISO instant, in the viewer's zone. */
 export function timeLabel(iso: string): string {
   return new Date(iso).toLocaleTimeString("en-GB", {

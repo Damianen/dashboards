@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   observationHistoryQuerySchema,
   observationsWindowSchema,
+  weeklyReviewQuerySchema,
 } from "./insights";
 
 describe("observationHistoryQuerySchema", () => {
@@ -14,6 +15,30 @@ describe("observationHistoryQuerySchema", () => {
   it("bounds the limit to 1–100", () => {
     expect(observationHistoryQuerySchema.safeParse({ limit: 0 }).success).toBe(false);
     expect(observationHistoryQuerySchema.safeParse({ limit: 101 }).success).toBe(false);
+  });
+});
+
+describe("weeklyReviewQuerySchema", () => {
+  it("accepts any civil day — not just Mondays (the service normalizes)", () => {
+    expect(weeklyReviewQuerySchema.parse({ weekStart: "2026-06-18" })).toEqual({
+      weekStart: "2026-06-18",
+    });
+  });
+
+  it("allows weekStart to be omitted (defaults to the current week downstream)", () => {
+    expect(weeklyReviewQuerySchema.parse({})).toEqual({});
+  });
+
+  it("rejects malformed dates and unknown keys", () => {
+    expect(weeklyReviewQuerySchema.safeParse({ weekStart: "18-06-2026" }).success).toBe(
+      false,
+    );
+    expect(weeklyReviewQuerySchema.safeParse({ weekStart: "next week" }).success).toBe(
+      false,
+    );
+    expect(weeklyReviewQuerySchema.safeParse({ week: "2026-06-18" }).success).toBe(
+      false,
+    );
   });
 });
 

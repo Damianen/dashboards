@@ -18,6 +18,7 @@ import { getObservations } from "@/server/services/observations";
 import { getRecovery } from "@/server/services/recovery";
 import { getDailySummary, getTrends } from "@/server/services/summary";
 import { getTdeeEstimate } from "@/server/services/tdee";
+import { getWeeklyReview } from "@/server/services/weekly-review";
 import { getWeightGoal } from "@/server/services/weight-goal";
 
 import { ACTIVE_KCAL_CAVEAT, run } from "./shared";
@@ -85,6 +86,26 @@ export function registerInsightsTools(server: McpServer): void {
       },
     },
     ({ metric, days }) => run(() => getTrends(metric, days)),
+  );
+
+  server.registerTool(
+    "get_weekly_review",
+    {
+      description:
+        "Weekly health review: this week vs last, Monday-start weeks Europe/Amsterdam; " +
+        "any date normalizes to its week's Monday; defaults to the current (partial) " +
+        "week. Weight delta is based on the 7-day average. Intake and expenditure are " +
+        "never netted.",
+      inputSchema: {
+        week_start: daySchema
+          .optional()
+          .describe(
+            "Any civil date YYYY-MM-DD inside the week to review (normalized to its " +
+              "Monday). Omit for the current week.",
+          ),
+      },
+    },
+    ({ week_start }) => run(() => getWeeklyReview(week_start)),
   );
 
   server.registerTool(

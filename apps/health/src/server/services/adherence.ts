@@ -67,8 +67,12 @@ function toStreakView(days: string[], today: string): StreakView {
   return { length, startDay, milestonesReached: milestonesReached(length) };
 }
 
-/** Civil days in [start, end] (inclusive) that have at least one food entry. */
-async function foodLoggedDays(start: string, end: string): Promise<string[]> {
+/** Civil days in [start, end] (inclusive) that have at least one food entry.
+ *  Range-generic on purpose: the streaks scan a year, the weekly review a week. */
+export async function foodLoggedDays(
+  start: string,
+  end: string,
+): Promise<string[]> {
   const rows = await prisma.$queryRaw<{ day: string }[]>`
     SELECT DISTINCT day::text AS "day"
     FROM food_entries
@@ -81,9 +85,10 @@ async function foodLoggedDays(start: string, end: string): Promise<string[]> {
  * Civil days in [start, end] on which EVERY currently-active supplement was checked. Compares
  * against the current active set (archived = false) — the same notion of "complete" the daily
  * checklist uses, since no historical active-set is recorded. With no active supplements there
- * is nothing to complete, so the streak is empty.
+ * is nothing to complete, so the streak is empty. Range-generic on purpose: the streaks scan
+ * a year, the weekly review a week.
  */
-async function supplementCompleteDays(
+export async function supplementCompleteDays(
   start: string,
   end: string,
 ): Promise<string[]> {

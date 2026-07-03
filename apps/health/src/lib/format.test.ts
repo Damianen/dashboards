@@ -11,6 +11,7 @@ import {
   formatNumber,
   relativeTimeFromNow,
   timeLabel,
+  weekRangeLabel,
 } from "./format";
 
 describe("formatHm", () => {
@@ -131,6 +132,21 @@ describe("dayLabelShort", () => {
     // Local-midnight parse, like dateLabel: holds in any test-runner timezone.
     expect(dayLabelShort("2026-07-02")).toBe("Thu 2 Jul");
     expect(dayLabelShort("2026-12-31")).toBe("Thu 31 Dec");
+  });
+});
+
+describe("weekRangeLabel", () => {
+  it("collapses a same-month week to one month mention", () => {
+    // Local-midnight parse, like dateLabel: holds in any test-runner timezone.
+    expect(weekRangeLabel("2026-06-22", "2026-06-28")).toBe("22–28 Jun");
+  });
+
+  it("names both months across a month boundary", () => {
+    expect(weekRangeLabel("2026-06-29", "2026-07-05")).toBe("29 Jun – 5 Jul");
+  });
+
+  it("names both months across a year boundary", () => {
+    expect(weekRangeLabel("2025-12-29", "2026-01-04")).toBe("29 Dec – 4 Jan");
   });
 });
 
