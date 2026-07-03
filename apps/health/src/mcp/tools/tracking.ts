@@ -1,14 +1,16 @@
-// Manual-tracking tools: water, stimulants, body weight and the supplement
-// checklist. All writes are tagged origin "MCP".
+// Manual-tracking tools: water, stimulants, body weight, fallback sleep and
+// the supplement checklist. All origin-carrying writes are tagged "MCP".
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import { civilDay, dayOf } from "@/lib/dates";
 import { daySchema } from "@/lib/schemas/common";
+import { logSleepSchema } from "@/lib/schemas/sleep";
 import { supplementTimeGroupSchema } from "@/lib/schemas/supplement";
 import { logWeightSchema } from "@/lib/schemas/weight";
 import { DomainError } from "@/server/services/errors";
+import { deleteSleep, logSleep } from "@/server/services/sleep";
 import {
   deleteStimulantEntry,
   listByDay as listStimulantsByDay,
@@ -228,6 +230,60 @@ export function registerTrackingTools(server: McpServer): void {
           source: m.source,
         };
       }),
+  );
+
+  server.registerTool(
+    "log_sleep",
+    {
+      description:
+        "Manually log a night's sleep — the fallback for when Oura hasn't recorded it " +
+        "(outage, dead battery, forgotten ring). Provide either both bedtimes or just " +
+        "duration_min for 'slept 7h30, woke just now' (the end defaults to now and the " +
+        "start is back-computed). The entry's day is the WAKE day (Europe/Amsterdam " +
+        "civil day of bedtime_end) and feeds the daily summary and briefing; sleepScore " +
+        "stays null — scores come only from Oura. Refuses days Oura already covered.",
+      inputSchema: {
+        bedtime_start: logSleepSchema.shape.bedtimeStart.describe(
+          "ISO timestamp with offset when you fell asleep. Mutually exclusive with duration_min.",
+        ),
+        bedtime_end: logSleepSchema.shape.bedtimeEnd.describe(
+          "ISO timestamp with offset when you woke. Defaults to now.",
+        ),
+        duration_min: logSleepSchema.shape.durationMin.describe(
+          "Whole minutes slept (1–1440). Mutually exclusive with bedtime_start.",
+        ),
+      },
+    },
+    ({ bedtime_start, bedtime_end, duration_min }) =>
+      run(async () => {
+        const s = await logSleep({
+          bedtimeStart: bedtime_start,
+          bedtimeEnd: bedtime_end,
+          durationMin: duration_min,
+        });
+        return {
+          id: s.id,
+          day: civilDay(s.day),
+          bedtimeStart: s.bedtimeStart.toISOString(),
+          bedtimeEnd: s.bedtimeEnd.toISOString(),
+          totalSleepMin: s.totalSleepMin,
+          source: s.source,
+        };
+      }),
+  );
+
+  server.registerTool(
+    "delete_sleep_entry",
+    {
+      description:
+        "Delete ONE manually-logged sleep entry by id (undo a mistaken log_sleep — " +
+        "the id comes from its response). MANUAL entries only; Oura-synced sessions " +
+        "are refused. Returns the entry's day so you can re-check that day's summary.",
+      inputSchema: {
+        id: z.cuid().describe("The sleep entry id to delete."),
+      },
+    },
+    ({ id }) => run(() => deleteSleep(id)),
   );
 
   server.registerTool(
