@@ -145,6 +145,26 @@ export async function getDailySummary(
   return row ? mapRow(row) : null;
 }
 
+/**
+ * All daily_summary rows in [start, end] (inclusive civil days), ascending by
+ * day. Days with no source data have no view row, so gaps simply aren't
+ * returned — callers must not assume end−start+1 rows.
+ */
+export async function getSummaryRange(
+  start: string,
+  end: string,
+): Promise<DailySummary[]> {
+  const rows = await prisma.$queryRaw<RawSummaryRow[]>(
+    Prisma.sql`
+      SELECT ${Prisma.raw(SUMMARY_SELECT)}
+      FROM daily_summary
+      WHERE day BETWEEN ${start}::date AND ${end}::date
+      ORDER BY day
+    `,
+  );
+  return rows.map(mapRow);
+}
+
 // Maps a validated trend metric to its daily_summary column. Constant + keyed by the
 // validated enum, so the value is never user-controlled — safe for Prisma.raw.
 // Exported for summary-seam.test.ts, which pins the values against the view SQL.
