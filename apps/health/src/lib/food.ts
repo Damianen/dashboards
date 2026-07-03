@@ -10,6 +10,7 @@ import type { MealSlot as PrismaMealSlot } from "@/generated/prisma/enums";
 import { round1 } from "@/lib/round";
 import type { Macros } from "@/lib/rules";
 import type { CreateCustomFoodInput } from "@/lib/schemas/food";
+import type { MealSummary } from "@/server/services/meals";
 
 /** A cached product as GET /api/food/products/{barcode} serializes it. */
 export interface FoodProductDTO {
@@ -49,6 +50,26 @@ export function coerceMacros(p: Partial<Macros> | null | undefined): Macros {
     saltG: p?.saltG ?? null,
     caffeineMg: p?.caffeineMg ?? null,
   };
+}
+
+/**
+ * What the shared FoodItemPicker hands back — one tab's selection, still in its
+ * source DTO form. The meal/plan builders convert it to their own item shape via
+ * builderItemFromPicked / planItemFromPicked ("manual" exists only where the
+ * Manual tab is offered, i.e. the meal builder).
+ */
+export type PickedItem =
+  | { kind: "product"; product: FoodProductDTO }
+  | { kind: "customFood"; food: CustomFoodDTO }
+  | { kind: "meal"; meal: MealSummary }
+  | { kind: "manual"; name: string; macros: Macros };
+
+/** Grams a picked product/saved food defaults to: its serving size when known and > 0, else 100 g.
+ *  Accepts the wire string (Decimal) or number form. */
+export function servingAmountG(
+  servingG: string | number | null | undefined,
+): number {
+  return servingG != null && Number(servingG) > 0 ? Number(servingG) : 100;
 }
 
 /**

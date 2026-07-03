@@ -3,6 +3,7 @@
 // Pure (no React/DB) so the sheet components stay thin. The server re-resolves every
 // item from its CURRENT source on save, so a derived preview (edit mode) needn't be exact.
 
+import { coerceMacros, type PickedItem, servingAmountG } from "@/lib/food";
 import { computeMealMacros, scaleMacrosBy } from "@/lib/meals";
 import { type Macros, scaleMacros } from "@/lib/rules";
 import type { CreateMealInput, MealItemInput } from "@/lib/schemas/meals";
@@ -113,6 +114,54 @@ export function builderItemFromView(it: MealItemView): BuilderItem {
     amount: it.quantityG ?? 0,
     source: { kind: "free", macros: m },
   };
+}
+
+/** Convert a picker selection into a fresh BuilderItem: a product/saved food starts
+ *  at its serving size (else 100 g), a nested meal at 1 portion, and a free-typed
+ *  item carries its absolute macros (amount 0 — never scaled). */
+export function builderItemFromPicked(picked: PickedItem): BuilderItem {
+  switch (picked.kind) {
+    case "product":
+      return {
+        key: builderKey(),
+        name: picked.product.name,
+        amount: servingAmountG(picked.product.servingG),
+        source: {
+          kind: "product",
+          barcode: picked.product.barcode,
+          per100g: picked.product.per100g,
+        },
+      };
+    case "customFood":
+      return {
+        key: builderKey(),
+        name: picked.food.name,
+        amount: servingAmountG(picked.food.servingG),
+        source: {
+          kind: "customFood",
+          customFoodId: picked.food.id,
+          per100g: coerceMacros(picked.food.per100g),
+        },
+      };
+    case "meal":
+      return {
+        key: builderKey(),
+        name: picked.meal.name,
+        amount: 1,
+        source: {
+          kind: "childMeal",
+          childMealId: picked.meal.id,
+          perPortion: coerceMacros(picked.meal.perPortion),
+        },
+      };
+    case "manual":
+      return {
+        key: builderKey(),
+        name: picked.name,
+        amount: 0,
+        source: { kind: "free", macros: picked.macros },
+      };
+  }
 }
 
 function macroFields(m: Macros): Partial<MealItemInput> {

@@ -9,6 +9,7 @@ import {
   type FoodEntryView,
   groupByMeal,
   rescaleEntryTotals,
+  servingAmountG,
   suggestMeal,
   toView,
 } from "./food";
@@ -34,6 +35,23 @@ describe("suggestMeal", () => {
     expect(suggestMeal(at(11))).toBe("LUNCH");
     expect(suggestMeal(at(15))).toBe("DINNER");
     expect(suggestMeal(at(21))).toBe("SNACK");
+  });
+});
+
+describe("servingAmountG", () => {
+  it("defaults to 100 g when the serving size is unknown", () => {
+    expect(servingAmountG(null)).toBe(100);
+    expect(servingAmountG(undefined)).toBe(100);
+  });
+
+  it("defaults to 100 g when the serving size is zero or negative", () => {
+    expect(servingAmountG("0")).toBe(100);
+    expect(servingAmountG("-5")).toBe(100);
+  });
+
+  it("uses a known positive serving, wire string or number", () => {
+    expect(servingAmountG("32.5")).toBe(32.5);
+    expect(servingAmountG(250)).toBe(250);
   });
 });
 
