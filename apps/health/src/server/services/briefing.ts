@@ -46,7 +46,9 @@ async function orNull<T>(label: string, fn: () => Promise<T>): Promise<T | null>
 /**
  * Sleep + readiness with a short lookback: when today's Oura data hasn't landed
  * yet, use the most recent day (≤ 2 back) that has it and mark it stale — the
- * UI labels the data's day rather than pretending it's fresh.
+ * UI labels the data's day rather than pretending it's fresh. A manual sleep
+ * entry (Oura-outage fallback) has a duration but no scores, so totalSleepMin
+ * alone also qualifies — the section then renders with null scores.
  */
 async function composeSleep(
   day: string,
@@ -58,7 +60,12 @@ async function composeSleep(
       back === 0
         ? todaySummary
         : await orNull("sleep-lookback", () => getDailySummary(candidateDay));
-    if (summary && (summary.sleepScore != null || summary.readinessScore != null)) {
+    if (
+      summary &&
+      (summary.sleepScore != null ||
+        summary.readinessScore != null ||
+        summary.totalSleepMin != null)
+    ) {
       const recovery = await orNull("recovery", () => getRecovery(candidateDay));
       return {
         day: candidateDay,

@@ -280,6 +280,24 @@ describe("morningHeadline", () => {
     expect(morningHeadline({ sleep: sleepSection({ sleepScore: 78 }) })).toBe("Sleep 78");
   });
 
+  it("tolerates a manual-only sleep day: duration set, both scores null", () => {
+    // A manual entry (Oura-outage fallback) yields a sleep section with only
+    // totalSleepMin. The headline has no score to lead with and skips the
+    // sleep part — the section itself still renders the duration in the card.
+    const sections: BriefingSections = {
+      sleep: sleepSection({ totalSleepMin: 450 }),
+      targets: {
+        waterTargetMl: 2700,
+        caffeineMg: null,
+        proteinTargetG: null,
+        intakeKcalTarget: null,
+        tdeeKcal: null,
+        tdeeConfidence: null,
+      },
+    };
+    expect(morningHeadline(sections)).toBe("2.7 L target");
+  });
+
   it("skips the session part when no rotation is configured", () => {
     expect(
       morningHeadline({
