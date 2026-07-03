@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { useFoodDialogDirty } from "@/components/food/food-dialog";
 import { MealLogStep } from "@/components/food/meals/meal-log-step";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -24,6 +25,8 @@ export function MealsAddTab({
   const { data, isLoading, isError, refetch } = useMeals();
   const meals = data ?? [];
   const [selected, setSelected] = useState<MealSummary | null>(null);
+  // A picked meal is work done inside the dialog ("any step has input").
+  useFoodDialogDirty(selected != null);
 
   if (selected) {
     return (

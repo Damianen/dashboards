@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ChevronLeft } from "lucide-react";
 
+import { useFoodDialogDirty } from "@/components/food/food-dialog";
 import { MealPicker } from "@/components/food/meal-picker";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -40,8 +41,11 @@ export function MealLogStep({
   onBack?: () => void;
 }) {
   const [portions, setPortions] = useState(1);
-  const [slot, setSlot] = useState(() => suggestMeal(new Date()));
+  // Seeded once so dirtiness can compare against the suggestion the user saw.
+  const [initialSlot] = useState(() => suggestMeal(new Date()));
+  const [slot, setSlot] = useState(initialSlot);
   const { mutate, isPending } = useLogMeal(day);
+  useFoodDialogDirty(portions !== 1 || slot !== initialSlot);
 
   const scaled = scaleMacrosBy(meal.perPortion, portions);
   const macros = {

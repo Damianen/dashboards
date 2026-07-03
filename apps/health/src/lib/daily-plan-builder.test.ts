@@ -4,6 +4,7 @@ import {
   itemContribution,
   type PlanBuilderItem,
   planItemFromView,
+  planSnapshot,
   planTotal,
   toCreateDailyPlanInput,
   toDailyPlanItemInput,
@@ -170,5 +171,27 @@ describe("planItemFromView (edit-mode round-trip)", () => {
     expect(item.amount).toBe(2);
     expect(itemContribution(item).kcal).toBe(600);
     expect(toDailyPlanItemInput(item)).toEqual({ mealId: CUID, portions: 2 });
+  });
+});
+
+describe("planSnapshot (dirty detection)", () => {
+  it("ignores react keys, so an initial reminted per render compares equal", () => {
+    const reminted = { ...productItem, key: "totally-different-key" };
+    expect(planSnapshot([reminted])).toBe(planSnapshot([productItem]));
+  });
+
+  it("differs when the meal slot changes", () => {
+    expect(planSnapshot([{ ...productItem, mealSlot: null }])).not.toBe(
+      planSnapshot([productItem]),
+    );
+  });
+
+  it("differs when an amount changes or an item is added", () => {
+    expect(planSnapshot([{ ...mealItem, amount: 3 }])).not.toBe(
+      planSnapshot([mealItem]),
+    );
+    expect(planSnapshot([productItem, mealItem])).not.toBe(
+      planSnapshot([productItem]),
+    );
   });
 });

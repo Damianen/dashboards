@@ -4,8 +4,11 @@ import { useState } from "react";
 import { Plus, X } from "lucide-react";
 import { toast } from "sonner";
 
+import {
+  FoodDialog,
+  useFoodDialogDirty,
+} from "@/components/food/food-dialog";
 import { MealItemPicker } from "@/components/food/meals/meal-item-picker";
-import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,6 +22,7 @@ import { useUpdateMeal } from "@/lib/hooks/use-update-meal";
 import {
   type BuilderItem,
   builderItemFromView,
+  builderSnapshot,
   builderTotals,
   itemContribution,
   toCreateMealInput,
@@ -76,12 +80,12 @@ export function MealBuilderSheet({
         : null;
 
   return (
-    <BottomSheet
+    <FoodDialog
       open={open}
       onOpenChange={onOpenChange}
       title={mealId ? "Edit meal" : "New meal"}
       description="Build a recipe from ingredients and a yield; see its per-portion macros."
-      bodyClassName="space-y-4 overflow-y-auto"
+      bodyClassName="space-y-4"
     >
       {!open ? null : detail.isError ? (
         <div className="space-y-3 py-8 text-center">
@@ -106,7 +110,7 @@ export function MealBuilderSheet({
           onDone={() => onOpenChange(false)}
         />
       )}
-    </BottomSheet>
+    </FoodDialog>
   );
 }
 
@@ -129,6 +133,15 @@ function MealBuilderForm({
   const update = useUpdateMeal(mealId ?? "");
   const archive = useArchiveMeal();
   const isPending = create.isPending || update.isPending || archive.isPending;
+
+  // Against `initial`, which is EMPTY in create mode — one expression covers
+  // both any-field-filled (create) and any-field-changed (edit).
+  useFoodDialogDirty(
+    name !== initial.name ||
+      notes !== initial.notes ||
+      yieldPortions !== initial.yieldPortions ||
+      builderSnapshot(items) !== builderSnapshot(initial.items),
+  );
 
   const totals = builderTotals(items, yieldPortions);
 
@@ -164,10 +177,6 @@ function MealBuilderForm({
 
   return (
     <>
-      <h2 className="text-base font-semibold">
-        {mealId ? "Edit meal" : "New meal"}
-      </h2>
-
       <div className="space-y-1.5">
         <Label htmlFor="meal-name">Name</Label>
         <Input

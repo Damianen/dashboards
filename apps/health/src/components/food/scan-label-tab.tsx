@@ -5,6 +5,7 @@ import { Camera, ImagePlus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { CONFIDENCE, type Confidence } from "@/components/food/confidence";
+import { useFoodDialogDirty } from "@/components/food/food-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,6 +51,8 @@ export function ScanLabelTab({
   const [phase, setPhase] = useState<"capture" | "scanning" | "review">(
     "capture",
   );
+  // Past capture, an in-flight scan or an unsaved reviewed draft would be lost.
+  useFoodDialogDirty(phase !== "capture");
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
 

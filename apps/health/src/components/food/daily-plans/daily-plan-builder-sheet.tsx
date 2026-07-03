@@ -5,7 +5,10 @@ import { Plus, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { DailyPlanItemPicker } from "@/components/food/daily-plans/daily-plan-item-picker";
-import { BottomSheet } from "@/components/ui/bottom-sheet";
+import {
+  FoodDialog,
+  useFoodDialogDirty,
+} from "@/components/food/food-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,6 +19,7 @@ import {
   itemContribution,
   type PlanBuilderItem,
   planItemFromView,
+  planSnapshot,
   planTotal,
   toCreateDailyPlanInput,
 } from "@/lib/daily-plan-builder";
@@ -71,12 +75,12 @@ export function DailyPlanBuilderSheet({
         : null;
 
   return (
-    <BottomSheet
+    <FoodDialog
       open={open}
       onOpenChange={onOpenChange}
       title={planId ? "Edit plan" : "New plan"}
       description="Build a reusable set of food and meal items to apply to a day's diary."
-      bodyClassName="space-y-4 overflow-y-auto"
+      bodyClassName="space-y-4"
     >
       {!open ? null : detail.isError ? (
         <div className="space-y-3 py-8 text-center">
@@ -101,7 +105,7 @@ export function DailyPlanBuilderSheet({
           onDone={() => onOpenChange(false)}
         />
       )}
-    </BottomSheet>
+    </FoodDialog>
   );
 }
 
@@ -123,6 +127,14 @@ function DailyPlanBuilderForm({
   const update = useUpdateDailyPlan(planId ?? "");
   const archive = useArchiveDailyPlan();
   const isPending = create.isPending || update.isPending || archive.isPending;
+
+  // Against `initial`, which is EMPTY in create mode — one expression covers
+  // both any-field-filled (create) and any-field-changed (edit).
+  useFoodDialogDirty(
+    name !== initial.name ||
+      notes !== initial.notes ||
+      planSnapshot(items) !== planSnapshot(initial.items),
+  );
 
   const total = planTotal(items);
 
@@ -157,10 +169,6 @@ function DailyPlanBuilderForm({
 
   return (
     <>
-      <h2 className="text-base font-semibold">
-        {planId ? "Edit plan" : "New plan"}
-      </h2>
-
       <div className="space-y-1.5">
         <Label htmlFor="plan-name">Name</Label>
         <Input

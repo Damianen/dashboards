@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { useFoodDialogDirty } from "@/components/food/food-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -49,6 +50,22 @@ export function CustomFoodForm({
   const [sugar, setSugar] = useState(str(p?.sugarG));
   const [salt, setSalt] = useState(str(p?.saltG));
   const [caffeine, setCaffeine] = useState(str(p?.caffeineMg));
+
+  // Each field against the same seed it started from: on create that is the
+  // any-field-filled test, on edit the any-field-changed test.
+  useFoodDialogDirty(
+    name !== (initial?.name ?? "") ||
+      brand !== (initial?.brand ?? "") ||
+      serving !== str(initial?.servingG) ||
+      kcal !== str(p?.kcal) ||
+      protein !== str(p?.proteinG) ||
+      carb !== str(p?.carbG) ||
+      fat !== str(p?.fatG) ||
+      fiber !== str(p?.fiberG) ||
+      sugar !== str(p?.sugarG) ||
+      salt !== str(p?.saltG) ||
+      caffeine !== str(p?.caffeineMg),
+  );
 
   /** Build the validated core fields (no `source`, which create adds and edit omits). */
   function buildCore(): UpdateCustomFoodInput | null {

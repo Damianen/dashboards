@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { useFoodDialogDirty } from "@/components/food/food-dialog";
 import { MealPicker } from "@/components/food/meal-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,8 +31,14 @@ export function CustomTab({
   const [carb, setCarb] = useState("");
   const [fat, setFat] = useState("");
   const [caffeine, setCaffeine] = useState("");
-  const [meal, setMeal] = useState(() => suggestMeal(new Date()));
+  // Seeded once so dirtiness can compare against the suggestion the user saw.
+  const [initialMeal] = useState(() => suggestMeal(new Date()));
+  const [meal, setMeal] = useState(initialMeal);
   const { mutate, isPending } = useLogFood(day);
+  useFoodDialogDirty(
+    [name, kcal, protein, carb, fat, caffeine].some((v) => v.trim() !== "") ||
+      meal !== initialMeal,
+  );
 
   function submit() {
     if (name.trim() === "" || kcal.trim() === "") {
