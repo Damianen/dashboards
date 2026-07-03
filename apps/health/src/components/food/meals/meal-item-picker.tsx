@@ -13,7 +13,11 @@ import { Label } from "@/components/ui/label";
 import { Segmented, type SegmentedOption } from "@/components/ui/segmented";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getJSON, HttpError } from "@/lib/fetcher";
-import { coerceMacros, type FoodProductDTO } from "@/lib/food";
+import {
+  coerceMacros,
+  type FoodProductDTO,
+  servingAmountG,
+} from "@/lib/food";
 import {
   type BuilderItem,
   builderKey,
@@ -58,10 +62,7 @@ export function MealItemPicker({
       onAdd({
         key: builderKey(),
         name: product.name,
-        amount:
-          product.servingG != null && Number(product.servingG) > 0
-            ? Number(product.servingG)
-            : 100,
+        amount: servingAmountG(product.servingG),
         source: { kind: "product", barcode: product.barcode, per100g: product.per100g },
       });
     } catch (err) {
@@ -162,10 +163,7 @@ function SavedFoodPicker({ onAdd }: { onAdd: (item: BuilderItem) => void }) {
                 onAdd({
                   key: builderKey(),
                   name: f.name,
-                  amount:
-                    f.servingG != null && Number(f.servingG) > 0
-                      ? Number(f.servingG)
-                      : 100,
+                  amount: servingAmountG(f.servingG),
                   source: {
                     kind: "customFood",
                     customFoodId: f.id,

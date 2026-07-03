@@ -14,7 +14,11 @@ import {
   builderKey,
   type PlanBuilderItem,
 } from "@/lib/daily-plan-builder";
-import { coerceMacros, type FoodProductDTO } from "@/lib/food";
+import {
+  coerceMacros,
+  type FoodProductDTO,
+  servingAmountG,
+} from "@/lib/food";
 import { getJSON, HttpError } from "@/lib/fetcher";
 import { useMeals } from "@/lib/hooks/use-meals";
 import type { Macros } from "@/lib/rules";
@@ -35,9 +39,6 @@ interface SavedFood {
   per100g: Partial<Macros>;
   servingG: string | null;
 }
-
-const servingAmount = (servingG: string | null): number =>
-  servingG != null && Number(servingG) > 0 ? Number(servingG) : 100;
 
 /**
  * The "add an item" step of the daily-plan builder. Each tab resolves to a
@@ -64,10 +65,7 @@ export function DailyPlanItemPicker({
       onAdd({
         key: builderKey(),
         name: product.name,
-        amount:
-          product.servingG != null && Number(product.servingG) > 0
-            ? Number(product.servingG)
-            : 100,
+        amount: servingAmountG(product.servingG),
         mealSlot: null,
         source: {
           kind: "product",
@@ -177,7 +175,7 @@ function SavedFoodPicker({ onAdd }: { onAdd: (item: PlanBuilderItem) => void }) 
                 onAdd({
                   key: builderKey(),
                   name: f.name,
-                  amount: servingAmount(f.servingG),
+                  amount: servingAmountG(f.servingG),
                   mealSlot: null,
                   source: {
                     kind: "customFood",

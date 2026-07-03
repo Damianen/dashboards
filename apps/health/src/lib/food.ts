@@ -51,6 +51,14 @@ export function coerceMacros(p: Partial<Macros> | null | undefined): Macros {
   };
 }
 
+/** Grams a picked product/saved food defaults to: its serving size when known and > 0, else 100 g.
+ *  Accepts the wire string (Decimal) or number form. */
+export function servingAmountG(
+  servingG: string | number | null | undefined,
+): number {
+  return servingG != null && Number(servingG) > 0 ? Number(servingG) : 100;
+}
+
 /**
  * A saved custom food as GET /api/food/custom serializes it. `lastUsedAt` is the most
  * recent diary entry that used it (ISO, null if never), driving recently-used-first

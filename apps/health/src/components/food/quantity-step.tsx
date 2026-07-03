@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Stepper } from "@/components/ui/stepper";
-import { type LoggableItem, suggestMeal } from "@/lib/food";
+import { type LoggableItem, servingAmountG, suggestMeal } from "@/lib/food";
 import { formatNumber } from "@/lib/format";
 import { useLogFood } from "@/lib/hooks/use-log-food";
 import { scaleMacros } from "@/lib/rules";
@@ -37,9 +37,7 @@ export function QuantityStep({
   onLogged: () => void;
 }) {
   const servingG = item.servingG;
-  const [grams, setGrams] = useState(
-    initialGrams ?? (servingG && servingG > 0 ? servingG : 100),
-  );
+  const [grams, setGrams] = useState(initialGrams ?? servingAmountG(servingG));
   const [meal, setMeal] = useState(() => suggestMeal(new Date()));
   // null = follow the live scaled prefill; a string = the user has overridden it.
   const [caffeineInput, setCaffeineInput] = useState<string | null>(null);

@@ -14,12 +14,8 @@ import { ScanLabelTab } from "@/components/food/scan-label-tab";
 import { ScanTab } from "@/components/food/scan-tab";
 import { SearchTab } from "@/components/food/search-tab";
 import { Segmented, type SegmentedOption } from "@/components/ui/segmented";
-import { getJSON, HttpError } from "@/lib/fetcher";
-import {
-  type FoodProductDTO,
-  type LoggableItem,
-  productToLoggable,
-} from "@/lib/food";
+import { type LoggableItem, productToLoggable } from "@/lib/food";
+import { useBarcodeLookup } from "@/lib/hooks/use-barcode-lookup";
 import { usePersistentState } from "@/lib/hooks/use-persistent-state";
 
 const TAB_VALUES = [
@@ -74,39 +70,26 @@ export function AddFoodSheet({
     item: LoggableItem;
     initialGrams?: number;
   } | null>(null);
-  const [looking, setLooking] = useState(false);
   const [oneOffJump, setOneOffJump] = useState(false);
+
+  const { looking, lookup } = useBarcodeLookup({
+    onFound: (found) => setLoggable({ item: productToLoggable(found) }),
+    onNotFound: () => {
+      setOneOffJump(true);
+      setTabOverride("myFoods");
+      toast.error("Product not found — add it as a custom entry");
+    },
+  });
 
   function reset() {
     setTabOverride(null);
     setLoggable(null);
-    setLooking(false);
     setOneOffJump(false);
   }
 
   function handleOpenChange(next: boolean) {
     if (!next) reset();
     onOpenChange(next);
-  }
-
-  async function handleBarcode(barcode: string) {
-    setLooking(true);
-    try {
-      const found = await getJSON<FoodProductDTO>(
-        `/api/food/products/${encodeURIComponent(barcode)}`,
-      );
-      setLoggable({ item: productToLoggable(found) });
-    } catch (err) {
-      if (err instanceof HttpError && err.status === 404) {
-        setOneOffJump(true);
-        setTabOverride("myFoods");
-        toast.error("Product not found — add it as a custom entry");
-      } else {
-        toast.error("Couldn't look up that barcode");
-      }
-    } finally {
-      setLooking(false);
-    }
   }
 
   const showTabs = !loggable && !looking;
@@ -153,7 +136,7 @@ export function AddFoodSheet({
           Looking up product…
         </div>
       ) : tab === "scan" ? (
-        <ScanTab active={open && tab === "scan"} onBarcode={handleBarcode} />
+        <ScanTab active={open && tab === "scan"} onBarcode={lookup} />
       ) : tab === "scanLabel" ? (
         <ScanLabelTab
           onLog={(item) => setLoggable({ item })}
@@ -169,7 +152,7 @@ export function AddFoodSheet({
       ) : tab === "search" ? (
         <SearchTab
           day={day}
-          onBarcode={handleBarcode}
+          onBarcode={lookup}
           onPickRecent={(item, initialGrams) =>
             setLoggable({ item, initialGrams })
           }
