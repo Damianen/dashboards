@@ -33,12 +33,22 @@ const briefingSlotSchema = z.strictObject({
 });
 export type BriefingSlot = z.infer<typeof briefingSlotSchema>;
 
+/** The two notification slots — also the shape of the `briefing.schedule` setting row. */
+export const briefingScheduleSchema = z.strictObject({
+  morning: briefingSlotSchema,
+  evening: briefingSlotSchema,
+});
+export type BriefingSchedule = z.infer<typeof briefingScheduleSchema>;
+
+/** Mode cutoff hour — also the shape of the `briefing.modeCutoffHour` setting row. */
+export const modeCutoffHourSchema = z.coerce.number().int().min(0).max(23);
+
 /**
  * Readiness-score bands for the session suggestion (used only when the recovery
  * engine has an insufficient baseline): >= goodMin → good, >= moderateMin →
- * moderate, below → poor.
+ * moderate, below → poor. Also the shape of the `briefing.thresholds` row.
  */
-const suggestionThresholdsSchema = z
+export const suggestionThresholdsSchema = z
   .strictObject({
     goodMin: z.coerce.number().int().min(1).max(100),
     moderateMin: z.coerce.number().int().min(1).max(100),
@@ -58,7 +68,7 @@ export type SuggestionThresholds = z.infer<typeof suggestionThresholdsSchema>;
 export const briefingSettingsSchema = z.strictObject({
   morning: briefingSlotSchema,
   evening: briefingSlotSchema,
-  modeCutoffHour: z.coerce.number().int().min(0).max(23),
+  modeCutoffHour: modeCutoffHourSchema,
   thresholds: suggestionThresholdsSchema,
 });
 export type BriefingSettings = z.infer<typeof briefingSettingsSchema>;
