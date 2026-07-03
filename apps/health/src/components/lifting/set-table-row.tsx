@@ -110,7 +110,9 @@ function CheckButton({
 
 /** A not-yet-logged set row (a planned placeholder or a user-added extra). Owns
  *  its own input state, seeded once per `seedKey` so a sibling logging never
- *  clobbers a half-typed value. ✓ logs the set. */
+ *  clobbers a half-typed value. ✓ logs the set. `onSetLogged` fires after ANY
+ *  successful log — warmups included — so the session view can start the rest
+ *  countdown; `onLogged` remains the extras' remove-myself callback. */
 export function EditableRow({
   exerciseId,
   day,
@@ -123,6 +125,7 @@ export function EditableRow({
   previous,
   suggestion,
   onLogged,
+  onSetLogged,
   onRemove,
 }: {
   exerciseId: string;
@@ -136,6 +139,7 @@ export function EditableRow({
   previous: string | null;
   suggestion?: SetSuggestion;
   onLogged?: () => void;
+  onSetLogged?: () => void;
   onRemove?: () => void;
 }) {
   const log = useLogSet(day, sessionId);
@@ -170,7 +174,12 @@ export function EditableRow({
       toast.error("Check the set values");
       return;
     }
-    log.mutate(parsed.data, { onSuccess: () => onLogged?.() });
+    log.mutate(parsed.data, {
+      onSuccess: () => {
+        onLogged?.();
+        onSetLogged?.();
+      },
+    });
   }
 
   return (
