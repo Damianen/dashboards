@@ -91,6 +91,9 @@ export const queryKeys = {
   briefing: (mode: string) => ["briefing", mode] as const,
   briefingPrefix: () => ["briefing"] as const,
   rotation: () => ["rotation"] as const,
+  // One editable settings endpoint (the Settings-page cards), keyed by its
+  // name — e.g. setting("protein") caches GET /api/settings/protein.
+  setting: (name: string) => ["settings", name] as const,
 };
 
 /**
