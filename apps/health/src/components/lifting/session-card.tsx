@@ -5,24 +5,9 @@ import { ChevronDown } from "lucide-react";
 
 import { ExerciseGroupRow } from "@/components/lifting/exercise-group-row";
 import { Card } from "@/components/ui/card";
-import { formatNumber } from "@/lib/format";
+import { dayLabelShort, formatNumber, timeLabel } from "@/lib/format";
 import type { SessionDTO } from "@/lib/hooks/use-lifting-sessions";
 import { cn } from "@/lib/utils";
-
-function dayLabel(day: string): string {
-  return new Date(`${day}T00:00:00`).toLocaleDateString("en-GB", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-  });
-}
-
-function timeLabel(iso: string): string {
-  return new Date(iso).toLocaleTimeString("en-GB", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 /** A session as a collapsible card: header (day, top exercises, volume) that
  *  expands to the full set list grouped by exercise. */
@@ -49,7 +34,7 @@ export function SessionCard({
       >
         <div className="min-w-0">
           <div className="font-medium">
-            {dayLabel(session.day)}, {timeLabel(session.startedAt)}
+            {dayLabelShort(session.day)}, {timeLabel(session.startedAt)}
           </div>
           <div className="text-muted-foreground truncate text-xs">
             {topExercises || "No sets"}

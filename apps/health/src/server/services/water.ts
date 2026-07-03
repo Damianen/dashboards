@@ -5,10 +5,9 @@ import {
 } from "@/generated/prisma/client";
 import { civilDay, dayOf, dayToDbDate, todayLocal } from "@/lib/dates";
 import { logWaterSchema, type LogWaterInput } from "@/lib/schemas/water";
-// Matches the daily_summary view's COALESCE default — used only as the no-data fallback.
-import { DEFAULT_BASE_TARGET_ML } from "@/lib/water-defaults";
 import { prisma } from "@/server/db";
 import { NotFoundError } from "./errors";
+import { getWaterSettings } from "./settings";
 import { getDailySummary } from "./summary";
 
 export async function logWater(
@@ -68,8 +67,10 @@ export async function getWaterStatus(
 ): Promise<WaterStatus> {
   const summary = await getDailySummary(day);
   // The SQL view is the single source of the target formula. Only fall back to the
-  // bare base setting when the day has no row at all (no stimulants → target = base).
-  const targetMl = summary?.waterTargetMl ?? (await getBaseTargetMl());
+  // bare base setting (via the settings service — the one home of the key and its
+  // default) when the day has no row at all (no stimulants → target = base).
+  const targetMl =
+    summary?.waterTargetMl ?? (await getWaterSettings()).baseTargetMl;
   const waterMl = summary?.waterMl ?? 0;
   return {
     day,
@@ -77,11 +78,4 @@ export async function getWaterStatus(
     targetMl,
     remainingMl: Math.max(0, targetMl - waterMl),
   };
-}
-
-async function getBaseTargetMl(): Promise<number> {
-  const setting = await prisma.setting.findUnique({
-    where: { key: "water.baseTargetMl" },
-  });
-  return setting ? Number(setting.value) : DEFAULT_BASE_TARGET_ML;
 }

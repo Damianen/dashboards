@@ -74,7 +74,7 @@ export interface TemplateView {
 
 /** Map loaded warmup rows → plain views, coercing Decimal weights to numbers. The
  *  rows arrive position-ordered (templateInclude orders them). */
-function serializeWarmups(
+export function serializeWarmups(
   warmups: {
     position: number;
     reps: number;
@@ -130,7 +130,7 @@ function serializeTemplate(
 
 /** The target columns shared by TemplateExercise and SessionPlanItem, with the
  *  inactive mode's columns nulled out. */
-function targetColumns(e: TemplateExerciseInput) {
+export function targetColumns(e: TemplateExerciseInput) {
   if (e.targetType === "REPS") {
     return {
       targetType: "REPS" as const,
@@ -156,7 +156,7 @@ function targetColumns(e: TemplateExerciseInput) {
 /** One warmup input → its DB columns, array index as position, the inactive mode's
  *  weight column nulled out. Shared shape between TemplateWarmupSet and the
  *  SessionPlanWarmup snapshot. */
-function warmupColumns(w: WarmupSetInput, position: number) {
+export function warmupColumns(w: WarmupSetInput, position: number) {
   return {
     position,
     reps: w.reps,
@@ -182,7 +182,7 @@ function exerciseCreateRows(
 }
 
 /** Translate a unique-name collision into a clean domain error. */
-function isUniqueNameError(err: unknown): boolean {
+export function isUniqueNameError(err: unknown): boolean {
   return (
     err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002"
   );
@@ -283,15 +283,14 @@ export async function listTemplates({
 }
 
 /**
- * Resolve a template by exact case-insensitive name for MCP. Throws DomainError
- * listing the available ACTIVE template names when nothing matches, and a
- * distinct DomainError for an archived match — byte-identical to the inline
- * logic this replaced in the MCP start_workout_from_template tool.
+ * The pure selection core of resolveTemplateByName: pick a template by exact
+ * case-insensitive name from an in-memory list (which must include archived
+ * templates). Throws DomainError listing the available ACTIVE template names
+ * when nothing matches, and a distinct DomainError for an archived match.
  */
-export async function resolveTemplateByName(
-  name: string,
-): Promise<TemplateView> {
-  const templates = await listTemplates({ includeArchived: true });
+export function selectTemplateByName<
+  T extends { name: string; archived: boolean },
+>(templates: T[], name: string): T {
   const match = templates.find(
     (t) => t.name.toLowerCase() === name.toLowerCase(),
   );
@@ -307,6 +306,17 @@ export async function resolveTemplateByName(
     throw new DomainError(`template "${match.name}" is archived`);
   }
   return match;
+}
+
+/**
+ * Resolve a template by exact case-insensitive name for MCP — behavior identical
+ * to the inline logic this replaced in the MCP start_workout_from_template tool.
+ */
+export async function resolveTemplateByName(
+  name: string,
+): Promise<TemplateView> {
+  const templates = await listTemplates({ includeArchived: true });
+  return selectTemplateByName(templates, name);
 }
 
 export async function getTemplate(id: string): Promise<TemplateView> {

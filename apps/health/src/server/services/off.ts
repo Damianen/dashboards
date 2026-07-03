@@ -64,21 +64,14 @@ export interface OffProduct {
 }
 
 /**
- * Look up a product by barcode. OFF returns HTTP 200 with `status === 0` for an
- * unknown barcode, so we branch on the body, not the status code. Every nutrient
- * is nullable: a missing key stays null, never 0.
+ * Map an OFF product payload (the `product` body of a successful lookup, already
+ * status-checked) to our OffProduct. Pure. Every nutrient is nullable: a missing
+ * key stays null, never 0.
  */
-export async function fetchProduct(barcode: string): Promise<OffProduct | null> {
-  const url = `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(
-    barcode,
-  )}?fields=${PRODUCT_FIELDS}`;
-  const body = (await offFetch(url)) as {
-    status?: number;
-    product?: Record<string, unknown>;
-  };
-  if (body.status === 0 || !body.product) return null;
-
-  const p = body.product;
+export function mapOffProduct(
+  barcode: string,
+  p: Record<string, unknown>,
+): OffProduct {
   const n = (p.nutriments ?? {}) as Record<string, unknown>;
   const name =
     typeof p.product_name === "string" && p.product_name.trim()
@@ -108,6 +101,22 @@ export async function fetchProduct(barcode: string): Promise<OffProduct | null> 
     servingG: numOrNull(p.serving_quantity),
     raw: p,
   };
+}
+
+/**
+ * Look up a product by barcode. OFF returns HTTP 200 with `status === 0` for an
+ * unknown barcode, so we branch on the body, not the status code.
+ */
+export async function fetchProduct(barcode: string): Promise<OffProduct | null> {
+  const url = `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(
+    barcode,
+  )}?fields=${PRODUCT_FIELDS}`;
+  const body = (await offFetch(url)) as {
+    status?: number;
+    product?: Record<string, unknown>;
+  };
+  if (body.status === 0 || !body.product) return null;
+  return mapOffProduct(barcode, body.product);
 }
 
 export interface OffSearchResult {

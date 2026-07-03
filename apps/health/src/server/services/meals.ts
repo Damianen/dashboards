@@ -21,12 +21,14 @@ import {
   updateMealSchema,
 } from "@/lib/schemas/meals";
 import { prisma } from "@/server/db";
+import { toJsonValue } from "@/server/prisma-json";
 import { DomainError, NotFoundError } from "./errors";
 import {
   getOrFetchProduct,
   macrosFromJson,
   macrosFromProduct,
 } from "./food";
+import { resolveUniqueByName } from "./resolve-name";
 
 // ----- Wire shapes (Decimal/JSON → numbers, the one coercion chokepoint) -----
 
@@ -320,7 +322,7 @@ export async function createMeal(input: CreateMealInput): Promise<MealDetail> {
       name: data.name,
       notes: data.notes ?? null,
       yieldPortions: data.yieldPortions,
-      perPortion: perPortion as unknown as Prisma.InputJsonValue,
+      perPortion: toJsonValue(perPortion),
       items: { create: resolved.map(toItemCreate) },
     },
     include: DETAIL_INCLUDE,
@@ -347,7 +349,7 @@ export async function updateMeal(
       name: data.name,
       notes: data.notes ?? null,
       yieldPortions: data.yieldPortions,
-      perPortion: perPortion as unknown as Prisma.InputJsonValue,
+      perPortion: toJsonValue(perPortion),
       items: { deleteMany: {}, create: resolved.map(toItemCreate) },
     },
     include: DETAIL_INCLUDE,
@@ -407,22 +409,14 @@ export async function setMealArchived(
 export async function resolveMealByName(
   name: string,
 ): Promise<{ meal: Meal } | { candidates: MealCandidate[] }> {
-  const q = name.trim();
-  const exact = await prisma.meal.findMany({
-    where: { archived: false, name: { equals: q, mode: "insensitive" } },
-    orderBy: { name: "asc" },
-  });
-  const first = exact[0];
-  if (exact.length === 1 && first) return { meal: first };
-  if (exact.length > 1) {
-    return { candidates: exact.map((m) => ({ id: m.id, name: m.name })) };
-  }
-  const fuzzy = await prisma.meal.findMany({
-    where: { archived: false, name: { contains: q, mode: "insensitive" } },
-    orderBy: { name: "asc" },
-    take: 10,
-  });
-  return { candidates: fuzzy.map((m) => ({ id: m.id, name: m.name })) };
+  const resolved = await resolveUniqueByName(name, (filter, take) =>
+    prisma.meal.findMany({
+      where: { archived: false, name: filter },
+      orderBy: { name: "asc" },
+      take,
+    }),
+  );
+  return "match" in resolved ? { meal: resolved.match } : resolved;
 }
 
 /**

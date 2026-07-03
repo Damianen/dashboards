@@ -4,11 +4,13 @@ import {
   clampPercent,
   dateLabel,
   dayHeading,
+  dayLabelShort,
   formatHm,
   formatKg,
   formatLastPerformed,
   formatNumber,
   relativeTimeFromNow,
+  timeLabel,
 } from "./format";
 
 describe("formatHm", () => {
@@ -121,6 +123,26 @@ describe("dateLabel", () => {
   it("stays on its own civil date across a year boundary", () => {
     expect(dateLabel("2026-12-31")).toBe("Thursday 31 December");
     expect(dateLabel("2026-01-01")).toBe("Thursday 1 January");
+  });
+});
+
+describe("dayLabelShort", () => {
+  it("prints the compact weekday label for a civil day", () => {
+    // Local-midnight parse, like dateLabel: holds in any test-runner timezone.
+    expect(dayLabelShort("2026-07-02")).toBe("Thu 2 Jul");
+    expect(dayLabelShort("2026-12-31")).toBe("Thu 31 Dec");
+  });
+});
+
+describe("timeLabel", () => {
+  it("prints the wall-clock HH:MM of a local ISO timestamp", () => {
+    // Offset-less ISO parses as local time, so the label is zone-independent.
+    expect(timeLabel("2026-07-02T18:05:00")).toBe("18:05");
+    expect(timeLabel("2026-07-02T09:07:30")).toBe("09:07");
+  });
+
+  it("zero-pads the midnight hour", () => {
+    expect(timeLabel("2026-07-02T00:03:00")).toBe("00:03");
   });
 });
 

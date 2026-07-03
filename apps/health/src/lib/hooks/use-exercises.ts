@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type { Exercise } from "@/generated/prisma/client";
-import { getJSON, HttpError, postJSON } from "@/lib/fetcher";
+import { getJSON, HttpError, httpErrorMessage, postJSON } from "@/lib/fetcher";
 import { queryKeys } from "@/lib/hooks/keys";
 import type { CreateExerciseInput } from "@/lib/schemas/exercise";
 
@@ -26,8 +26,7 @@ async function postExercise(input: CreateExerciseInput): Promise<Exercise> {
     return await postJSON<Exercise>("/api/exercises", input);
   } catch (err) {
     if (err instanceof HttpError) {
-      const body = err.body as { error?: string } | null;
-      throw new Error(body?.error ?? "Couldn't create exercise");
+      throw new Error(httpErrorMessage(err, "Couldn't create exercise"));
     }
     throw err; // network TypeError etc. — same propagation as before
   }

@@ -9,7 +9,7 @@ import { ExerciseSetTable } from "@/components/lifting/exercise-set-table";
 import { SessionMenu } from "@/components/lifting/session-menu";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { dateLabel } from "@/lib/format";
+import { dateLabel, timeLabel } from "@/lib/format";
 import { useFinishSession } from "@/lib/hooks/use-finish-session";
 import { useSession } from "@/lib/hooks/use-session";
 import { useTemplate } from "@/lib/hooks/use-templates";
@@ -114,11 +114,7 @@ export function SessionView({ id }: { id: string }) {
         ) : (
           <span className="text-muted-foreground flex items-center gap-1.5 text-sm">
             <CheckCircle2 className="size-4" aria-hidden />
-            Finished{" "}
-            {new Date(session.endedAt).toLocaleTimeString("en-GB", {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
+            Finished {timeLabel(session.endedAt)}
           </span>
         )}
         <div className="flex items-center gap-1">

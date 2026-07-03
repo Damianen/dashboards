@@ -9,6 +9,7 @@
 
 import { Prisma, OauthProvider, Source } from "@/generated/prisma/client";
 import { dayOf, dayToDbDate } from "@/lib/dates";
+import { toJsonValue } from "@/server/prisma-json";
 import { DomainError } from "@/server/services/errors";
 import {
   getTokens,
@@ -292,7 +293,7 @@ export function groupMeasures(
       hydrationKg: byType.get(MEAS_HYDRATION) ?? null,
       boneMassKg: byType.get(MEAS_BONE) ?? null,
       source: Source.WITHINGS,
-      raw: grp as unknown as Prisma.InputJsonValue,
+      raw: toJsonValue(grp),
     });
   }
   return rows;
