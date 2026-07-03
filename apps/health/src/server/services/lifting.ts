@@ -52,6 +52,13 @@ async function resolveExercise(
   return exercise;
 }
 
+/** Resolve an exercise by exact case-insensitive name. Side-effect-free and never
+ *  auto-creates; NotFound → 404 (callers can offer suggestExercises matches).
+ *  The MCP template tools' name→exercise chokepoint. */
+export function resolveExerciseByName(name: string): Promise<Exercise> {
+  return resolveExercise(undefined, name);
+}
+
 export async function logSet(
   input: LogSetInput,
   origin: EntryOrigin,
@@ -160,9 +167,9 @@ export async function setSessionFinished(
   return getSession(id);
 }
 
-/** Delete a session and, via cascade, its sets and plan snapshot. UI-only
- *  (menu → confirm) — never exposed over MCP, like deleteSet/deleteEntry.
- *  NotFound → 404. */
+/** Delete a session and, via cascade, its sets and plan snapshot. A BULK delete,
+ *  so UI-only (menu → confirm) — never exposed over MCP, unlike the single-set
+ *  corrections (updateSet/deleteSet), which are. NotFound → 404. */
 export async function deleteSession(id: string): Promise<void> {
   try {
     await prisma.liftingSession.delete({ where: { id } });

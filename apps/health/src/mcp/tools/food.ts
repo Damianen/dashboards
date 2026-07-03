@@ -1,6 +1,7 @@
 // Food tools: diary search, recents, saved meals and daily plans, custom
-// foods, the two vision draft tools, and the food/meal/plan write paths.
-// All writes are tagged origin "MCP".
+// foods, the two vision draft tools, the food/meal/plan write paths,
+// single-entry diary corrections, and catalog management (custom foods,
+// meals, daily plans). All writes are tagged origin "MCP".
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
@@ -8,36 +9,343 @@ import { z } from "zod";
 import { todayLocal } from "@/lib/dates";
 import { MEAL_ORDER } from "@/lib/food";
 import { daySchema } from "@/lib/schemas/common";
+import { archiveDailyPlanSchema } from "@/lib/schemas/daily-plans";
+import type { DailyPlanItemInput } from "@/lib/schemas/daily-plans";
 import {
+  archiveCustomFoodSchema,
   per100gSchema,
   recentLoggablesQuerySchema,
+  updateCustomFoodSchema,
+  updateFoodEntrySchema,
 } from "@/lib/schemas/food";
+import { archiveMealSchema } from "@/lib/schemas/meals";
 import type { MealItemInput } from "@/lib/schemas/meals";
 import { imageDataUrlSchema } from "@/lib/schemas/vision";
 import {
+  createDailyPlan,
   applyDailyPlan,
   listDailyPlans,
   resolveDailyPlanByName,
+  setDailyPlanArchived,
+  updateDailyPlan,
 } from "@/server/services/dailyPlans";
 import { DomainError } from "@/server/services/errors";
 import {
   createCustomFood,
+  deleteEntry,
   estimateMeal,
+  listCustomFoods,
   listRecentLoggables,
   logFood,
   resolveCustomFoodByName,
   scanLabel,
   searchFoodLog,
+  setCustomFoodArchived,
+  updateCustomFood,
+  updateFoodEntry,
 } from "@/server/services/food";
 import {
   createMeal,
   listMeals,
   logMeal,
   resolveMealByName,
+  setMealArchived,
+  updateMeal,
 } from "@/server/services/meals";
 import { searchProducts } from "@/server/services/off";
 
 import { run } from "./shared";
+
+// ----- id-XOR-name selectors for the catalog tools ---------------------------
+//
+// Every catalog write below targets a record by EXACTLY ONE of id / name. Name
+// resolution goes through the services' side-effect-free resolvers, which
+// EXCLUDE archived rows — so restoring from the archive is id-only (ids come
+// from the list tools with include_archived: true). An ambiguous name returns
+// { ambiguous: true, candidates } for the tool to surface verbatim, writing
+// nothing.
+
+interface AmbiguousTarget {
+  ambiguous: true;
+  message: string;
+  candidates: Array<{ id: string; name: string; brand?: string | null }>;
+}
+
+function requireIdXorName(entity: string, id?: string, name?: string): void {
+  if ((id == null) === (name == null)) {
+    throw new DomainError(`provide exactly one of id or ${entity}`);
+  }
+}
+
+/** The target custom-food id, from an id or an active food's name. */
+async function resolveCustomFoodTarget(
+  id: string | undefined,
+  name: string | undefined,
+): Promise<{ id: string } | AmbiguousTarget> {
+  requireIdXorName("custom_food_name", id, name);
+  if (id != null) return { id };
+  const resolved = await resolveCustomFoodByName(name ?? "");
+  if ("food" in resolved) return { id: resolved.food.id };
+  if (resolved.candidates.length === 0) {
+    throw new DomainError(`no active custom food matches "${name}"`);
+  }
+  return {
+    ambiguous: true,
+    message: `multiple custom foods match "${name}" — re-call with the exact name or the id`,
+    candidates: resolved.candidates,
+  };
+}
+
+/** The target meal id, from an id or an active meal's name. */
+async function resolveMealTarget(
+  id: string | undefined,
+  name: string | undefined,
+): Promise<{ id: string } | AmbiguousTarget> {
+  requireIdXorName("meal", id, name);
+  if (id != null) return { id };
+  const resolved = await resolveMealByName(name ?? "");
+  if ("meal" in resolved) return { id: resolved.meal.id };
+  if (resolved.candidates.length === 0) {
+    throw new DomainError(`no active meal matches "${name}"`);
+  }
+  return {
+    ambiguous: true,
+    message: `multiple meals match "${name}" — re-call with the exact name or the id`,
+    candidates: resolved.candidates,
+  };
+}
+
+/** The target daily-plan id, from an id or an active plan's name. */
+async function resolveDailyPlanTarget(
+  id: string | undefined,
+  name: string | undefined,
+): Promise<{ id: string } | AmbiguousTarget> {
+  requireIdXorName("plan", id, name);
+  if (id != null) return { id };
+  const resolved = await resolveDailyPlanByName(name ?? "");
+  if ("plan" in resolved) return { id: resolved.plan.id };
+  if (resolved.candidates.length === 0) {
+    throw new DomainError(`no active daily plan matches "${name}"`);
+  }
+  return {
+    ambiguous: true,
+    message: `multiple daily plans match "${name}" — re-call with the exact name or the id`,
+    candidates: resolved.candidates,
+  };
+}
+
+// ----- meal / plan item inputs (shared by the create_* and update_* tools) ---
+
+/** One recipe ingredient as the agent supplies it — exactly one source. Shared
+ *  by create_meal and update_meal. */
+const mealItemToolSchema = z.object({
+  barcode: z
+    .string()
+    .optional()
+    .describe("Numeric barcode of an OFF product."),
+  custom_food_name: z
+    .string()
+    .optional()
+    .describe("Name of a saved custom food."),
+  name: z
+    .string()
+    .optional()
+    .describe("Free-typed item name (provide kcal + macros)."),
+  child_meal_name: z
+    .string()
+    .optional()
+    .describe("Name of another saved meal to nest."),
+  quantity_g: z
+    .number()
+    .optional()
+    .describe("Grams (for barcode / custom_food_name / free-typed name)."),
+  child_portions: z
+    .number()
+    .optional()
+    .describe("Sub-meal portions (for child_meal_name)."),
+  kcal: z
+    .number()
+    .optional()
+    .describe("Calories (required for a free-typed name item)."),
+  protein_g: z.number().optional().describe("Protein grams."),
+  carb_g: z.number().optional().describe("Carbohydrate grams."),
+  fat_g: z.number().optional().describe("Fat grams."),
+  fiber_g: z.number().optional().describe("Fiber grams."),
+  sugar_g: z.number().optional().describe("Sugar grams."),
+  salt_g: z.number().optional().describe("Salt grams."),
+  caffeine_mg: z
+    .number()
+    .optional()
+    .describe(
+      "Caffeine mg for a free-typed item; barcode/custom-food/child-meal " +
+        "items inherit caffeine from their source.",
+    ),
+});
+type MealItemToolInput = z.infer<typeof mealItemToolSchema>;
+
+/** Resolve tool-level meal items (names → ids) into the canonical MealItemInput
+ *  list WITHOUT writing: an unknown/ambiguous custom-food or nested-meal name
+ *  aborts with candidates so the caller returns them verbatim and saves NOTHING. */
+async function resolveMealItemInputs(
+  items: MealItemToolInput[],
+): Promise<
+  | { ok: true; items: MealItemInput[] }
+  | {
+      ok: false;
+      message: string;
+      candidates: Array<{ id: string; name: string; brand?: string | null }>;
+    }
+> {
+  const resolvedItems: MealItemInput[] = [];
+  for (const it of items) {
+    if (it.barcode != null) {
+      resolvedItems.push({ barcode: it.barcode, quantityG: it.quantity_g });
+    } else if (it.custom_food_name != null) {
+      const cfn = it.custom_food_name;
+      const resolved = await resolveCustomFoodByName(cfn);
+      if (!("food" in resolved)) {
+        return {
+          ok: false,
+          message:
+            resolved.candidates.length === 0
+              ? `no custom food matches "${cfn}"`
+              : `multiple custom foods match "${cfn}"; use an exact name`,
+          candidates: resolved.candidates,
+        };
+      }
+      resolvedItems.push({
+        customFoodId: resolved.food.id,
+        quantityG: it.quantity_g,
+      });
+    } else if (it.child_meal_name != null) {
+      const resolved = await resolveMealByName(it.child_meal_name);
+      if (!("meal" in resolved)) {
+        return {
+          ok: false,
+          message:
+            resolved.candidates.length === 0
+              ? `no meal matches "${it.child_meal_name}"`
+              : `multiple meals match "${it.child_meal_name}"; use an exact name`,
+          candidates: resolved.candidates,
+        };
+      }
+      resolvedItems.push({
+        childMealId: resolved.meal.id,
+        childPortions: it.child_portions,
+      });
+    } else if (it.name != null) {
+      resolvedItems.push({
+        customName: it.name,
+        quantityG: it.quantity_g,
+        kcal: it.kcal,
+        proteinG: it.protein_g,
+        carbG: it.carb_g,
+        fatG: it.fat_g,
+        fiberG: it.fiber_g,
+        sugarG: it.sugar_g,
+        saltG: it.salt_g,
+        caffeineMg: it.caffeine_mg,
+      });
+    } else {
+      throw new DomainError(
+        "each item needs a barcode, custom_food_name, name, or child_meal_name",
+      );
+    }
+  }
+  return { ok: true, items: resolvedItems };
+}
+
+/** One daily-plan item as the agent supplies it — exactly one source, a pure
+ *  reference (no free-typed items, no stored macros). Shared by
+ *  create_daily_plan and update_daily_plan. */
+const dailyPlanItemToolSchema = z.object({
+  barcode: z
+    .string()
+    .optional()
+    .describe("Numeric barcode of an OFF product."),
+  custom_food_name: z
+    .string()
+    .optional()
+    .describe("Name of a saved custom food."),
+  meal_name: z.string().optional().describe("Name of a saved meal."),
+  quantity_g: z
+    .number()
+    .optional()
+    .describe("Grams (required for barcode / custom_food_name items)."),
+  portions: z
+    .number()
+    .optional()
+    .describe("Portions (required for meal_name items; fractional allowed)."),
+  meal_slot: z
+    .enum(MEAL_ORDER)
+    .optional()
+    .describe("Which diary slot the applied entry should land in."),
+});
+type DailyPlanItemToolInput = z.infer<typeof dailyPlanItemToolSchema>;
+
+/** Resolve tool-level daily-plan items (names → ids) into the canonical
+ *  DailyPlanItemInput list WITHOUT writing — mirror of resolveMealItemInputs. */
+async function resolveDailyPlanItemInputs(
+  items: DailyPlanItemToolInput[],
+): Promise<
+  | { ok: true; items: DailyPlanItemInput[] }
+  | {
+      ok: false;
+      message: string;
+      candidates: Array<{ id: string; name: string; brand?: string | null }>;
+    }
+> {
+  const resolvedItems: DailyPlanItemInput[] = [];
+  for (const it of items) {
+    if (it.barcode != null) {
+      resolvedItems.push({
+        barcode: it.barcode,
+        quantityG: it.quantity_g,
+        mealSlot: it.meal_slot,
+      });
+    } else if (it.custom_food_name != null) {
+      const cfn = it.custom_food_name;
+      const resolved = await resolveCustomFoodByName(cfn);
+      if (!("food" in resolved)) {
+        return {
+          ok: false,
+          message:
+            resolved.candidates.length === 0
+              ? `no custom food matches "${cfn}"`
+              : `multiple custom foods match "${cfn}"; use an exact name`,
+          candidates: resolved.candidates,
+        };
+      }
+      resolvedItems.push({
+        customFoodId: resolved.food.id,
+        quantityG: it.quantity_g,
+        mealSlot: it.meal_slot,
+      });
+    } else if (it.meal_name != null) {
+      const resolved = await resolveMealByName(it.meal_name);
+      if (!("meal" in resolved)) {
+        return {
+          ok: false,
+          message:
+            resolved.candidates.length === 0
+              ? `no meal matches "${it.meal_name}"`
+              : `multiple meals match "${it.meal_name}"; use an exact name`,
+          candidates: resolved.candidates,
+        };
+      }
+      resolvedItems.push({
+        mealId: resolved.meal.id,
+        portions: it.portions,
+        mealSlot: it.meal_slot,
+      });
+    } else {
+      throw new DomainError(
+        "each item needs a barcode, custom_food_name, or meal_name",
+      );
+    }
+  }
+  return { ok: true, items: resolvedItems };
+}
 
 export function registerFoodTools(server: McpServer): void {
   server.registerTool(
@@ -116,6 +424,33 @@ export function registerFoodTools(server: McpServer): void {
   );
 
   server.registerTool(
+    "list_custom_foods",
+    {
+      description:
+        "Saved custom foods (home recipes and confirmed label scans), recently-" +
+        "used first, each with id, name, brand, per-100g macros, serving size, " +
+        "source, archived flag and last diary use. The id source for " +
+        "update_custom_food / archive_custom_food — set include_archived: true " +
+        "to find an archived food's id (required to restore it).",
+      inputSchema: {
+        query: z
+          .string()
+          .min(1)
+          .optional()
+          .describe("Substring filter on name or brand (case-insensitive)."),
+        include_archived: z
+          .boolean()
+          .optional()
+          .describe("Include archived (retired) foods (default false)."),
+      },
+    },
+    ({ query, include_archived }) =>
+      run(() =>
+        listCustomFoods({ q: query, includeArchived: include_archived }),
+      ),
+  );
+
+  server.registerTool(
     "create_custom_food",
     {
       description:
@@ -151,6 +486,93 @@ export function registerFoodTools(server: McpServer): void {
           source: "MANUAL",
         }),
       ),
+  );
+
+  server.registerTool(
+    "update_custom_food",
+    {
+      description:
+        "FULL REPLACE of a saved custom food's definition — read its current " +
+        "state first (list_custom_foods), then send the COMPLETE new name, " +
+        "brand, per100g and serving_g (omitted brand/serving_g are CLEARED). " +
+        "Target exactly one of id / custom_food_name; an ambiguous name returns " +
+        "{ ambiguous: true, candidates } and saves NOTHING. Past diary entries " +
+        "keep their logged macro snapshots — only future logs use the new values. " +
+        "Source and archived state never change here.",
+      inputSchema: {
+        id: z
+          .cuid()
+          .optional()
+          .describe("Custom food id (exactly one of id / custom_food_name)."),
+        custom_food_name: z
+          .string()
+          .min(1)
+          .optional()
+          .describe(
+            "Name of the saved custom food to update (case-insensitive; " +
+              "active foods only).",
+          ),
+        name: updateCustomFoodSchema.shape.name.describe(
+          "The food's name — send even if unchanged (full replace).",
+        ),
+        brand: updateCustomFoodSchema.shape.brand.describe(
+          "Brand; omitting clears it (full replace).",
+        ),
+        // Same canonical camelCase per-100g passthrough as create_custom_food.
+        per100g: updateCustomFoodSchema.shape.per100g.describe(
+          "The complete new macros per 100 g, camelCase: kcal, proteinG, carbG, " +
+            "fatG required; fiberG, sugarG, saltG optional grams; caffeineMg " +
+            "optional caffeine in MILLIGRAMS per 100 g.",
+        ),
+        serving_g: updateCustomFoodSchema.shape.servingG.describe(
+          "Typical serving size in grams; omitting clears it (full replace).",
+        ),
+      },
+    },
+    ({ id, custom_food_name, name, brand, per100g, serving_g }) =>
+      run(async () => {
+        const target = await resolveCustomFoodTarget(id, custom_food_name);
+        if ("ambiguous" in target) return target;
+        return updateCustomFood(target.id, {
+          name,
+          brand,
+          per100g,
+          servingG: serving_g,
+        });
+      }),
+  );
+
+  server.registerTool(
+    "archive_custom_food",
+    {
+      description:
+        "Archive a saved custom food (retire it: hidden from pickers, recents, " +
+        "name resolution and re-logging — never deletes; past diary entries are " +
+        "untouched), or restore it with archived: false. Target exactly one of " +
+        "id / custom_food_name. Restoring is id-ONLY: the name resolver excludes " +
+        "archived foods, so get the id from list_custom_foods with " +
+        "include_archived: true.",
+      inputSchema: {
+        id: z
+          .cuid()
+          .optional()
+          .describe("Custom food id (exactly one of id / custom_food_name)."),
+        custom_food_name: z
+          .string()
+          .min(1)
+          .optional()
+          .describe("Name of the saved custom food (active foods only)."),
+        archived: archiveCustomFoodSchema.shape.archived.describe(
+          "true (default) archives; false restores (requires id).",
+        ),
+      },
+    },
+    ({ id, custom_food_name, archived }) =>
+      run(async () => {
+        const target = await resolveCustomFoodTarget(id, custom_food_name);
+        if ("ambiguous" in target) return target;
+        return setCustomFoodArchived(target.id, archived);
+      }),
   );
 
   server.registerTool(
@@ -311,6 +733,57 @@ export function registerFoodTools(server: McpServer): void {
   );
 
   server.registerTool(
+    "update_food_entry",
+    {
+      description:
+        "Correct a logged diary entry IN PLACE — get ids from search_food_log. " +
+        "quantity_g rescales the entry's OWN snapshotted macros proportionally " +
+        "(per-gram = stored totals ÷ stored quantity); the product/custom-food " +
+        "cache is NEVER re-read, so history stays a snapshot even if the source " +
+        "changed since. Entries logged from a saved meal are measured in PORTIONS " +
+        "(no gram quantity) and refuse quantity edits with an error — delete the " +
+        "entry and re-log via log_meal instead. meal: null moves the entry to the " +
+        "'Other' group; notes: null clears the note. Provide at least one field " +
+        "besides id. Returns the updated entry.",
+      inputSchema: {
+        id: z.cuid().describe("The food entry id to edit."),
+        // The canonical update schema's fields (single source of truth with the
+        // PATCH /api/food/entries/[id] route).
+        quantity_g: updateFoodEntrySchema.shape.quantityG.describe(
+          "New amount in grams (positive, ≤ 5000) — rescales the snapshot.",
+        ),
+        meal: updateFoodEntrySchema.shape.meal.describe(
+          "Move to this meal slot; null moves it to the 'Other' group.",
+        ),
+        notes: updateFoodEntrySchema.shape.notes.describe(
+          "Replace the note; null clears it.",
+        ),
+      },
+    },
+    ({ id, quantity_g, meal, notes }) =>
+      run(() => updateFoodEntry(id, { quantityG: quantity_g, meal, notes })),
+  );
+
+  server.registerTool(
+    "delete_food_entry",
+    {
+      description:
+        "Delete ONE mistaken food entry by id — get ids from search_food_log. " +
+        "Removes that entry's macros/caffeine from the day's totals. Single-entry " +
+        "correction only; there is deliberately no bulk delete. Not undoable — " +
+        "re-log via log_food/log_meal if deleted in error.",
+      inputSchema: {
+        id: z.cuid().describe("The food entry id to delete."),
+      },
+    },
+    ({ id }) =>
+      run(async () => {
+        await deleteEntry(id);
+        return { deleted: true, id };
+      }),
+  );
+
+  server.registerTool(
     "log_meal",
     {
       description:
@@ -419,118 +892,229 @@ export function registerFoodTools(server: McpServer): void {
           .describe("How many portions this recipe makes (positive)."),
         notes: z.string().optional().describe("Optional notes."),
         items: z
-          .array(
-            z.object({
-              barcode: z
-                .string()
-                .optional()
-                .describe("Numeric barcode of an OFF product."),
-              custom_food_name: z
-                .string()
-                .optional()
-                .describe("Name of a saved custom food."),
-              name: z
-                .string()
-                .optional()
-                .describe("Free-typed item name (provide kcal + macros)."),
-              child_meal_name: z
-                .string()
-                .optional()
-                .describe("Name of another saved meal to nest."),
-              quantity_g: z
-                .number()
-                .optional()
-                .describe("Grams (for barcode / custom_food_name / free-typed name)."),
-              child_portions: z
-                .number()
-                .optional()
-                .describe("Sub-meal portions (for child_meal_name)."),
-              kcal: z
-                .number()
-                .optional()
-                .describe("Calories (required for a free-typed name item)."),
-              protein_g: z.number().optional().describe("Protein grams."),
-              carb_g: z.number().optional().describe("Carbohydrate grams."),
-              fat_g: z.number().optional().describe("Fat grams."),
-              fiber_g: z.number().optional().describe("Fiber grams."),
-              sugar_g: z.number().optional().describe("Sugar grams."),
-              salt_g: z.number().optional().describe("Salt grams."),
-              caffeine_mg: z
-                .number()
-                .optional()
-                .describe(
-                  "Caffeine mg for a free-typed item; barcode/custom-food/child-meal " +
-                    "items inherit caffeine from their source.",
-                ),
-            }),
-          )
+          .array(mealItemToolSchema)
           .describe("Ingredients — exactly one source per item."),
       },
     },
     ({ name, yield_portions, notes, items }) =>
       run(async () => {
-        const resolvedItems: MealItemInput[] = [];
-        for (const it of items) {
-          if (it.barcode != null) {
-            resolvedItems.push({ barcode: it.barcode, quantityG: it.quantity_g });
-          } else if (it.custom_food_name != null) {
-            const cfn = it.custom_food_name;
-            const resolved = await resolveCustomFoodByName(cfn);
-            if (!("food" in resolved)) {
-              return {
-                created: false,
-                message:
-                  resolved.candidates.length === 0
-                    ? `no custom food matches "${cfn}"`
-                    : `multiple custom foods match "${cfn}"; use an exact name`,
-                candidates: resolved.candidates,
-              };
-            }
-            resolvedItems.push({
-              customFoodId: resolved.food.id,
-              quantityG: it.quantity_g,
-            });
-          } else if (it.child_meal_name != null) {
-            const resolved = await resolveMealByName(it.child_meal_name);
-            if (!("meal" in resolved)) {
-              return {
-                created: false,
-                message:
-                  resolved.candidates.length === 0
-                    ? `no meal matches "${it.child_meal_name}"`
-                    : `multiple meals match "${it.child_meal_name}"; use an exact name`,
-                candidates: resolved.candidates,
-              };
-            }
-            resolvedItems.push({
-              childMealId: resolved.meal.id,
-              childPortions: it.child_portions,
-            });
-          } else if (it.name != null) {
-            resolvedItems.push({
-              customName: it.name,
-              quantityG: it.quantity_g,
-              kcal: it.kcal,
-              proteinG: it.protein_g,
-              carbG: it.carb_g,
-              fatG: it.fat_g,
-              fiberG: it.fiber_g,
-              sugarG: it.sugar_g,
-              saltG: it.salt_g,
-              caffeineMg: it.caffeine_mg,
-            });
-          } else {
-            throw new DomainError(
-              "each item needs a barcode, custom_food_name, name, or child_meal_name",
-            );
-          }
+        const resolved = await resolveMealItemInputs(items);
+        if (!resolved.ok) {
+          return {
+            created: false,
+            message: resolved.message,
+            candidates: resolved.candidates,
+          };
         }
         return await createMeal({
           name,
           yieldPortions: yield_portions,
           notes,
-          items: resolvedItems,
+          items: resolved.items,
         });
+      }),
+  );
+
+  server.registerTool(
+    "update_meal",
+    {
+      description:
+        "FULL REPLACE of a saved meal (recipe) — read its current state first " +
+        "(list_meals shows names; the meal's items are re-resolved from what you " +
+        "send), then send the COMPLETE new definition: name, yield_portions, " +
+        "notes and the ENTIRE item list (anything omitted is gone). Target " +
+        "exactly one of id / meal; an ambiguous name returns { ambiguous: true, " +
+        "candidates } and saves NOTHING, as does an unknown/ambiguous item name. " +
+        "Per-portion macros are re-snapshotted from each item's CURRENT source. " +
+        "Past diary entries keep their logged snapshots — editing a recipe never " +
+        "rewrites history.",
+      inputSchema: {
+        id: z.cuid().optional().describe("Meal id (exactly one of id / meal)."),
+        meal: z
+          .string()
+          .min(1)
+          .optional()
+          .describe(
+            "Name of the saved meal to update (case-insensitive; active meals only).",
+          ),
+        name: z
+          .string()
+          .describe("The meal's name — send even if unchanged (full replace)."),
+        yield_portions: z
+          .number()
+          .describe("How many portions the recipe makes (positive)."),
+        notes: z
+          .string()
+          .optional()
+          .describe("Notes; omitting clears them (full replace)."),
+        items: z
+          .array(mealItemToolSchema)
+          .describe(
+            "The COMPLETE new ingredient list — exactly one source per item.",
+          ),
+      },
+    },
+    ({ id, meal, name, yield_portions, notes, items }) =>
+      run(async () => {
+        const target = await resolveMealTarget(id, meal);
+        if ("ambiguous" in target) return target;
+        const resolved = await resolveMealItemInputs(items);
+        if (!resolved.ok) {
+          return {
+            updated: false,
+            message: resolved.message,
+            candidates: resolved.candidates,
+          };
+        }
+        return await updateMeal(target.id, {
+          name,
+          yieldPortions: yield_portions,
+          notes,
+          items: resolved.items,
+        });
+      }),
+  );
+
+  server.registerTool(
+    "archive_meal",
+    {
+      description:
+        "Archive a saved meal (hide it from list_meals, log_meal and name " +
+        "resolution — never deletes; past diary entries are untouched), or " +
+        "restore it with archived: false. Target exactly one of id / meal. " +
+        "Restoring is id-ONLY: the name resolver excludes archived meals, so get " +
+        "the id from list_meals with include_archived: true.",
+      inputSchema: {
+        id: z.cuid().optional().describe("Meal id (exactly one of id / meal)."),
+        meal: z
+          .string()
+          .min(1)
+          .optional()
+          .describe("Name of the saved meal (active meals only)."),
+        archived: archiveMealSchema.shape.archived.describe(
+          "true (default) archives; false restores (requires id).",
+        ),
+      },
+    },
+    ({ id, meal, archived }) =>
+      run(async () => {
+        const target = await resolveMealTarget(id, meal);
+        if ("ambiguous" in target) return target;
+        return setMealArchived(target.id, archived);
+      }),
+  );
+
+  server.registerTool(
+    "create_daily_plan",
+    {
+      description:
+        'Save a reusable daily plan — a named set of food/meal items eaten on a ' +
+        'typical day (e.g. "Workday"). Each item has exactly one source: barcode ' +
+        "(OFF product, with quantity_g), custom_food_name (a saved custom food, " +
+        "with quantity_g), or meal_name (a saved meal, with portions), plus an " +
+        "optional meal_slot. Names are resolved now but items are stored as pure " +
+        "REFERENCES — applying re-resolves their macros fresh each time (no " +
+        "snapshot until logged). An unknown/ambiguous name returns candidates and " +
+        "saves NOTHING. Does NOT log anything — use apply_daily_plan.",
+      inputSchema: {
+        name: z.string().describe("Name of the plan (must be unique)."),
+        notes: z.string().optional().describe("Optional notes."),
+        items: z
+          .array(dailyPlanItemToolSchema)
+          .describe("The plan's items — exactly one source per item."),
+      },
+    },
+    ({ name, notes, items }) =>
+      run(async () => {
+        const resolved = await resolveDailyPlanItemInputs(items);
+        if (!resolved.ok) {
+          return {
+            created: false,
+            message: resolved.message,
+            candidates: resolved.candidates,
+          };
+        }
+        return await createDailyPlan({ name, notes, items: resolved.items });
+      }),
+  );
+
+  server.registerTool(
+    "update_daily_plan",
+    {
+      description:
+        "FULL REPLACE of a saved daily plan — read its current state first " +
+        "(list_daily_plans), then send the COMPLETE new definition: name, notes " +
+        "and the ENTIRE item list (anything omitted is gone). Target exactly one " +
+        "of id / plan; an ambiguous plan or item name returns candidates and " +
+        "saves NOTHING. Items stay pure references — future apply_daily_plan " +
+        "calls re-resolve them; already-applied diary entries are untouched.",
+      inputSchema: {
+        id: z.cuid().optional().describe("Plan id (exactly one of id / plan)."),
+        plan: z
+          .string()
+          .min(1)
+          .optional()
+          .describe(
+            "Name of the saved plan to update (case-insensitive; active plans only).",
+          ),
+        name: z
+          .string()
+          .describe("The plan's name — send even if unchanged (full replace)."),
+        notes: z
+          .string()
+          .optional()
+          .describe("Notes; omitting clears them (full replace)."),
+        items: z
+          .array(dailyPlanItemToolSchema)
+          .describe("The COMPLETE new item list — exactly one source per item."),
+      },
+    },
+    ({ id, plan, name, notes, items }) =>
+      run(async () => {
+        const target = await resolveDailyPlanTarget(id, plan);
+        if ("ambiguous" in target) return target;
+        const resolved = await resolveDailyPlanItemInputs(items);
+        if (!resolved.ok) {
+          return {
+            updated: false,
+            message: resolved.message,
+            candidates: resolved.candidates,
+          };
+        }
+        return await updateDailyPlan(target.id, {
+          name,
+          notes,
+          items: resolved.items,
+        });
+      }),
+  );
+
+  server.registerTool(
+    "archive_daily_plan",
+    {
+      description:
+        "Archive a saved daily plan (hide it from list_daily_plans and " +
+        "apply_daily_plan — never deletes; already-applied diary entries are " +
+        "untouched), or restore it with archived: false. Target exactly one of " +
+        "id / plan. Restoring is id-ONLY: the name resolver excludes archived " +
+        "plans, so get the id from list_daily_plans with include_archived: true.",
+      inputSchema: {
+        id: z.cuid().optional().describe("Plan id (exactly one of id / plan)."),
+        plan: z
+          .string()
+          .min(1)
+          .optional()
+          .describe("Name of the saved plan (active plans only)."),
+        archived: archiveDailyPlanSchema.shape.archived.describe(
+          "true (default) archives; false restores (requires id).",
+        ),
+      },
+    },
+    ({ id, plan, archived }) =>
+      run(async () => {
+        const target = await resolveDailyPlanTarget(id, plan);
+        if ("ambiguous" in target) return target;
+        return setDailyPlanArchived(target.id, archived);
       }),
   );
 }

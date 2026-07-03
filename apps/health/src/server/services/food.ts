@@ -707,7 +707,9 @@ export async function updateFoodEntry(
   }
 }
 
-/** Delete an entry. UI-only — the MCP layer will not expose this. */
+/** Delete ONE diary entry by id — a single-entry correction, exposed in the UI
+ *  and over MCP (delete_food_entry). Bulk deletes stay unexposed everywhere.
+ *  NotFound → 404. */
 export async function deleteEntry(id: string): Promise<void> {
   try {
     await prisma.foodEntry.delete({ where: { id } });
