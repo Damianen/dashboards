@@ -3,7 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { delJSON } from "@/lib/fetcher";
+import { delJSON, httpErrorMessage } from "@/lib/fetcher";
 import type { FoodEntryDTO, FoodEntryView } from "@/lib/food";
 import { queryKeys } from "@/lib/hooks/keys";
 import {
@@ -42,9 +42,9 @@ export function useDeleteFoodEntry(day: string) {
 
       return { prevEntries, prevSummary };
     },
-    onError: (_err, _entry, ctx) => {
+    onError: (err, _entry, ctx) => {
       rollbackDiary(qc, day, ctx);
-      toast.error("Couldn't delete entry");
+      toast.error(httpErrorMessage(err, "Couldn't delete entry"));
     },
     onSuccess: () => {
       toast.success("Entry deleted");

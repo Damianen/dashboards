@@ -3,7 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { postJSON } from "@/lib/fetcher";
+import { httpErrorMessage, postJSON } from "@/lib/fetcher";
 import { queryKeys } from "@/lib/hooks/keys";
 import type { ApplyDailyPlanResult } from "@/server/services/dailyPlans";
 
@@ -49,6 +49,6 @@ export function useApplyDailyPlan() {
       // Plan items log through logFood, which reshuffles the recents strip.
       void qc.invalidateQueries({ queryKey: queryKeys.foodRecentPrefix() });
     },
-    onError: () => toast.error("Couldn't apply plan"),
+    onError: (err) => toast.error(httpErrorMessage(err, "Couldn't apply plan")),
   });
 }

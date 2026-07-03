@@ -7,7 +7,13 @@ import {
 } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { getJSON, HttpError, postJSON, putJSON } from "@/lib/fetcher";
+import {
+  getJSON,
+  HttpError,
+  httpErrorMessage,
+  postJSON,
+  putJSON,
+} from "@/lib/fetcher";
 import { queryKeys } from "@/lib/hooks/keys";
 import { useArchiveToggle } from "@/lib/hooks/use-archive-toggle";
 import type { CreateTemplateInput } from "@/lib/schemas/template";
@@ -138,7 +144,8 @@ export function useDuplicateTemplate() {
   return useMutation({
     mutationFn: (id: string) =>
       postJSON<TemplateDTO>(`/api/lifting/templates/${id}/duplicate`, {}),
-    onError: () => toast.error("Couldn't duplicate template"),
+    onError: (err) =>
+      toast.error(httpErrorMessage(err, "Couldn't duplicate template")),
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.templates() });
     },
@@ -166,6 +173,7 @@ export function useStartFromTemplate() {
       void qc.invalidateQueries({ queryKey: queryKeys.lifting() });
       void qc.invalidateQueries({ queryKey: queryKeys.summary(session.day) });
     },
-    onError: () => toast.error("Couldn't start workout"),
+    onError: (err) =>
+      toast.error(httpErrorMessage(err, "Couldn't start workout")),
   });
 }

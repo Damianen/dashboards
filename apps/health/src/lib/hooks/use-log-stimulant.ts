@@ -3,7 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { postJSON } from "@/lib/fetcher";
+import { httpErrorMessage, postJSON } from "@/lib/fetcher";
 import { queryKeys } from "@/lib/hooks/keys";
 import {
   applyOptimisticSummary,
@@ -35,9 +35,9 @@ export function useLogStimulant(day: string) {
       }));
       return { previous };
     },
-    onError: (_err, _input, ctx) => {
+    onError: (err, _input, ctx) => {
       rollbackSummary(qc, day, ctx?.previous);
-      toast.error("Couldn't log stimulant");
+      toast.error(httpErrorMessage(err, "Couldn't log stimulant"));
     },
     onSuccess: ({ entry, waterTargetMl }, input) => {
       // waterTargetMl is server-computed (the formula lives only on the server),

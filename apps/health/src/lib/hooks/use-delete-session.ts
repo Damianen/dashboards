@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
-import { del } from "@/lib/fetcher";
+import { del, httpErrorMessage } from "@/lib/fetcher";
 import { queryKeys } from "@/lib/hooks/keys";
 
 /**
@@ -24,6 +24,7 @@ export function useDeleteSession(sessionId: string, day: string) {
       void qc.invalidateQueries({ queryKey: queryKeys.summary(day) });
       router.push("/lifting");
     },
-    onError: () => toast.error("Couldn't delete session"),
+    onError: (err) =>
+      toast.error(httpErrorMessage(err, "Couldn't delete session")),
   });
 }

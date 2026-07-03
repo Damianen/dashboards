@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { getJSON, patchJSON } from "@/lib/fetcher";
+import { getJSON, httpErrorMessage, patchJSON } from "@/lib/fetcher";
 import { queryKeys } from "@/lib/hooks/keys";
 import type { TdeeWindow } from "@/lib/schemas/insights";
 // Type-only import: erased at build time, so no server code is bundled.
@@ -33,7 +33,8 @@ export function useSetTdeeWindow() {
   return useMutation({
     mutationFn: (windowDays: TdeeWindow) =>
       patchJSON<{ windowDays: TdeeWindow }>("/api/insights/tdee", { windowDays }),
-    onError: () => toast.error("Couldn't save the window"),
+    onError: (err) =>
+      toast.error(httpErrorMessage(err, "Couldn't save the window")),
     // tdee(0) is the "server default" query — a new default must refetch it too.
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.tdeePrefix() });

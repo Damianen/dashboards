@@ -3,7 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { postJSON } from "@/lib/fetcher";
+import { httpErrorMessage, postJSON } from "@/lib/fetcher";
 import { invalidateAfterSync, queryKeys } from "@/lib/hooks/keys";
 
 /** The shared shape returned by the per-provider sync routes (Oura, Withings). */
@@ -43,7 +43,8 @@ export function useSyncProvider(provider: string, label: string) {
         toast.error(`${label} sync failed`, { description: result.error });
       }
     },
-    onError: () => toast.error(`Couldn't reach ${label}`),
+    onError: (err) =>
+      toast.error(httpErrorMessage(err, `Couldn't reach ${label}`)),
     onSettled: () => {
       qc.invalidateQueries({ queryKey: queryKeys.syncStatus() });
       qc.invalidateQueries({ queryKey: queryKeys.connections() });

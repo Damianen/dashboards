@@ -3,7 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { putJSON } from "@/lib/fetcher";
+import { httpErrorMessage, putJSON } from "@/lib/fetcher";
 import { queryKeys } from "@/lib/hooks/keys";
 import type { UpdateCustomFoodInput } from "@/lib/schemas/food";
 
@@ -17,7 +17,8 @@ export function useUpdateCustomFood(id: string) {
     mutationFn: (input: UpdateCustomFoodInput) =>
       putJSON<{ id: string }>(`/api/food/custom/${id}`, input),
     onSuccess: () => toast.success("Food updated"),
-    onError: () => toast.error("Couldn't update the food"),
+    onError: (err) =>
+      toast.error(httpErrorMessage(err, "Couldn't update the food")),
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.customFoods() });
       // The re-log strip scales macros (incl. the caffeine override it sends)

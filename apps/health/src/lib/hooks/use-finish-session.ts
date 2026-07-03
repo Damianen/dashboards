@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
-import { postJSON } from "@/lib/fetcher";
+import { httpErrorMessage, postJSON } from "@/lib/fetcher";
 import { queryKeys } from "@/lib/hooks/keys";
 
 /**
@@ -35,7 +35,8 @@ export function useFinishSession(sessionId: string, day: string) {
       // from the /lifting list.
       router.push(`/lifting/sessions/${sessionId}`);
     },
-    onError: () => toast.error("Couldn't reopen workout"),
+    onError: (err) =>
+      toast.error(httpErrorMessage(err, "Couldn't reopen workout")),
   });
 
   const finish = useMutation({
@@ -48,7 +49,8 @@ export function useFinishSession(sessionId: string, day: string) {
       invalidate();
       router.push("/lifting");
     },
-    onError: () => toast.error("Couldn't finish workout"),
+    onError: (err) =>
+      toast.error(httpErrorMessage(err, "Couldn't finish workout")),
   });
 
   return { finish, unfinish };

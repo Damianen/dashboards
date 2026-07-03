@@ -3,7 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { patchJSON } from "@/lib/fetcher";
+import { httpErrorMessage, patchJSON } from "@/lib/fetcher";
 import { queryKeys } from "@/lib/hooks/keys";
 import type { UpdateSetInput } from "@/lib/schemas/lifting";
 
@@ -24,7 +24,7 @@ export function useUpdateSet(day: string, sessionId?: string) {
   return useMutation({
     mutationFn: ({ id, input }: UpdateVars) =>
       patchJSON(`/api/lifting/sets/${id}`, input),
-    onError: () => toast.error("Couldn't update set"),
+    onError: (err) => toast.error(httpErrorMessage(err, "Couldn't update set")),
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.lifting() });
       void qc.invalidateQueries({ queryKey: queryKeys.summary(day) });
