@@ -4,7 +4,9 @@ import { registerAdminTools } from "./tools/admin";
 import { registerFoodTools } from "./tools/food";
 import { registerInsightsTools } from "./tools/insights";
 import { registerLiftingTools } from "./tools/lifting";
+import { registerSettingsTools } from "./tools/settings";
 import { registerTrackingTools } from "./tools/tracking";
+import { registerWorkoutsTools } from "./tools/workouts";
 
 /**
  * A fresh MCP server with every health tool registered. Tools are thin wrappers over
@@ -19,6 +21,8 @@ export function buildServer(): McpServer {
   registerTrackingTools(server);
   registerFoodTools(server);
   registerLiftingTools(server);
+  registerWorkoutsTools(server);
+  registerSettingsTools(server);
   registerAdminTools(server);
 
   return server;
