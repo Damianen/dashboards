@@ -8,8 +8,8 @@ import { deleteWaterEntry, getWaterStatus, listWaterByDay } from "./water";
 
 const getDailySummary =
   vi.fn<(day?: string) => Promise<DailySummary | null>>();
-const settingFindUnique =
-  vi.fn<(args: unknown) => Promise<{ value: unknown } | null>>();
+const settingFindMany =
+  vi.fn<(args: unknown) => Promise<{ key: string; value: unknown }[]>>();
 const waterEntryCreate = vi.fn<(args: unknown) => Promise<unknown>>();
 const waterEntryFindMany = vi.fn<(args: unknown) => Promise<unknown[]>>();
 const waterEntryDelete = vi.fn<(args: unknown) => Promise<unknown>>();
@@ -17,9 +17,11 @@ const waterEntryDelete = vi.fn<(args: unknown) => Promise<unknown>>();
 vi.mock("./summary", () => ({
   getDailySummary: (day?: string) => getDailySummary(day),
 }));
+// The base-target fallback reads through the settings service, which queries the
+// two water keys in one findMany.
 vi.mock("@/server/db", () => ({
   prisma: {
-    setting: { findUnique: (args: unknown) => settingFindUnique(args) },
+    setting: { findMany: (args: unknown) => settingFindMany(args) },
     waterEntry: {
       create: (args: unknown) => waterEntryCreate(args),
       findMany: (args: unknown) => waterEntryFindMany(args),
@@ -72,7 +74,7 @@ function summaryRow(overrides: Partial<DailySummary>): DailySummary {
 beforeEach(() => {
   vi.clearAllMocks();
   getDailySummary.mockResolvedValue(null);
-  settingFindUnique.mockResolvedValue(null);
+  settingFindMany.mockResolvedValue([]);
   waterEntryFindMany.mockResolvedValue([]);
 });
 
@@ -126,11 +128,13 @@ describe("getWaterStatus", () => {
       remainingMl: 1500,
     });
     expect(getDailySummary).toHaveBeenCalledWith("2026-07-01");
-    expect(settingFindUnique).not.toHaveBeenCalled();
+    expect(settingFindMany).not.toHaveBeenCalled();
   });
 
   it("falls back to the stored base target (with zero intake) when the day has no summary row", async () => {
-    settingFindUnique.mockResolvedValue({ value: 3000 });
+    settingFindMany.mockResolvedValue([
+      { key: "water.baseTargetMl", value: 3000 },
+    ]);
 
     const status = await getWaterStatus("2026-07-01");
 
@@ -140,8 +144,10 @@ describe("getWaterStatus", () => {
       waterMl: 0,
       remainingMl: 3000,
     });
-    expect(settingFindUnique).toHaveBeenCalledWith({
-      where: { key: "water.baseTargetMl" },
+    expect(settingFindMany).toHaveBeenCalledWith({
+      where: {
+        key: { in: ["water.baseTargetMl", "water.mlPerMgStimulant"] },
+      },
     });
   });
 

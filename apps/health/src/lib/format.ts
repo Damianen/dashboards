@@ -67,6 +67,27 @@ export function dateLabel(day: string): string {
 }
 
 /**
+ * Short weekday label for a civil day, e.g. "Thu 2 Jul" (en-GB) — the compact
+ * sibling of dateLabel for list rows. Same LOCAL-midnight parse on purpose:
+ * local midnight of `day` always prints as `day` in any browser zone.
+ */
+export function dayLabelShort(day: string): string {
+  return new Date(`${day}T00:00:00`).toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
+}
+
+/** Wall-clock "HH:MM" (en-GB, 24h) of an ISO instant, in the viewer's zone. */
+export function timeLabel(iso: string): string {
+  return new Date(iso).toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+/**
  * Heading for a day pager: "Today" / "Yesterday" / dateLabel(day). `today` is
  * injected (todayLocal() at call sites) so the function stays pure.
  */

@@ -4,15 +4,8 @@ import { ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/today/metric-card";
-import { formatNumber } from "@/lib/format";
+import { formatNumber, timeLabel } from "@/lib/format";
 import type { SessionDTO } from "@/lib/hooks/use-lifting-sessions";
-
-function timeLabel(iso: string): string {
-  return new Date(iso).toLocaleTimeString("en-GB", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 /** Today's session(s) as tappable cards that open the detailed session view (the
  *  active workout, with planned-vs-actual progress). More than one appears only
