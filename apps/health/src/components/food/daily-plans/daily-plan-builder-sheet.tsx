@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, X } from "lucide-react";
+import { Plus } from "lucide-react";
 import { toast } from "sonner";
 
+import { BuilderItemRow, Stat } from "@/components/food/builder-parts";
 import { DailyPlanItemPicker } from "@/components/food/daily-plans/daily-plan-item-picker";
 import {
   FoodDialog,
@@ -14,7 +15,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Segmented } from "@/components/ui/segmented";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Stepper } from "@/components/ui/stepper";
 import {
   itemContribution,
   type PlanBuilderItem,
@@ -37,15 +37,6 @@ interface BuilderInitial {
 }
 
 const EMPTY: BuilderInitial = { name: "", notes: "", items: [] };
-
-function Stat({ value, label }: { value: string; label: string }) {
-  return (
-    <div className="text-center">
-      <div className="font-semibold tabular-nums">{value}</div>
-      <div className="text-muted-foreground text-[10px] uppercase">{label}</div>
-    </div>
-  );
-}
 
 /**
  * Create or edit a daily plan. In edit mode the plan's detail is loaded, then the form
@@ -200,25 +191,32 @@ function DailyPlanBuilderForm({
         ) : (
           <ul className="space-y-2">
             {items.map((item) => (
-              <ItemRow
+              <BuilderItemRow
                 key={item.key}
-                item={item}
+                name={item.name}
+                kcal={itemContribution(item).kcal ?? 0}
+                amount={item.amount}
+                unit={item.source.kind === "meal" ? "portions" : "grams"}
                 onAmount={(amount) =>
                   setItems((cur) =>
                     cur.map((i) => (i.key === item.key ? { ...i, amount } : i)),
                   )
                 }
-                onSlot={(mealSlot) =>
-                  setItems((cur) =>
-                    cur.map((i) =>
-                      i.key === item.key ? { ...i, mealSlot } : i,
-                    ),
-                  )
-                }
                 onRemove={() =>
                   setItems((cur) => cur.filter((i) => i.key !== item.key))
                 }
-              />
+              >
+                <ItemSlotPicker
+                  value={item.mealSlot}
+                  onChange={(mealSlot) =>
+                    setItems((cur) =>
+                      cur.map((i) =>
+                        i.key === item.key ? { ...i, mealSlot } : i,
+                      ),
+                    )
+                  }
+                />
+              </BuilderItemRow>
             ))}
           </ul>
         )}
@@ -276,52 +274,6 @@ function DailyPlanBuilderForm({
         </Button>
       )}
     </>
-  );
-}
-
-function ItemRow({
-  item,
-  onAmount,
-  onSlot,
-  onRemove,
-}: {
-  item: PlanBuilderItem;
-  onAmount: (amount: number) => void;
-  onSlot: (slot: MealSlot | null) => void;
-  onRemove: () => void;
-}) {
-  const contribution = itemContribution(item);
-  const isPortions = item.source.kind === "meal";
-
-  return (
-    <li className="bg-background space-y-2 rounded-md border p-2">
-      <div className="flex items-center justify-between gap-2">
-        <div className="min-w-0">
-          <div className="truncate text-sm font-medium">{item.name}</div>
-          <div className="text-muted-foreground text-xs tabular-nums">
-            {formatNumber(contribution.kcal ?? 0)} kcal
-          </div>
-        </div>
-        <button
-          type="button"
-          aria-label={`Remove ${item.name}`}
-          onClick={onRemove}
-          className="hover:bg-accent flex size-8 shrink-0 items-center justify-center rounded-md transition-colors"
-        >
-          <X className="size-4" aria-hidden />
-        </button>
-      </div>
-      <Stepper
-        label={isPortions ? "portions" : "grams"}
-        value={item.amount}
-        onChange={onAmount}
-        step={isPortions ? 0.5 : 10}
-        min={isPortions ? 0.5 : 1}
-        max={isPortions ? 9999 : 5000}
-        inputMode="decimal"
-      />
-      <ItemSlotPicker value={item.mealSlot} onChange={onSlot} />
-    </li>
   );
 }
 
