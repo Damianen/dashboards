@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ChevronLeft, Loader2, Search } from "lucide-react";
 import { toast } from "sonner";
 
+import { useFoodDialogDirty } from "@/components/food/food-dialog";
 import { ScanTab } from "@/components/food/scan-tab";
 import { SearchTab } from "@/components/food/search-tab";
 import { Button } from "@/components/ui/button";
@@ -195,6 +196,9 @@ function ManualItemForm({ onAdd }: { onAdd: (item: BuilderItem) => void }) {
   const [carb, setCarb] = useState("");
   const [fat, setFat] = useState("");
   const [caffeine, setCaffeine] = useState("");
+  useFoodDialogDirty(
+    [name, kcal, protein, carb, fat, caffeine].some((v) => v.trim() !== ""),
+  );
 
   function submit() {
     if (name.trim() === "" || kcal.trim() === "" || Number.isNaN(Number(kcal))) {

@@ -1,10 +1,10 @@
 "use client";
 
+import { FoodDialog } from "@/components/food/food-dialog";
 import { MealLogStep } from "@/components/food/meals/meal-log-step";
-import { BottomSheet } from "@/components/ui/bottom-sheet";
 import type { MealSummary } from "@/server/services/meals";
 
-/** A bottom-sheet wrapper around MealLogStep, opened from the Meals list. */
+/** A dialog wrapper around MealLogStep, opened from the Meals list. */
 export function MealLogSheet({
   open,
   onOpenChange,
@@ -17,16 +17,16 @@ export function MealLogSheet({
   day: string;
 }) {
   return (
-    <BottomSheet
+    <FoodDialog
       open={open}
       onOpenChange={onOpenChange}
       title={meal ? `Log ${meal.name}` : "Log meal"}
       description="Pick a portion amount and log this meal to the diary."
-      bodyClassName="space-y-4 overflow-y-auto"
+      bodyClassName="space-y-4"
     >
       {meal && (
         <MealLogStep meal={meal} day={day} onLogged={() => onOpenChange(false)} />
       )}
-    </BottomSheet>
+    </FoodDialog>
   );
 }

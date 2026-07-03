@@ -5,6 +5,7 @@ import { Camera, ImagePlus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { CONFIDENCE, type Confidence } from "@/components/food/confidence";
+import { useFoodDialogDirty } from "@/components/food/food-dialog";
 import { MealPicker } from "@/components/food/meal-picker";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -41,6 +42,8 @@ export function EstimatePhotoTab({
   const [phase, setPhase] = useState<"capture" | "scanning" | "review">(
     "capture",
   );
+  // Past capture, an in-flight estimate or an unlogged reviewed draft would be lost.
+  useFoodDialogDirty(phase !== "capture");
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
 

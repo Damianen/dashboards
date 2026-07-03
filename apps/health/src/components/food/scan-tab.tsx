@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { BrowserMultiFormatReader, type IScannerControls } from "@zxing/browser";
 import { BarcodeFormat, DecodeHintType } from "@zxing/library";
 
+import { useFoodDialogDirty } from "@/components/food/food-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -30,6 +31,8 @@ export function ScanTab({
 
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [manual, setManual] = useState("");
+  // A half-typed barcode is worth guarding; a merely-running camera is not.
+  useFoodDialogDirty(manual.trim() !== "");
 
   useEffect(() => {
     if (!active) return;

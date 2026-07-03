@@ -2,9 +2,12 @@
 
 import { useState } from "react";
 
+import {
+  FoodDialog,
+  useFoodDialogDirty,
+} from "@/components/food/food-dialog";
 import { MealPicker } from "@/components/food/meal-picker";
 import { PreviewStat } from "@/components/food/preview-stat";
-import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Stepper } from "@/components/ui/stepper";
@@ -37,13 +40,11 @@ export function EditEntrySheet({
   onOpenChange: (open: boolean) => void;
 }) {
   return (
-    <BottomSheet
+    <FoodDialog
       open={open}
       onOpenChange={onOpenChange}
       title="Edit entry"
       description="Adjust the quantity or meal of a logged entry."
-      showTitle
-      titleClassName="text-base font-semibold"
       bodyClassName="space-y-4"
     >
       {entry && (
@@ -54,7 +55,7 @@ export function EditEntrySheet({
           onDone={() => onOpenChange(false)}
         />
       )}
-    </BottomSheet>
+    </FoodDialog>
   );
 }
 
@@ -103,6 +104,7 @@ function EditEntryBody({
   const quantityChanged = canEditQuantity && grams !== entry.quantityG;
   const mealChanged = mealTouched && meal !== entry.meal;
   const dirty = quantityChanged || mealChanged;
+  useFoodDialogDirty(dirty);
 
   function save() {
     const input: UpdateFoodEntryInput = {

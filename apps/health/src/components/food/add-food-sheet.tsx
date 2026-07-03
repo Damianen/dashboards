@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { EstimatePhotoTab } from "@/components/food/estimate-photo-tab";
+import { FoodDialog } from "@/components/food/food-dialog";
 import { MealsAddTab } from "@/components/food/meals/meals-add-tab";
 import { MyFoodsTab } from "@/components/food/my-foods-tab";
 import { QuantityStep } from "@/components/food/quantity-step";
@@ -12,7 +13,6 @@ import { RecentFoodChips } from "@/components/food/recent-foods";
 import { ScanLabelTab } from "@/components/food/scan-label-tab";
 import { ScanTab } from "@/components/food/scan-tab";
 import { SearchTab } from "@/components/food/search-tab";
-import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { Segmented, type SegmentedOption } from "@/components/ui/segmented";
 import { getJSON, HttpError } from "@/lib/fetcher";
 import {
@@ -112,12 +112,15 @@ export function AddFoodSheet({
   const showTabs = !loggable && !looking;
 
   return (
-    <BottomSheet
+    <FoodDialog
       open={open}
       onOpenChange={handleOpenChange}
       title="Add food"
       description="Scan a barcode, search Open Food Facts, or add a custom food."
-      bodyClassName="space-y-4 overflow-y-auto"
+      // A picked or in-lookup food is work worth guarding even before the
+      // quantity step is touched; the tabs report their own fields.
+      dirty={loggable != null || looking}
+      bodyClassName="space-y-4"
     >
       {showTabs && (
         <>
@@ -182,6 +185,6 @@ export function AddFoodSheet({
       ) : (
         <MealsAddTab day={day} onLogged={() => handleOpenChange(false)} />
       )}
-    </BottomSheet>
+    </FoodDialog>
   );
 }
