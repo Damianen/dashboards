@@ -42,3 +42,26 @@ export const waterSettingsSchema = z.strictObject({
   mlPerMgStimulant: z.coerce.number().min(0).max(5),
 });
 export type WaterSettings = z.infer<typeof waterSettingsSchema>;
+
+/**
+ * Goal-feature knobs, one JSON settings row ("goals.settings"). Single source
+ * of truth for the PATCH /api/settings/goals body. Rate caps are % bodyweight
+ * per WEEK, bounded to physiologically sane ranges (the defaults 0.75 loss /
+ * 0.5 gain are already aggressive). The 25%-deficit / 20%-surplus TDEE bounds
+ * are fixed constants in lib/goals, deliberately NOT settings. Per-phase
+ * protein factors feed the adherence target while a goal is ACTIVE. Coerced so
+ * form strings parse.
+ */
+export const goalSettingsSchema = z.strictObject({
+  maxLossPctBwPerWeek: z.coerce.number().min(0.1).max(1.0),
+  maxGainPctBwPerWeek: z.coerce.number().min(0.1).max(0.75),
+  floorKcal: z.coerce.number().int().min(1200).max(3000),
+  adjustmentCapKcal: z.coerce.number().int().min(50).max(500),
+  autoApplyCheckIns: z.boolean(),
+  proteinGPerKg: z.strictObject({
+    cut: z.coerce.number().min(0.1).max(10),
+    maintain: z.coerce.number().min(0.1).max(10),
+    bulk: z.coerce.number().min(0.1).max(10),
+  }),
+});
+export type GoalSettings = z.infer<typeof goalSettingsSchema>;

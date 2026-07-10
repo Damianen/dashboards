@@ -7,6 +7,8 @@ import {
 import {
   BRIEFING_DEFAULTS,
   briefingSettingsFromRows,
+  GOAL_SETTINGS_DEFAULTS,
+  goalSettingsFromRows,
   waterSettingsFromRows,
 } from "./settings";
 
@@ -92,5 +94,44 @@ describe("briefingSettingsFromRows", () => {
     expect(settings.evening).toEqual(storedSchedule.evening);
     expect(settings.modeCutoffHour).toBe(BRIEFING_DEFAULTS.modeCutoffHour);
     expect(settings.thresholds).toEqual(BRIEFING_DEFAULTS.thresholds);
+  });
+});
+
+describe("goalSettingsFromRows", () => {
+  const stored = {
+    maxLossPctBwPerWeek: 0.5,
+    maxGainPctBwPerWeek: 0.25,
+    floorKcal: 1600,
+    adjustmentCapKcal: 100,
+    autoApplyCheckIns: true,
+    proteinGPerKg: { cut: 2.4, maintain: 2.1, bulk: 1.9 },
+  };
+
+  it("returns the defaults when the row is missing", () => {
+    expect(goalSettingsFromRows([])).toEqual(GOAL_SETTINGS_DEFAULTS);
+  });
+
+  it("uses the stored row when it validates", () => {
+    expect(
+      goalSettingsFromRows([{ key: "goals.settings", value: stored }]),
+    ).toEqual(stored);
+  });
+
+  it("falls back wholesale on invalid stored JSON", () => {
+    // Loss cap out of bounds → the whole row is rejected, defaults apply.
+    expect(
+      goalSettingsFromRows([
+        { key: "goals.settings", value: { ...stored, maxLossPctBwPerWeek: 5 } },
+      ]),
+    ).toEqual(GOAL_SETTINGS_DEFAULTS);
+    expect(
+      goalSettingsFromRows([{ key: "goals.settings", value: "corrupt" }]),
+    ).toEqual(GOAL_SETTINGS_DEFAULTS);
+  });
+
+  it("ignores unrelated keys", () => {
+    expect(
+      goalSettingsFromRows([{ key: "protein.gPerKg", value: 2 }]),
+    ).toEqual(GOAL_SETTINGS_DEFAULTS);
   });
 });
