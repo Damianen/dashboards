@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import { SyncStatus } from "@/generated/prisma/client";
 import {
+  checkInProposalMessage,
   eveningBriefingMessage,
   formatLiters,
+  goalCompletionMessage,
   isOkToErrorTransition,
   morningBriefingMessage,
   recoveryHeadsUpMessage,
@@ -188,5 +190,82 @@ describe("eveningBriefingMessage", () => {
 
   it("falls back to a sane body when the headline is empty and nothing is open", () => {
     expect(eveningBriefingMessage("").body).toBe("Your day's recap is ready.");
+  });
+});
+
+describe("checkInProposalMessage", () => {
+  it("frames the proposal as trend vs plan with the target move", () => {
+    const msg = checkInProposalMessage({
+      plannedRateKgWk: -0.5,
+      actualRateKgWk: -0.28,
+      previousTargetKcal: 2150,
+      proposedTargetKcal: 2020,
+    });
+    expect(msg.title).toBe("Weekly goal check-in");
+    expect(msg.body).toBe(
+      "Trend −0.28 kg/wk vs plan −0.50 — proposing 2,150 → 2,020 kcal. Tap to review.",
+    );
+    expect(msg.url).toBe("/goal");
+  });
+
+  it("signs a bulk's rates positively", () => {
+    const msg = checkInProposalMessage({
+      plannedRateKgWk: 0.25,
+      actualRateKgWk: 0.4,
+      previousTargetKcal: 2900,
+      proposedTargetKcal: 2750,
+    });
+    expect(msg.body).toContain("Trend +0.40 kg/wk vs plan +0.25");
+  });
+
+  it("never mentions burn or deficit language", () => {
+    const msg = checkInProposalMessage({
+      plannedRateKgWk: -0.5,
+      actualRateKgWk: -0.7,
+      previousTargetKcal: 2000,
+      proposedTargetKcal: 2150,
+    });
+    for (const banned of ["burn", "deficit", "earned", "calories out"]) {
+      expect(msg.body.toLowerCase()).not.toContain(banned);
+    }
+  });
+});
+
+describe("goalCompletionMessage", () => {
+  it("celebrates a reached trend weight with the maintenance suggestion", () => {
+    const msg = goalCompletionMessage({
+      goalWeightKg: 76,
+      trendReached: true,
+      datePassed: false,
+      suggestedMaintainKcal: 2600,
+    });
+    expect(msg.title).toBe("Goal reached 🎉");
+    expect(msg.body).toBe(
+      "Trend weight hit 76.0 kg — open the goal to complete it. Suggested maintenance ≈ 2,600 kcal (your TDEE).",
+    );
+    expect(msg.url).toBe("/goal");
+  });
+
+  it("handles a passed date without a reached trend", () => {
+    const msg = goalCompletionMessage({
+      goalWeightKg: 76,
+      trendReached: false,
+      datePassed: true,
+      suggestedMaintainKcal: null,
+    });
+    expect(msg.title).toBe("Goal date passed");
+    expect(msg.body).toBe(
+      "Your target date has passed — review the goal to complete or adjust it.",
+    );
+  });
+
+  it("omits the maintenance suggestion on low confidence (never fabricated)", () => {
+    const msg = goalCompletionMessage({
+      goalWeightKg: 80,
+      trendReached: true,
+      datePassed: false,
+      suggestedMaintainKcal: null,
+    });
+    expect(msg.body).not.toContain("maintenance");
   });
 });

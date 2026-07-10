@@ -1,7 +1,9 @@
 import { SyncSource } from "@/generated/prisma/client";
 import { dayToDbDate, shiftDay, timeOfDay, todayLocal } from "@/lib/dates";
 import {
+  checkInProposalMessage,
   eveningBriefingMessage,
+  goalCompletionMessage,
   isOkToErrorTransition,
   morningBriefingMessage,
   recoveryHeadsUpMessage,
@@ -13,6 +15,11 @@ import {
 import { prisma } from "@/server/db";
 import { getAdherence } from "@/server/services/adherence";
 import { getBriefing } from "@/server/services/briefing";
+import {
+  markCompletionNotified,
+  pendingCompletionNotice,
+  runWeeklyCheckIn,
+} from "@/server/services/goals";
 import { getFreshObservation } from "@/server/services/observations";
 import { getRecovery } from "@/server/services/recovery";
 import { sendToAll } from "@/server/services/push";
@@ -27,6 +34,38 @@ const SOURCE_LABELS: Partial<Record<SyncSource, string>> = {
   [SyncSource.OURA]: "Oura",
   [SyncSource.WITHINGS]: "Withings",
 };
+
+/**
+ * Daily goal job (09:30). Two independent, dedupe-safe steps:
+ * 1) The weekly check-in — runWeeklyCheckIn computes the due day itself and
+ *    the unique (goalId, day) row is the dedupe (a daily tick gives downtime
+ *    catch-up). Only a fresh PROPOSED row pushes; the row is domain data and
+ *    persists regardless of push outcome. AUTO_APPLIED and no-op rows are
+ *    silent, and low TDEE confidence means paused: no row, no push.
+ * 2) The completion notice (trend reached the goal / date passed) — pushed
+ *    once per goal, recorded only after a confirmed send (observationDigest's
+ *    record-after-sent convention).
+ */
+export async function goalCheckIns(): Promise<void> {
+  const result = await runWeeklyCheckIn();
+  if (result.proposed && result.checkIn) {
+    await sendToAll(
+      checkInProposalMessage({
+        plannedRateKgWk: result.checkIn.plannedRateKgWk,
+        // PROPOSED rows always carry a measured rate (no-data weeks are no-ops).
+        actualRateKgWk: result.checkIn.actualRateKgWk ?? 0,
+        previousTargetKcal: result.checkIn.previousTargetKcal,
+        proposedTargetKcal: result.checkIn.proposedTargetKcal,
+      }),
+    );
+  }
+
+  const notice = await pendingCompletionNotice();
+  if (notice) {
+    const { sent } = await sendToAll(goalCompletionMessage(notice));
+    if (sent > 0) await markCompletionNotified(notice.goalId);
+  }
+}
 
 /** Evening nudge: if today's water is under target, remind with the litres remaining. */
 export async function waterNudge(): Promise<void> {
