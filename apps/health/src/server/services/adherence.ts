@@ -1,6 +1,8 @@
 import { currentStreak, milestonesReached, proteinTarget } from "@/lib/adherence";
 import { shiftDay, todayLocal } from "@/lib/dates";
+import type { GoalPhase } from "@/lib/goals";
 import { prisma } from "@/server/db";
+import { getActiveGoalTargets } from "@/server/services/goals";
 import {
   getIntakeKcalTarget,
   getProteinGPerKg,
@@ -56,6 +58,9 @@ export interface AdherenceResult {
   protein: ProteinAdherence;
   /** Intake calorie target vs logged intake (intake-only; never netted). */
   calories: CalorieAdherence;
+  /** The ACTIVE goal driving the targets, or null when they come from the
+   *  manual settings. Lets the UI label the target's provenance. */
+  goal: { phase: GoalPhase } | null;
   /** A day counts toward this streak if it has any logged food. */
   foodStreak: StreakView;
   /** A day counts if every currently-active supplement was checked that day. */
@@ -111,26 +116,38 @@ export async function supplementCompleteDays(
  * The adherence snapshot for a day: the protein target (from the latest weight × g/kg) vs the
  * day's logged protein, plus the current food-logging and supplement-completion streaks. The
  * target uses the most recent weight overall, not the requested day's — it's a standing goal,
- * not a per-day historical figure.
+ * not a per-day historical figure. While a goal is ACTIVE, its stored kcal target and phase
+ * protein factor take over from the manual settings (which are never mutated) — still
+ * intake-only targets, never netted against expenditure.
  */
 export async function getAdherence(
   day: string = todayLocal(),
 ): Promise<AdherenceResult> {
   const start = shiftDay(day, -(STREAK_WINDOW_DAYS - 1));
 
-  const [latest, gPerKg, kcalTarget, summary, foodDays, supplementDays] =
-    await Promise.all([
-      prisma.weightMeasurement.findFirst({
-        orderBy: { measuredAt: "desc" },
-        select: { weightKg: true },
-      }),
-      getProteinGPerKg(),
-      getIntakeKcalTarget(),
-      getDailySummary(day),
-      foodLoggedDays(start, day),
-      supplementCompleteDays(start, day),
-    ]);
+  const [
+    latest,
+    gPerKgSetting,
+    kcalTargetSetting,
+    goalTargets,
+    summary,
+    foodDays,
+    supplementDays,
+  ] = await Promise.all([
+    prisma.weightMeasurement.findFirst({
+      orderBy: { measuredAt: "desc" },
+      select: { weightKg: true },
+    }),
+    getProteinGPerKg(),
+    getIntakeKcalTarget(),
+    getActiveGoalTargets(),
+    getDailySummary(day),
+    foodLoggedDays(start, day),
+    supplementCompleteDays(start, day),
+  ]);
 
+  const gPerKg = goalTargets?.proteinGPerKg ?? gPerKgSetting;
+  const kcalTarget = goalTargets?.targetKcal ?? kcalTargetSetting;
   const latestWeightKg = latest ? Number(latest.weightKg) : null;
   const actualG = summary?.proteinG ?? 0;
   const targetG =
@@ -158,6 +175,7 @@ export async function getAdherence(
       remainingKcal,
       pct: kcalPct,
     },
+    goal: goalTargets ? { phase: goalTargets.phase } : null,
     foodStreak: toStreakView(foodDays, day),
     supplementStreak: toStreakView(supplementDays, day),
   };
