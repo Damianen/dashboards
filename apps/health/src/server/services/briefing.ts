@@ -20,6 +20,7 @@ import { shiftDay, timeOfDay, todayLocal } from "@/lib/dates";
 import { round1 } from "@/lib/round";
 import type { BriefingMode, SuggestionThresholds } from "@/lib/schemas/briefing";
 import { getAdherence } from "@/server/services/adherence";
+import { getGoalStatus } from "@/server/services/goals";
 import { listSessions } from "@/server/services/lifting";
 import { getFreshObservation } from "@/server/services/observations";
 import { getRecovery, RECOVERY_CAVEAT } from "@/server/services/recovery";
@@ -135,12 +136,14 @@ export async function getBriefing(
   const sections: BriefingSections = {};
 
   if (resolvedMode === "morning") {
-    const [tdee, priorSummary, nextSession, observation] = await Promise.all([
-      orNull("tdee", () => getTdeeEstimate()),
-      orNull("weight-prior", () => getDailySummary(shiftDay(day, -7))),
-      orNull("rotation", () => getNextSession(day)),
-      orNull("observation", () => getFreshObservation()),
-    ]);
+    const [tdee, priorSummary, nextSession, observation, goalStatus] =
+      await Promise.all([
+        orNull("tdee", () => getTdeeEstimate()),
+        orNull("weight-prior", () => getDailySummary(shiftDay(day, -7))),
+        orNull("rotation", () => getNextSession(day)),
+        orNull("observation", () => getFreshObservation()),
+        orNull("goal", () => getGoalStatus()),
+      ]);
 
     if (sleep) sections.sleep = sleep;
 
@@ -152,6 +155,22 @@ export async function getBriefing(
         intakeKcalTarget: adherence?.calories.targetKcal ?? null,
         tdeeKcal: tdee?.tdee ?? null,
         tdeeConfidence: tdee?.tdee != null ? tdee.confidence : null,
+      };
+    }
+
+    // Only an ACTIVE goal earns a section — its stored target, the phase, and
+    // whether a weekly proposal awaits a decision. Omitted otherwise.
+    if (goalStatus?.goal) {
+      sections.goal = {
+        phase: goalStatus.goal.phase,
+        goalWeightKg: goalStatus.goal.goalWeightKg,
+        trendWeightKg: goalStatus.goal.trendWeightKg,
+        targetKcal: goalStatus.goal.currentTargetKcal,
+        plannedRateKgPerWeek: goalStatus.goal.plannedRateKgPerWeek,
+        paused: goalStatus.goal.paused,
+        pendingCheckIn: goalStatus.checkIns.some(
+          (c) => c.status === "PROPOSED",
+        ),
       };
     }
 

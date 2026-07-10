@@ -6,6 +6,7 @@
 // The suggestion is a HEURISTIC over the user's own trend data, never health or
 // medical advice, and it never blocks or auto-starts anything.
 
+import type { GoalPhase } from "@/lib/goals";
 import { formatLiters } from "@/lib/notifications";
 import type { RecoveryStatus } from "@/lib/recovery";
 import type {
@@ -261,9 +262,25 @@ export interface TomorrowSection extends SuggestedSessionSection {
   prepLine: string | null;
 }
 
+export interface GoalSection {
+  phase: GoalPhase;
+  goalWeightKg: number;
+  trendWeightKg: number | null;
+  /** The STORED daily target (kcal) — possibly frozen under low TDEE confidence.
+   *  Derived from TDEE + weight trend only, never device calories. */
+  targetKcal: number;
+  /** Today's re-derived capped rate; null when paused or past the date. */
+  plannedRateKgPerWeek: number | null;
+  /** Low TDEE confidence: check-ins paused, target frozen. */
+  paused: boolean;
+  /** An undecided weekly proposal awaits a one-tap decision on /goal. */
+  pendingCheckIn: boolean;
+}
+
 export interface BriefingSections {
   sleep?: SleepSection;
   targets?: TargetsSection;
+  goal?: GoalSection;
   session?: SuggestedSessionSection;
   supplements?: SupplementsSection;
   weightTrend?: WeightTrendSection;
