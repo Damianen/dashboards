@@ -1,6 +1,7 @@
 import { BriefingSettingsCard } from "@/components/settings/briefing-settings-card";
 import { CalorieTargetCard } from "@/components/settings/calorie-target-card";
 import { ConnectionsSection } from "@/components/settings/connections-section";
+import { GoalSettingsCard } from "@/components/settings/goal-settings-card";
 import { NotificationsCard } from "@/components/settings/notifications-card";
 import { ProteinTargetCard } from "@/components/settings/protein-card";
 import { RotationCard } from "@/components/settings/rotation-card";
@@ -20,6 +21,7 @@ export default function SettingsPage() {
         <ProteinTargetCard />
         <CalorieTargetCard />
         <WeightGoalCard />
+        <GoalSettingsCard />
         <WaterSettingsCard />
       </section>
       <section className="space-y-3">

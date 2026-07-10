@@ -147,6 +147,59 @@ export function eveningBriefingMessage(
   };
 }
 
+/** "−0.28" / "+0.50" — explicit sign (kg/wk, positive = gaining, lib/tdee). */
+function signedRate(rateKgPerWeek: number): string {
+  const sign = rateKgPerWeek < 0 ? "−" : "+";
+  return `${sign}${Math.abs(rateKgPerWeek).toFixed(2)}`;
+}
+
+/**
+ * The weekly goal check-in proposal push. Weight-trend framing ONLY — the
+ * proposal comes from actual vs planned trend, never from device calories, and
+ * the copy must never mention burn/deficit/earning back (CLAUDE.md).
+ */
+export function checkInProposalMessage(input: {
+  plannedRateKgWk: number;
+  actualRateKgWk: number;
+  previousTargetKcal: number;
+  proposedTargetKcal: number;
+}): NotificationMessage {
+  return {
+    title: "Weekly goal check-in",
+    body: `Trend ${signedRate(input.actualRateKgWk)} kg/wk vs plan ${signedRate(input.plannedRateKgWk)} — proposing ${input.previousTargetKcal.toLocaleString("en-US")} → ${input.proposedTargetKcal.toLocaleString("en-US")} kcal. Tap to review.`,
+    url: "/goal",
+  };
+}
+
+/**
+ * The goal-completion notice: trend reached the goal weight, or the target
+ * date passed. Suggests MAINTAIN at the empirical TDEE when confidence allows
+ * (omitted otherwise — never fabricated). Completing stays a user action.
+ */
+export function goalCompletionMessage(input: {
+  goalWeightKg: number;
+  trendReached: boolean;
+  datePassed: boolean;
+  suggestedMaintainKcal: number | null;
+}): NotificationMessage {
+  const maintain =
+    input.suggestedMaintainKcal == null
+      ? ""
+      : ` Suggested maintenance ≈ ${input.suggestedMaintainKcal.toLocaleString("en-US")} kcal (your TDEE).`;
+  if (input.trendReached) {
+    return {
+      title: "Goal reached 🎉",
+      body: `Trend weight hit ${input.goalWeightKg.toFixed(1)} kg — open the goal to complete it.${maintain}`,
+      url: "/goal",
+    };
+  }
+  return {
+    title: "Goal date passed",
+    body: `Your target date has passed — review the goal to complete or adjust it.${maintain}`,
+    url: "/goal",
+  };
+}
+
 /** Which adherence streak a milestone celebration is for. */
 export type StreakKind = "food" | "supplements";
 

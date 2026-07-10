@@ -3,6 +3,7 @@
 import { Suspense, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
+import { GoalSummaryCard } from "@/components/insights/goal-summary-card";
 import { ObservationHistoryCard } from "@/components/insights/observation-history-card";
 import { ObservationsCard } from "@/components/insights/observations-card";
 import { WeeklyReviewCard } from "@/components/insights/weekly-review-card";
@@ -76,6 +77,8 @@ function InsightsPageInner() {
   return (
     <div className="space-y-4">
       <InsightsHeader view={view} />
+      {/* Above the segment switch: visible in both views (the /goal entry point). */}
+      <GoalSummaryCard />
       <Segmented<InsightsView>
         value={view}
         onChange={setView}

@@ -91,6 +91,13 @@ export const queryKeys = {
   weeklyReview: (weekStart?: string) =>
     ["weekly-review", weekStart ?? "current"] as const,
   weightGoal: () => ["weight-goal"] as const,
+  // The goal-target feature under one ["goal"] prefix: the status read and the
+  // create form's live plan preview (keyed by its raw inputs, foodSearch-style).
+  // One prefix so decisions/creates and landed syncs refresh both at once.
+  goal: () => ["goal"] as const,
+  goalStatus: () => ["goal", "status"] as const,
+  goalPreview: (goalWeightKg: string, targetDate: string) =>
+    ["goal", "preview", goalWeightKg, targetDate] as const,
   // The composed daily briefing, keyed by requested mode ("auto" = resolve by
   // time of day server-side). One prefix so settings saves refresh every mode.
   briefing: (mode: string) => ["briefing", mode] as const,
@@ -115,6 +122,8 @@ export const SYNC_AFFECTED_PREFIXES: readonly (readonly string[])[] = [
   ["recovery"],
   ["tdee"],
   ["weight-goal"],
+  // A landed weigh-in moves the goal's trend, progress and paused state.
+  ["goal"],
   ["observations"],
   // The briefing composes sleep/readiness/recovery/weight — all sync-movable.
   ["briefing"],

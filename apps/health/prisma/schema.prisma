@@ -60,6 +60,25 @@ enum WarmupWeightMode {
   PERCENT
 }
 
+enum GoalPhase {
+  CUT
+  BULK
+  MAINTAIN
+}
+
+enum GoalStatus {
+  ACTIVE
+  COMPLETED
+  ABANDONED
+}
+
+enum CheckInStatus {
+  PROPOSED
+  ACCEPTED
+  AUTO_APPLIED
+  DISMISSED
+}
+
 model WeightMeasurement {
   id           String   @id @default(cuid())
   measuredAt   DateTime @map("measured_at") @db.Timestamptz(6)
@@ -634,4 +653,58 @@ model SyncRun {
 
   @@index([source, startedAt])
   @@map("sync_runs")
+}
+
+// A goal-based calorie target on top of the empirical TDEE. currentTargetKcal is the
+// STORED intake-only target — it keeps displaying frozen when TDEE confidence drops
+// (check-ins pause; nothing is ever fabricated). Derived from logged intake and the
+// measured weight trend ONLY — never device calories, never intake − expenditure
+// (CLAUDE.md). One ACTIVE goal at a time: the service checks first; the partial unique
+// index goals_one_active_idx (hand-written in the migration — Prisma can't express it)
+// is the race backstop. Status only ever changes via explicit completeGoal/abandonGoal.
+model Goal {
+  id                 String     @id @default(cuid())
+  goalWeightKg       Decimal    @map("goal_weight_kg") @db.Decimal(5, 2)
+  targetDate         DateTime   @map("target_date") @db.Date
+  startDate          DateTime   @map("start_date") @db.Date
+  startTrendWeightKg Decimal    @map("start_trend_weight_kg") @db.Decimal(5, 2)
+  phase              GoalPhase
+  currentTargetKcal  Int        @map("current_target_kcal")
+  status             GoalStatus @default(ACTIVE)
+  // Completion-push dedupe: set once the "goal reached / date passed" push actually
+  // reached a device (record-after-sent, the NotifiedObservation convention). Never
+  // gates the UI banner.
+  completionNotifiedAt DateTime? @map("completion_notified_at") @db.Timestamptz(6)
+  createdAt          DateTime   @default(now()) @map("created_at")
+  updatedAt          DateTime   @updatedAt @map("updated_at")
+  checkIns           GoalCheckIn[]
+
+  @@index([status])
+  @@map("goals")
+}
+
+// One weekly check-in per (goal, due day) — the unique key IS the scheduler dedupe.
+// Rates use the lib/tdee sign convention: kg/week, positive = gaining (a cut plans a
+// negative rate). plannedRateKgWk is the capped required rate as of the week's start;
+// actualRateKgWk is the regression over the week's weight_7d_avg series (null when the
+// week had < 2 weigh-in days). Full history is kept — rows are never deleted.
+model GoalCheckIn {
+  id                 String        @id @default(cuid())
+  goalId             String        @map("goal_id")
+  goal               Goal          @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  day                DateTime      @db.Date
+  plannedRateKgWk    Decimal       @map("planned_rate_kg_wk") @db.Decimal(4, 3)
+  actualRateKgWk     Decimal?      @map("actual_rate_kg_wk") @db.Decimal(4, 3)
+  previousTargetKcal Int           @map("previous_target_kcal")
+  proposedTargetKcal Int           @map("proposed_target_kcal")
+  status             CheckInStatus @default(PROPOSED)
+  // Human reason line ("Losing 0.2 kg/wk slower than planned — reduce by 150 kcal").
+  note               String?
+  decidedAt          DateTime?     @map("decided_at") @db.Timestamptz(6)
+  // Who decided an accept/dismiss (PWA | MCP); null for AUTO_APPLIED / system no-ops.
+  decidedVia         EntryOrigin?  @map("decided_via")
+  createdAt          DateTime      @default(now()) @map("created_at")
+
+  @@unique([goalId, day])
+  @@map("goal_check_ins")
 }

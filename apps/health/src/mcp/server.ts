@@ -3,6 +3,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerAdminTools } from "./tools/admin";
 import { registerExportTools } from "./tools/export";
 import { registerFoodTools } from "./tools/food";
+import { registerGoalsTools } from "./tools/goals";
 import { registerInsightsTools } from "./tools/insights";
 import { registerLiftingTools } from "./tools/lifting";
 import { registerSettingsTools } from "./tools/settings";
@@ -19,6 +20,7 @@ export function buildServer(): McpServer {
   const server = new McpServer({ name: "health", version: "0.1.0" });
 
   registerInsightsTools(server);
+  registerGoalsTools(server);
   registerTrackingTools(server);
   registerFoodTools(server);
   registerLiftingTools(server);

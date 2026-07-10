@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
   Apple,
   Coffee,
@@ -12,6 +13,8 @@ import {
   Moon,
   Scale,
 } from "lucide-react";
+
+import { GOAL_PHASE_LABELS } from "@/components/goal/phase";
 
 import { SleepForm } from "@/components/quick-log/sleep-form";
 import { Badge } from "@/components/ui/badge";
@@ -195,11 +198,30 @@ export function IntakeCard({ s, a }: Props & AdherenceProps) {
                   {formatNumber(cal.actualKcal)} / {formatNumber(cal.targetKcal)}{" "}
                   kcal
                 </span>
-                <span className="text-muted-foreground text-xs">
-                  {formatNumber(cal.remainingKcal ?? 0)} to go
-                </span>
+                {a?.goal != null ? (
+                  // Goal-derived target: label its provenance, deep link to the
+                  // goal screen. TDEE + weight trend only — never device kcal.
+                  <Link
+                    href="/goal"
+                    className="text-muted-foreground text-xs underline-offset-2 hover:underline"
+                  >
+                    {GOAL_PHASE_LABELS[a.goal.phase]} ·{" "}
+                    {formatNumber(cal.remainingKcal ?? 0)} to go
+                  </Link>
+                ) : (
+                  <span className="text-muted-foreground text-xs">
+                    {formatNumber(cal.remainingKcal ?? 0)} to go
+                  </span>
+                )}
               </div>
               <Progress percent={clampPercent(cal.actualKcal, cal.targetKcal)} />
+              {a?.goal != null && cal.actualKcal > cal.targetKcal && (
+                // Deliberately neutral (no red, no compensation nudge): the
+                // weekly check-in judges the week, not a single day.
+                <p className="text-muted-foreground text-xs">
+                  Over today — the weekly check-in uses the weekly average.
+                </p>
+              )}
             </div>
           )}
         </div>

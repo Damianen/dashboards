@@ -7,6 +7,8 @@ import {
 } from "@/lib/schemas/briefing";
 import { tdeeWindowSchema, type TdeeWindow } from "@/lib/schemas/insights";
 import {
+  goalSettingsSchema,
+  type GoalSettings,
   intakeTargetSchema,
   proteinSettingSchema,
   waterSettingsSchema,
@@ -211,6 +213,52 @@ export async function getBriefingSettings(): Promise<BriefingSettings> {
     },
   });
   return briefingSettingsFromRows(rows);
+}
+
+// Goal-feature knobs in a single JSON settings row (additive — no migration).
+// The rate caps and floor feed lib/goals' capRate/computeTarget; the per-phase
+// protein factors feed adherence while a goal is ACTIVE; autoApplyCheckIns
+// flips weekly proposals from push-and-accept to silent application.
+const GOAL_SETTINGS_KEY = "goals.settings";
+
+/** Defaults when the row has never been written (or fails validation). */
+export const GOAL_SETTINGS_DEFAULTS: GoalSettings = {
+  maxLossPctBwPerWeek: 0.75,
+  maxGainPctBwPerWeek: 0.5,
+  floorKcal: 1500,
+  adjustmentCapKcal: 150,
+  autoApplyCheckIns: false,
+  proteinGPerKg: { cut: 2.2, maintain: 2.0, bulk: 1.8 },
+};
+
+/** Pure rows→typed coercion for the goal settings, falling back to the defaults
+ *  when unset or somehow invalid (briefingSettingsFromRows' safe-parse pattern). */
+export function goalSettingsFromRows(rows: SettingRow[]): GoalSettings {
+  const row = rows.find((r) => r.key === GOAL_SETTINGS_KEY);
+  const parsed = goalSettingsSchema.safeParse(row?.value);
+  return parsed.success ? parsed.data : GOAL_SETTINGS_DEFAULTS;
+}
+
+/** The stored goal settings, or the defaults when unset. */
+export async function getGoalSettings(): Promise<GoalSettings> {
+  const rows = await prisma.setting.findMany({
+    where: { key: GOAL_SETTINGS_KEY },
+  });
+  return goalSettingsFromRows(rows);
+}
+
+/** Persist the goal settings (one row — inherently atomic). Validates against
+ *  the canonical schema. */
+export async function setGoalSettings(
+  input: GoalSettings,
+): Promise<GoalSettings> {
+  const data = goalSettingsSchema.parse(input);
+  await prisma.setting.upsert({
+    where: { key: GOAL_SETTINGS_KEY },
+    create: { key: GOAL_SETTINGS_KEY, value: data },
+    update: { value: data },
+  });
+  return data;
 }
 
 /** Persist all briefing settings atomically (one transaction across the three

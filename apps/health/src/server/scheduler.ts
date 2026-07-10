@@ -2,6 +2,7 @@ import { Cron } from "croner";
 
 import {
   briefingDispatch,
+  goalCheckIns,
   observationDigest,
   recoveryHeadsUp,
   streakMilestones,
@@ -84,6 +85,12 @@ export function startScheduler(): void {
   new Cron("0 11 * * *", { timezone: TIMEZONE, name: "recovery-headsup" }, () =>
     runNotificationJob("recovery-headsup", recoveryHeadsUp),
   );
+  // 09:30 daily — the weekly goal check-in + completion notice (after the 06:20
+  // Withings sync has landed the morning weigh-in). The job computes the due
+  // day itself; the unique (goalId, day) row dedupes and gives downtime catch-up.
+  new Cron("30 9 * * *", { timezone: TIMEZONE, name: "goal-checkins" }, () =>
+    runNotificationJob("goal-checkins", goalCheckIns),
+  );
   // Every minute — the briefing dispatcher fires each slot once per day at its
   // settings-configured time (see briefingDispatch). `protect` skips a tick
   // while the previous one still runs (the morning tick can wait ~60s on Oura).
@@ -94,6 +101,6 @@ export function startScheduler(): void {
   );
 
   console.log(
-    `[scheduler] started ${SYNC_SOURCES.length + 6} job(s) (${TIMEZONE})`,
+    `[scheduler] started ${SYNC_SOURCES.length + 7} job(s) (${TIMEZONE})`,
   );
 }
