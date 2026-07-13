@@ -1068,7 +1068,12 @@ pattern: table-driven unit tests for pure logic (dates, recurrence, merchant
 normalization, transfer pairing, budget pacing, e1RM, TDEE, token crypto,
 sync-window math), plus service-level integration tests against the `_dev`
 database (`apps/finance/CLAUDE.md` testing section; health service `*.test.ts`
-files). There are no E2E/UI tests and no CI to run any of it automatically.
+files). One test deserves a call-out:
+`apps/health/src/server/services/summary-seam.test.ts` parses the canonical
+`daily_summary` view SQL and pins it against the TS `SUMMARY_COLUMNS` /
+`TREND_COLUMNS` lists and their interfaces, so view/code drift fails a test
+instead of erroring at runtime. There are no E2E/UI tests and no CI to run any
+of it automatically.
 
 **Shared-code policy.** Deliberately duplication-tolerant: the three apps each
 carry their own `dates.ts`, `errors.ts`, MCP auth helper, and `run()` helper
@@ -1208,8 +1213,6 @@ elsewhere in this document.
    `instrumentation.ts:21-23`), but nothing in the code *counts* fetches, and
    manual "Sync now" actions plus scheduler runs are not budgeted together —
    compliance rests on the schedule alone.
-9. **`summary-seam.ts`** (`apps/health/src/server/services/`) — a test-seam
-   module whose name suggests legacy scaffolding; its exact role wasn't traced.
-10. **Vision provider specifics.** The client is provider-agnostic
-    (`VISION_API_BASE_URL/KEY/MODEL`, `docs/ENVIRONMENT.md:218-227`); which
-    provider/model is configured in production is an env fact.
+9. **Vision provider specifics.** The client is provider-agnostic
+   (`VISION_API_BASE_URL/KEY/MODEL`, `docs/ENVIRONMENT.md:218-227`); which
+   provider/model is configured in production is an env fact.
