@@ -109,7 +109,7 @@ flowchart LR
     tasks["apps/tasks :3001"]
     finance["apps/finance :3002"]
     relay["services/oauth-relay :3003"]
-    pg[("PostgreSQL 18\nhealth / tasks / finance DBs")]
+    pg[("PostgreSQL 18<br/>health / tasks / finance DBs")]
   end
 
   subgraph ext["External services"]
